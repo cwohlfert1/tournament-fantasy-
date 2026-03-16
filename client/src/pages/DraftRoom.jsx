@@ -351,7 +351,7 @@ function ManagerRosterCard({ member, picks, currentPicker, userId, hasSmartDraft
 
 // ─── Draft Chat ───────────────────────────────────────────────────────────────
 
-function DraftChat({ leagueId, user, token, members }) {
+function DraftChat({ leagueId, user, token, members, isMobileFull = false }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [typingUsers, setTypingUsers] = useState({});
@@ -447,7 +447,7 @@ function DraftChat({ leagueId, user, token, members }) {
   const typingNames = Object.values(typingUsers);
 
   return (
-    <div className="card overflow-hidden flex flex-col" style={{ height: 400 }}>
+    <div className={`card overflow-hidden flex flex-col ${isMobileFull ? 'flex-1 min-h-0' : ''}`} style={isMobileFull ? {} : { height: 400 }}>
       {/* Header */}
       <div className="px-3 py-2 border-b border-gray-800 shrink-0 flex items-center justify-between">
         <h3 className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
@@ -458,7 +458,7 @@ function DraftChat({ leagueId, user, token, members }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 space-y-3" style={{ WebkitOverflowScrolling: 'touch' }}>
         {messages.length === 0 && (
           <p className="text-center text-gray-600 text-xs py-4">No messages yet. Say something!</p>
         )}
@@ -922,6 +922,18 @@ export default function DraftRoom() {
       .catch(() => {});
   }, [leagueId]);
 
+  // ── Mobile body scroll lock (native app feel) ──────────────────────────────
+  useEffect(() => {
+    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    return () => {
+      document.body.style.overflow = prev;
+      document.body.style.overscrollBehavior = '';
+    };
+  }, []);
+
   const handleSmartDraftCheckout = async () => {
     setSdCheckoutLoading(true);
     try {
@@ -992,6 +1004,9 @@ export default function DraftRoom() {
     return { ...p, team: p.team || cached?.team || '', region: p.region || cached?.region || '' };
   });
 
+  // On mobile, the "Queue" bottom tab forces the queue sub-view in the player panel
+  const effectivePlayerTab = mobilePanel === 'queue' ? 'queue' : playerTab;
+
   // ── Loading / error states ────────────────────────────────────────────────
 
   if (loading) {
@@ -1024,7 +1039,10 @@ export default function DraftRoom() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-[1600px] mx-auto px-3 py-3 pb-20 lg:pb-4">
+    <div className="max-w-[1600px] mx-auto flex flex-col overflow-hidden lg:block lg:h-auto lg:overflow-visible" style={{ height: 'calc(100vh - 64px)' }}>
+
+      {/* ── Fixed top section (shrinks to natural height; flex child) ── */}
+      <div className="shrink-0 px-3 pt-2 lg:px-3 lg:pt-3">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -1176,34 +1194,22 @@ export default function DraftRoom() {
         </div>
       )}
 
-      {/* ── Mobile panel tabs ── */}
-      <div className="flex lg:hidden gap-1 mb-3 bg-gray-900 rounded-lg p-1">
-        {[
-          { id: 'board', label: '🗂 Board' },
-          { id: 'players', label: '👤 Players' },
-          { id: 'teams', label: '📋 Teams' },
-          { id: 'chat', label: '💬 Chat' },
-        ].map(t => (
-          <button key={t.id} onClick={() => setMobilePanel(t.id)}
-            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              mobilePanel === t.id ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-            }`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      </div>{/* end shrink-0 top section */}
 
-      {/* ── Three-panel layout ── */}
-      <div className="lg:grid lg:grid-cols-12 gap-3">
+      {/* ── Content area: flex-1 on mobile, block on desktop ── */}
+      <div className="flex-1 min-h-0 overflow-hidden lg:overflow-visible lg:px-3 lg:mt-3">
+
+      {/* ── Three-panel layout (desktop) + mobile single-panel view ── */}
+      <div className="h-full lg:h-auto lg:grid lg:grid-cols-12 lg:gap-3">
 
         {/* ── LEFT: Draft Board Grid ── */}
-        <div className={`lg:col-span-5 ${mobilePanel !== 'board' ? 'hidden lg:block' : ''}`}>
-          <div className="card overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-gray-800 flex items-center justify-between">
+        <div className={`lg:col-span-5 flex flex-col min-h-0 ${mobilePanel !== 'board' ? 'hidden lg:flex' : 'h-full'}`}>
+          <div className="card overflow-hidden flex flex-col flex-1 min-h-0">
+            <div className="px-3 py-2.5 border-b border-gray-800 flex items-center justify-between shrink-0">
               <h2 className="font-bold text-white text-sm">Draft Board</h2>
               <span className="text-xs text-gray-500">{picks.length} / {totalPicks} picks</span>
             </div>
-            <div className="p-2 overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
+            <div className="p-2 overflow-x-auto overflow-y-auto flex-1 min-h-0 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
               <DraftBoardGrid
                 league={league} members={members} picks={picks}
                 currentPick={currentPick} currentPicker={currentPicker}
@@ -1215,11 +1221,11 @@ export default function DraftRoom() {
         </div>
 
         {/* ── CENTER: Player Pool ── */}
-        <div className={`lg:col-span-4 ${mobilePanel !== 'players' ? 'hidden lg:block' : ''}`}>
-          <div className="card overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 240px)' }}>
-            {/* Player pool tabs */}
+        <div className={`lg:col-span-4 flex flex-col min-h-0 ${mobilePanel !== 'players' && mobilePanel !== 'queue' ? 'hidden lg:flex' : 'h-full'}`}>
+          <div className="card overflow-hidden flex flex-col h-full lg:max-h-[calc(100vh-240px)]">
+            {/* Player pool tabs — desktop only (mobile uses bottom nav) */}
             <div className="px-3 pt-3 pb-2 border-b border-gray-800 shrink-0">
-              <div className="flex gap-1 mb-2">
+              <div className="hidden lg:flex gap-1 mb-2">
                 <button onClick={() => setPlayerTab('available')}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                     playerTab === 'available' ? 'bg-brand-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
@@ -1238,8 +1244,19 @@ export default function DraftRoom() {
                   )}
                 </button>
               </div>
+              {/* Mobile queue header */}
+              {mobilePanel === 'queue' && (
+                <div className="lg:hidden flex items-center gap-2 mb-2">
+                  <span className="text-white font-bold text-sm">My Queue</span>
+                  {queuedPlayers.length > 0 && (
+                    <span className="bg-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                      {queuedPlayers.length}
+                    </span>
+                  )}
+                </div>
+              )}
 
-              {playerTab === 'available' && (
+              {effectivePlayerTab === 'available' && (
                 <>
                   <input type="text" className="input text-xs mb-2 py-1.5"
                     placeholder="Search name or team..." value={search}
@@ -1301,8 +1318,8 @@ export default function DraftRoom() {
             )}
 
             {/* Player list */}
-            <div className="overflow-y-auto flex-1">
-              {playerTab === 'queue' ? (
+            <div className="overflow-y-auto flex-1 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {effectivePlayerTab === 'queue' ? (
                 queuedPlayers.length === 0 ? (
                   <div className="text-center py-10 text-gray-600 text-sm">
                     <div className="text-2xl mb-2">📋</div>
@@ -1468,10 +1485,10 @@ export default function DraftRoom() {
           </div>
         </div>
 
-        {/* ── RIGHT: Ticker + Manager Cards ── */}
-        <div className={`lg:col-span-3 space-y-3 ${mobilePanel !== 'teams' && mobilePanel !== 'chat' ? 'hidden lg:block' : ''}`}>
-          {/* Live ticker */}
-          <div className="card p-3">
+        {/* ── RIGHT: Ticker + Manager Cards + Chat ── */}
+        <div className={`lg:col-span-3 flex flex-col min-h-0 lg:h-auto lg:space-y-3 ${mobilePanel !== 'chat' ? 'hidden lg:flex' : 'h-full'}`}>
+          {/* Live ticker — desktop only */}
+          <div className="hidden lg:block card p-3 shrink-0">
             <h3 className="font-bold text-white text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
               Live Feed
@@ -1479,34 +1496,73 @@ export default function DraftRoom() {
             <PickTicker picks={enrichedPicks} userId={user?.id} />
           </div>
 
-          {/* Manager cards — hidden on mobile when chat tab is active */}
-          <div className={mobilePanel === 'chat' ? 'hidden lg:block' : ''}>
-            <div className="card p-3">
-              <h3 className="font-bold text-white text-xs uppercase tracking-wider mb-2">Teams</h3>
-              <div className="space-y-2 max-h-[30vh] overflow-y-auto">
-                {members.map(m => (
-                  <ManagerRosterCard
-                    key={m.id} member={m} picks={enrichedPicks}
-                    currentPicker={draftComplete ? null : currentPicker}
-                    userId={user?.id}
-                    hasSmartDraft={smartDraftUsers.has(m.user_id)}
-                  />
-                ))}
-              </div>
+          {/* Manager cards — desktop only */}
+          <div className="hidden lg:block card p-3 shrink-0">
+            <h3 className="font-bold text-white text-xs uppercase tracking-wider mb-2">Teams</h3>
+            <div className="space-y-2 max-h-[30vh] overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {members.map(m => (
+                <ManagerRosterCard
+                  key={m.id} member={m} picks={enrichedPicks}
+                  currentPicker={draftComplete ? null : currentPicker}
+                  userId={user?.id}
+                  hasSmartDraft={smartDraftUsers.has(m.user_id)}
+                />
+              ))}
             </div>
           </div>
 
-          {/* Chat panel — always visible on desktop, only on mobile when chat tab active */}
-          <div className={mobilePanel !== 'chat' ? 'hidden lg:block' : ''}>
-            <DraftChat
-              leagueId={leagueId}
-              user={user}
-              token={token}
-              members={members}
-            />
-          </div>
+          {/* Chat panel — full height on mobile, 400px on desktop */}
+          <DraftChat
+            leagueId={leagueId}
+            user={user}
+            token={token}
+            members={members}
+            isMobileFull={mobilePanel === 'chat'}
+          />
         </div>
 
+      </div>{/* end three-panel grid */}
+      </div>{/* end content area */}
+
+      {/* ── Mobile bottom tab bar ── */}
+      <div className="shrink-0 lg:hidden bg-gray-900 border-t border-gray-800" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="flex items-stretch">
+          {[
+            { id: 'players', icon: '🏀', label: 'Players' },
+            { id: 'board',   icon: '🗂',  label: 'Board'   },
+            { id: 'queue',   icon: '⭐',  label: 'Queue'   },
+            { id: 'chat',    icon: '💬',  label: 'Chat'    },
+          ].map(t => {
+            const isActive = mobilePanel === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setMobilePanel(t.id)}
+                className={`relative flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors touch-manipulation ${
+                  isActive ? 'text-brand-400' : 'text-gray-500'
+                }`}
+              >
+                <span className="text-lg leading-none">{t.icon}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wide">{t.label}</span>
+                {/* Your turn pulse on Players tab */}
+                {t.id === 'players' && isMyTurn && !draftComplete && (
+                  <span className="absolute top-1.5 right-[20%] w-2 h-2 bg-brand-500 rounded-full animate-pulse" />
+                )}
+                {/* Queue count badge */}
+                {t.id === 'queue' && queuedPlayers.length > 0 && (
+                  <span className="absolute top-1.5 right-[18%] min-w-[14px] h-3.5 bg-yellow-500 text-black text-[8px] font-black rounded-full flex items-center justify-center px-0.5">
+                    {queuedPlayers.length}
+                  </span>
+                )}
+                {/* Active indicator dot */}
+                {isActive && (
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-brand-400 rounded-t-full" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Pick Confirmation Modal (accidental pick guard) ── */}
