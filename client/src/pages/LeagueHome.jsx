@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import Disclaimer from '../components/Disclaimer';
@@ -45,6 +45,8 @@ export default function LeagueHome() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paymentResult = searchParams.get('payment');
 
   const [league, setLeague]       = useState(null);
   useDocTitle(league ? `${league.name} | TourneyRun` : 'TourneyRun');
@@ -237,6 +239,22 @@ export default function LeagueHome() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+
+      {/* ── Post-payment banners ── */}
+      {paymentResult === 'success' && (
+        <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/30 text-green-400 rounded-xl px-4 py-3 mb-6 text-sm font-medium">
+          <span className="text-lg">✅</span>
+          <span>Payment confirmed — you're officially in! Invite your crew and get ready to draft.</span>
+          <button onClick={() => setSearchParams({})} className="ml-auto text-green-600 hover:text-green-400 transition-colors text-lg leading-none">×</button>
+        </div>
+      )}
+      {paymentResult === 'cancelled' && (
+        <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 rounded-xl px-4 py-3 mb-6 text-sm font-medium">
+          <span className="text-lg">⚠️</span>
+          <span>Payment was cancelled. You can complete it below when you're ready.</span>
+          <button onClick={() => setSearchParams({})} className="ml-auto text-yellow-600 hover:text-yellow-400 transition-colors text-lg leading-none">×</button>
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div className="relative mb-8">

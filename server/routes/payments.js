@@ -46,8 +46,8 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${CLIENT_URL}/payment/entry-success?session_id={CHECKOUT_SESSION_ID}&league_id=${leagueId}`,
-      cancel_url: `${CLIENT_URL}/league/${leagueId}`,
+      success_url: `${CLIENT_URL}/league/${leagueId}?payment=success`,
+      cancel_url: `${CLIENT_URL}/league/${leagueId}?payment=cancelled`,
       metadata: { league_id: leagueId, user_id: req.user.id },
     });
 

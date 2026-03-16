@@ -2,12 +2,15 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const dataDir = path.join(__dirname, 'data');
+// In production (Railway), set DATABASE_PATH to a volume path e.g. /data/fantasy.db
+// so the DB survives redeploys. Falls back to local server/data/fantasy.db for dev.
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'data', 'fantasy.db');
+const dataDir = path.dirname(dbPath);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const db = new Database(path.join(dataDir, 'fantasy.db'));
+const db = new Database(dbPath);
 
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
