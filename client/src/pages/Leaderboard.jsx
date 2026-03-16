@@ -330,11 +330,19 @@ export default function Leaderboard() {
         </div>
       ) : (
         <div className="space-y-3">
-          {standings.map((team, i) => (
+          {standings.map((team, i) => {
+            const isMe = team.user_id === user?.id;
+            const ptsColor = isMe ? 'text-brand-400'
+              : i === 0 ? 'text-yellow-400'
+              : i === 1 ? 'text-gray-300'
+              : i === 2 ? 'text-amber-500'
+              : 'text-white';
+            const aliveCount = team.players ? team.players.filter(p => !p.is_eliminated).length : 0;
+            return (
             <div
               key={team.user_id}
               className={`card overflow-hidden transition-all duration-200 ${
-                team.user_id === user?.id ? 'border-brand-500/40' : ''
+                isMe ? 'border-brand-500/60' : ''
               }`}
             >
               {/* Team row */}
@@ -343,12 +351,9 @@ export default function Leaderboard() {
                 onClick={() => setExpanded(expanded === team.user_id ? null : team.user_id)}
               >
                 <div className="flex items-center gap-4">
-                  {/* Rank */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
-                    i === 0 ? 'bg-yellow-500/20 text-yellow-400 text-lg' :
-                    i === 1 ? 'bg-gray-400/20 text-gray-300' :
-                    i === 2 ? 'bg-slate-700/40 text-slate-300' :
-                    'bg-gray-800 text-gray-500'
+                  {/* Rank / medal */}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 ${
+                    i < 3 ? 'bg-gray-900 text-xl' : 'bg-gray-800 text-sm text-gray-500'
                   }`}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                   </div>
@@ -358,10 +363,10 @@ export default function Leaderboard() {
                     <TeamAvatar avatarUrl={team.avatar_url} teamName={team.team_name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`font-bold text-base ${team.user_id === user?.id ? 'text-brand-400' : 'text-white'}`}>
+                        <span className={`font-bold text-base ${isMe ? 'text-brand-400' : 'text-white'}`}>
                           {team.team_name}
                         </span>
-                        {team.user_id === user?.id && (
+                        {isMe && (
                           <span className="text-xs bg-brand-500/20 text-brand-400 border border-brand-500/30 px-1.5 py-0.5 rounded-full">You</span>
                         )}
                       </div>
@@ -377,16 +382,15 @@ export default function Leaderboard() {
                     </div>
                   </div>
 
-                  {/* Points + alive count + expand */}
+                  {/* Points + alive badge + expand */}
                   <div className="flex items-center gap-3">
-                    {team.players && team.players.length > 0 && (
-                      <div className="text-right hidden sm:block">
-                        <div className="text-white font-bold text-sm">{team.players.filter(p => !p.is_eliminated).length}</div>
-                        <div className="text-gray-500 text-xs">alive</div>
-                      </div>
+                    {aliveCount > 0 && (
+                      <span className="hidden sm:inline-flex items-center gap-1 bg-green-900/30 border border-green-500/30 text-green-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                        {aliveCount} alive
+                      </span>
                     )}
                     <div className="text-right">
-                      <div className="text-brand-400 font-bold text-xl">{team.total_points}</div>
+                      <div className={`font-bold ${ptsColor}`} style={{ fontSize: 22 }}>{team.total_points}</div>
                       <div className="text-gray-500 text-xs">pts</div>
                     </div>
                     <svg
@@ -490,7 +494,8 @@ export default function Leaderboard() {
                 </div>
               )}
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
