@@ -113,6 +113,8 @@ export default function CreateLeague() {
 
   const buyIn     = parseFloat(form.buy_in_amount) || 0;
   const prizePool = buyIn * form.max_teams;
+  const bonus     = parseFloat(form.payout_bonus) || 0;
+  const mainPool  = Math.max(0, prizePool - bonus);
   const p1        = parseInt(form.payout_first)  || 0;
   const p2        = parseInt(form.payout_second) || 0;
   const p3        = parseInt(form.payout_third)  || 0;
@@ -206,7 +208,7 @@ export default function CreateLeague() {
                 <input
                   type="text"
                   className="input text-base"
-                  placeholder="Wohlfert Family League"
+                  placeholder="March Madness 2026"
                   value={form.name}
                   onChange={e => set('name', e.target.value)}
                   required
@@ -219,7 +221,7 @@ export default function CreateLeague() {
                 <input
                   type="text"
                   className="input text-base"
-                  placeholder="Collin's Squad"
+                  placeholder="The Underdogs"
                   value={form.team_name}
                   onChange={e => set('team_name', e.target.value)}
                   required
@@ -335,7 +337,7 @@ export default function CreateLeague() {
                       </div>
                       {buyIn > 0 && (
                         <div className="text-brand-400 text-xs mt-1.5 text-right font-bold">
-                          {fmt(prizePool * (parseInt(form[key]) || 0) / 100)}
+                          {fmt(mainPool * (parseInt(form[key]) || 0) / 100)}
                         </div>
                       )}
                     </div>
@@ -551,26 +553,26 @@ export default function CreateLeague() {
                         <span className="text-white font-semibold">{fmt(buyIn)}/mgr</span>
                       </Row>
                       <Row label="Prize pool">
-                        <span className="text-brand-400 font-black text-base">{fmt(prizePool)}</span>
+                        <span className="text-brand-400 font-black text-base">{fmt(mainPool)}</span>
                       </Row>
                       {p1 > 0 && (
                         <Row label={`🥇 1st (${p1}%)`}>
-                          <span className="text-white text-xs">{fmt(prizePool * p1 / 100)}</span>
+                          <span className="text-white text-xs">{fmt(mainPool * p1 / 100)}</span>
                         </Row>
                       )}
                       {p2 > 0 && (
                         <Row label={`🥈 2nd (${p2}%)`}>
-                          <span className="text-white text-xs">{fmt(prizePool * p2 / 100)}</span>
+                          <span className="text-white text-xs">{fmt(mainPool * p2 / 100)}</span>
                         </Row>
                       )}
                       {p3 > 0 && (
                         <Row label={`🥉 3rd (${p3}%)`}>
-                          <span className="text-white text-xs">{fmt(prizePool * p3 / 100)}</span>
+                          <span className="text-white text-xs">{fmt(mainPool * p3 / 100)}</span>
                         </Row>
                       )}
-                      {parseFloat(form.payout_bonus) > 0 && (
+                      {bonus > 0 && (
                         <Row label="🎯 Bonus">
-                          <span className="text-white text-xs">{fmt(parseFloat(form.payout_bonus))}</span>
+                          <span className="text-white text-xs">{fmt(bonus)}</span>
                         </Row>
                       )}
                     </div>
