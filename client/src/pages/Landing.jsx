@@ -29,7 +29,7 @@ const STYLES = `
 `;
 
 // ─── Countdown hook ───────────────────────────────────────────────────────────
-const TOURNAMENT_DATE = new Date('2026-03-20T12:00:00Z');
+const TOURNAMENT_DATE = new Date('2026-03-19T17:00:00Z'); // 12:00 PM ET (UTC-5)
 
 function useCountdown() {
   const calc = () => {
@@ -217,7 +217,7 @@ export default function Landing() {
   const [c1, r1] = useCountUp(68);
   const [c2, r2] = useCountUp(300);
 
-  const tickerText = '🏀 The 2026 Tournament starts March 20th  ·  Draft day is coming  ·  Secure your spot before your friends do  ·  $5 entry per team  ·  You keep 100% of the prize pool  ·  ';
+  const tickerText = '🏀 The 2026 Tournament starts Thursday March 19th at 12PM ET  ·  Draft day is coming  ·  Secure your spot before your friends do  ·  $5 entry per team  ·  You keep 100% of the prize pool  ·  ';
 
   return (
     <div className="overflow-x-hidden bg-gray-950">
@@ -519,6 +519,7 @@ export default function Landing() {
           </p>
 
           <CountdownBlock />
+          <p className="text-gray-500 text-xs mt-4">Tournament tips off Thursday, March 19th at 12PM ET</p>
 
           <div className="mt-10">
             <Link
