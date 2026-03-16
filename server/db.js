@@ -250,6 +250,53 @@ try {
 // Live game tracking for socket push
 try { db.exec('ALTER TABLE games ADD COLUMN is_live INTEGER DEFAULT 0'); } catch (e) {}
 
+// ── Trash talk wall ─────────────────────────────────────────────────────────
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS wall_posts (
+    id TEXT PRIMARY KEY,
+    league_id TEXT NOT NULL,
+    user_id TEXT,
+    text TEXT DEFAULT '',
+    gif_url TEXT DEFAULT '',
+    is_system INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+} catch (e) {}
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS wall_reactions (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    reaction_type TEXT NOT NULL,
+    UNIQUE(post_id, user_id, reaction_type)
+  )`);
+} catch (e) {}
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS wall_replies (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    text TEXT DEFAULT '',
+    gif_url TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+} catch (e) {}
+// Persisted league chat (distinct from in-memory draft chat)
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS league_chat_messages (
+    id TEXT PRIMARY KEY,
+    league_id TEXT NOT NULL,
+    user_id TEXT,
+    team_name TEXT DEFAULT '',
+    username TEXT DEFAULT '',
+    avatar_url TEXT DEFAULT '',
+    text TEXT DEFAULT '',
+    gif_url TEXT DEFAULT '',
+    is_system INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+} catch (e) {}
+
 // Superadmin role
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch (e) {}
 // Grant superadmin to platform owner — idempotent

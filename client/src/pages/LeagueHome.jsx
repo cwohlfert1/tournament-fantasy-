@@ -5,6 +5,7 @@ import api from '../api';
 import Disclaimer from '../components/Disclaimer';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
+import TrashTalkTab from './TrashTalkTab';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
@@ -337,10 +338,11 @@ export default function LeagueHome() {
   paymentInfo?.payments?.forEach(p => { paymentMap[p.user_id] = p.status; });
 
   const tabs = [
-    { id: 'overview',  label: 'Overview'  },
-    { id: 'roster',    label: 'My Roster' },
-    { id: 'standings', label: 'Standings' },
-    { id: 'payments',  label: 'Payments', dot: myPaymentDue },
+    { id: 'overview',    label: 'Overview'      },
+    { id: 'roster',      label: 'My Roster'     },
+    { id: 'standings',   label: 'Standings'     },
+    { id: 'trashtalk',   label: '💬 Trash Talk' },
+    { id: 'payments',    label: 'Payments', dot: myPaymentDue },
     ...(isCommissioner ? [{ id: 'admin', label: 'Admin' }] : []),
   ];
 
@@ -836,6 +838,13 @@ export default function LeagueHome() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* TRASH TALK TAB                                                       */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {tab === 'trashtalk' && (
+        <TrashTalkTab leagueId={id} isCommissioner={isCommissioner} />
       )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}

@@ -24,6 +24,8 @@ const { getDraftState, getCurrentPicker } = require('./routes/draft');
 const { performStartDraft } = require('./draftUtils');
 const { scheduleAutoPick, clearAutoPick } = require('./draftTimer');
 const { getHistory, addMessage, makeSystemMsg, filterProfanity } = require('./chatStore');
+const { getChatHistory } = require('./routes/wall');
+const { postDraftPick } = require('./wallUtils');
 
 const app = express();
 const server = http.createServer(app);
@@ -69,6 +71,7 @@ app.use('/api/upload', require('./routes/upload'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/news', require('./routes/news'));
 app.use('/api/superadmin', require('./routes/superadmin'));
+app.use('/api/wall', require('./routes/wall').router);
 
 // Serve uploaded avatars
 const path = require('path');
@@ -216,6 +219,9 @@ io.on('connection', (socket) => {
       addMessage(leagueId, sysMsg);
       io.to(`draft_${leagueId}`).emit('chat_message', sysMsg);
 
+      // Auto trash-talk: post draft pick to wall
+      postDraftPick(leagueId, pickerMember?.team_name || decoded.username, player.name, io);
+
       if (draftComplete) {
         clearAutoPick(leagueId);
         const finalState = getDraftState(leagueId);
@@ -290,6 +296,67 @@ io.on('connection', (socket) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.to(`draft_${leagueId}`).emit('chat_stop_typing', { userId: decoded.id });
     } catch (err) {}
+  });
+
+  // ── League wall / chat room ──────────────────────────────────────────────
+
+  socket.on('join_league_room', ({ leagueId, token }) => {
+    try {
+      if (!token) return;
+      jwt.verify(token, process.env.JWT_SECRET);
+      socket.join(`league_${leagueId}`);
+    } catch (err) {}
+  });
+
+  socket.on('league_chat_join', ({ leagueId, token }) => {
+    try {
+      if (!token) return;
+      jwt.verify(token, process.env.JWT_SECRET);
+      socket.join(`league_${leagueId}`);
+      // Send last 50 persisted messages
+      const history = getChatHistory(leagueId);
+      socket.emit('league_chat_history', history);
+    } catch (err) {
+      socket.emit('error', { message: 'Auth failed' });
+    }
+  });
+
+  socket.on('league_chat_send', ({ leagueId, token, text, gifUrl }) => {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const rawText = (text || '').trim().slice(0, 500);
+      if (!rawText && !gifUrl) return;
+
+      const member = db.prepare(
+        'SELECT team_name, avatar_url FROM league_members WHERE league_id = ? AND user_id = ?'
+      ).get(leagueId, decoded.id);
+      if (!member) return;
+
+      const user = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(decoded.id);
+
+      const { cleanText } = require('./contentFilter');
+      const msg = {
+        id: uuidv4(),
+        league_id: leagueId,
+        user_id: decoded.id,
+        team_name: member.team_name,
+        username: decoded.username,
+        avatar_url: member.avatar_url || user?.avatar_url || '',
+        text: rawText ? cleanText(rawText) : '',
+        gif_url: gifUrl || '',
+        is_system: 0,
+        created_at: new Date().toISOString(),
+      };
+
+      db.prepare(`
+        INSERT INTO league_chat_messages (id, league_id, user_id, team_name, username, avatar_url, text, gif_url, is_system)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+      `).run(msg.id, leagueId, decoded.id, msg.team_name, msg.username, msg.avatar_url, msg.text, msg.gif_url);
+
+      io.to(`league_${leagueId}`).emit('league_chat_message', msg);
+    } catch (err) {
+      console.error('league_chat_send error:', err);
+    }
   });
 
   // Join leaderboard room for live standings updates

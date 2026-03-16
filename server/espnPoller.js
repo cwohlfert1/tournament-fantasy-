@@ -2,6 +2,7 @@ const https = require('https');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { buildStandings } = require('./standingsBuilder');
+const { postEliminations, checkAndPostRankChanges } = require('./wallUtils');
 
 const SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard';
 const SUMMARY_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=';
@@ -106,6 +107,8 @@ function recordResult(game, winnerTeam, score1, score2) {
   `).run(winnerTeam, score1, score2, game.id);
   db.prepare('UPDATE players SET is_eliminated = 1 WHERE team = ?').run(loser);
   console.log(`[ESPN] Game recorded: ${game.team1} vs ${game.team2} → winner: ${winnerTeam}`);
+  // Will be called with io after this function returns — store loser for caller
+  recordResult._lastLoser = loser;
 }
 
 // ── Socket.io push ───────────────────────────────────────────────────────────
@@ -116,6 +119,7 @@ function pushStandingsToLeagues(io) {
     try {
       const payload = buildStandings(id);
       if (payload) {
+        checkAndPostRankChanges(id, payload.standings, io);
         io.to(`leaderboard_${id}`).emit('standings_update', {
           ...payload,
           updatedAt: new Date().toISOString(),
@@ -178,6 +182,10 @@ async function pollESPN(io) {
             winnerTeam = score1 > score2 ? game.team1 : game.team2;
           }
           recordResult(game, winnerTeam, flipped ? score2 : score1, flipped ? score1 : score2);
+          if (recordResult._lastLoser) {
+            postEliminations(recordResult._lastLoser, io);
+            recordResult._lastLoser = null;
+          }
         }
       } catch (err) {
         console.error(`[ESPN] Error processing event ${event.id}:`, err.message);
