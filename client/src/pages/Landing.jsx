@@ -306,17 +306,11 @@ export default function Landing() {
             We charge $5 per team to play. That's it. We never touch your prize pool. 💰
           </p>
 
-          {/* 3 CTAs stacked full-width */}
+          {/* 2 CTAs stacked full-width */}
           <div className="flex flex-col gap-3 w-full max-w-xs mx-auto sm:max-w-sm">
-            <Link
-              to={user ? '/create-league' : '/register'}
-              className="w-full inline-flex items-center justify-center bg-brand-500 hover:bg-brand-400 text-white font-black text-base px-6 py-4 rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-brand-500/30"
-            >
-              Create Your Account — Free
-            </Link>
             <a
               href="#how-it-works"
-              className="w-full inline-flex items-center justify-center bg-transparent border-2 border-brand-500/50 hover:border-brand-500 text-brand-400 hover:text-brand-300 font-bold text-base px-6 py-4 rounded-xl transition-all duration-200"
+              className="w-full inline-flex items-center justify-center bg-brand-500 hover:bg-brand-400 text-white font-black text-base px-6 py-4 rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-brand-500/30"
             >
               See How It Works
             </a>
@@ -512,6 +506,17 @@ export default function Landing() {
                 <p className="text-gray-500 text-sm leading-relaxed">{step.desc}</p>
               </div>
             ))}
+          </div>
+
+          {/* CTA after How It Works */}
+          <div className="text-center mt-12">
+            <Link
+              to={user ? '/create-league' : '/register'}
+              className="inline-flex items-center gap-2 bg-brand-500 hover:bg-brand-400 text-white font-black text-lg px-8 py-4 rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-brand-500/30"
+            >
+              Create Your League — Free
+            </Link>
+            <p className="text-gray-600 text-xs mt-3">Free to join · $5 entry per team · We never touch your prize pool</p>
           </div>
         </div>
       </section>
