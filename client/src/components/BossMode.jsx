@@ -380,7 +380,7 @@ export default function BossMode() {
             lineHeight: 1.4,
           }}
         >
-          <div style={{ fontSize: 9, opacity: 0.6, marginBottom: 3, letterSpacing: '0.04em' }}>Boss Coming?</div>
+          <div style={{ fontSize: 10, opacity: 0.85, marginBottom: 3, letterSpacing: '0.04em' }}>Boss Coming?</div>
           👔
         </button>
       )}
