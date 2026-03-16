@@ -31,6 +31,14 @@ router.post('/', authMiddleware, (req, res) => {
     if (!isClean(name)) return res.status(400).json({ error: NAME_BLOCKED_MSG });
     if (!isClean(team_name)) return res.status(400).json({ error: NAME_BLOCKED_MSG });
 
+    // Verify the user from the JWT actually exists in this database.
+    // On a fresh Railway deploy (before a volume is attached) the DB is empty,
+    // so the FK constraint on commissioner_id would crash with a cryptic error.
+    const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(req.user.id);
+    if (!userExists) {
+      return res.status(401).json({ error: 'Session expired — please log in again.' });
+    }
+
     const p1 = Math.max(0, parseInt(payout_first) || 0);
     const p2 = Math.max(0, parseInt(payout_second) || 0);
     const p3 = Math.max(0, parseInt(payout_third) || 0);
@@ -78,6 +86,11 @@ router.post('/join', authMiddleware, (req, res) => {
       return res.status(400).json({ error: 'Invite code and team name are required' });
     }
     if (!isClean(team_name)) return res.status(400).json({ error: NAME_BLOCKED_MSG });
+
+    const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(req.user.id);
+    if (!userExists) {
+      return res.status(401).json({ error: 'Session expired — please log in again.' });
+    }
 
     const league = db.prepare('SELECT * FROM leagues WHERE invite_code = ?').get(invite_code.toUpperCase());
     if (!league) return res.status(404).json({ error: 'Invalid invite code' });
