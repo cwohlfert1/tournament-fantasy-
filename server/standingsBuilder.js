@@ -6,8 +6,9 @@
 const db = require('./db');
 
 function buildStandings(leagueId) {
-  const settings = db.prepare('SELECT * FROM scoring_settings WHERE league_id = ?').get(leagueId);
-  if (!settings) return null;
+  // Fall back to pts_per_point = 1 if scoring settings haven't been configured yet
+  const settings = db.prepare('SELECT * FROM scoring_settings WHERE league_id = ?').get(leagueId)
+    || { pts_per_point: 1 };
 
   const members = db.prepare(`
     SELECT lm.*, u.username, u.venmo_handle, lm.avatar_url
@@ -70,10 +71,15 @@ function buildStandings(leagueId) {
     db.prepare('UPDATE league_members SET total_points = ? WHERE league_id = ? AND user_id = ?')
       .run(Math.round(totalPoints * 10) / 10, leagueId, member.user_id);
 
+    const totalPlayers = draftedPlayers.length;
+    const aliveCount = draftedPlayers.filter(p => !p.is_eliminated).length;
+
     return {
       ...member,
       total_points: Math.round(totalPoints * 10) / 10,
       players: playerStats,
+      totalPlayers,
+      aliveCount,
     };
   });
 

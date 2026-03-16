@@ -196,7 +196,11 @@ export default function Leaderboard() {
 
   // ── REST fetch (initial + fallback polling) ───────────────────────────────
   const applyUpdate = useCallback((data) => {
-    setStandings(data.standings || []);
+    const rows = data.standings || [];
+    if (rows.length > 0) {
+      console.log('[Leaderboard] first team:', rows[0]);
+    }
+    setStandings(rows);
     setSettings(data.settings || null);
     setSgLeader(data.sgLeader || null);
     setIsLive(!!data.isLive);
@@ -375,8 +379,9 @@ export default function Leaderboard() {
               : i === 1 ? '#d1d5db'
               : i === 2 ? '#f97316'
               : '#ffffff';
-            const totalPlayers = team.players ? team.players.length : 0;
-            const aliveCount = team.players ? team.players.filter(p => !p.is_eliminated).length : 0;
+            // Use server-computed counts (reliable even pre-tournament / no scoring settings)
+            const totalPlayers = team.totalPlayers ?? (team.players ? team.players.length : 0);
+            const aliveCount = team.aliveCount ?? (team.players ? team.players.filter(p => !p.is_eliminated).length : 0);
             const isExpanded = expanded === team.user_id;
 
             return (
