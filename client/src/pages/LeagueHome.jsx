@@ -140,6 +140,7 @@ export default function LeagueHome() {
   const [entryPayLoading, setEntryPayLoading] = useState(false);
   const [populateLoading, setPopulateLoading] = useState(false);
   const [populateResult, setPopulateResult]   = useState(null);
+  const [randomizing, setRandomizing]         = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError]         = useState('');
   const [instrCopied, setInstrCopied]         = useState(false);
@@ -210,6 +211,20 @@ export default function LeagueHome() {
   useEffect(() => {
     if (tab === 'payments' && !paymentInfo) fetchPaymentInfo();
   }, [tab]);
+
+  const randomizeDraftOrder = async () => {
+    if (!window.confirm('Randomize the draft order? This cannot be undone.')) return;
+    setRandomizing(true);
+    try {
+      const res = await api.post(`/admin/leagues/${id}/randomize-order`);
+      setMembers(res.data.members.map((m, i) => ({ ...m, draft_order: i + 1 })));
+      await fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to randomize draft order');
+    } finally {
+      setRandomizing(false);
+    }
+  };
 
   const startDraft = async () => {
     setStarting(true);
@@ -746,6 +761,27 @@ export default function LeagueHome() {
             </div>
           </div>
 
+          {/* ── Randomize draft order (commissioner + lobby) ── */}
+          {isCommissioner && league.status === 'lobby' && (
+            <div className="flex items-center justify-between gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+              <div>
+                <div className="text-white font-semibold text-sm">🎲 Randomize Draft Order</div>
+                <div className="text-gray-500 text-xs mt-0.5">
+                  {league.draft_order_randomized
+                    ? 'Draft order has been randomized — one and done, just like Duke and Kentucky players'
+                    : 'Shuffle the draft order randomly. One-and-done — cannot be undone.'}
+                </div>
+              </div>
+              <button
+                onClick={randomizeDraftOrder}
+                disabled={randomizing || !!league.draft_order_randomized}
+                className="shrink-0 px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-purple-600 hover:bg-purple-500 text-white"
+              >
+                {league.draft_order_randomized ? '✓ Done' : randomizing ? 'Shuffling...' : 'Randomize'}
+              </button>
+            </div>
+          )}
+
           {/* ── Start draft button (commissioner + lobby) ── */}
           {isCommissioner && league.status === 'lobby' && (
             <div className="space-y-2">
@@ -796,7 +832,7 @@ export default function LeagueHome() {
                     <div className="text-gray-400 text-sm">{pick.team} · {pick.position}</div>
                   </div>
                   <div className="text-right text-sm text-gray-400">
-                    {pick.season_ppg} PPG
+                    {parseFloat(pick.season_ppg || 0).toFixed(1)} PPG
                   </div>
                 </div>
               ))}

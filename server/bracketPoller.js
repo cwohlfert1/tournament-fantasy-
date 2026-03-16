@@ -48,7 +48,8 @@ function extractRegion(headline) {
 // ── Step 1 — Collect all 68 teams from postseason scoreboard ─────────────────
 
 async function fetchBracketTeams() {
-  const teams = new Map(); // teamId → { teamId, teamName, abbrev, logoUrl, seed, region }
+  const teams = new Map(); // teamId → { teamId, teamName, abbrev, logoUrl, seed, region, isFirstFour }
+  const firstFourTeamIds = new Set();
 
   for (const date of BRACKET_DATES) {
     let data;
@@ -58,6 +59,8 @@ async function fetchBracketTeams() {
       console.warn(`[bracket] Scoreboard fetch failed for ${date}:`, err.message);
       continue;
     }
+
+    const isFirstFourDate = date === '20260318';
 
     for (const event of (data.events || [])) {
       const comp   = event.competitions?.[0];
@@ -70,6 +73,8 @@ async function fetchBracketTeams() {
 
         // Skip TBD / placeholder slots
         if (!team?.id || !team.displayName || seed === 99 || seed == null) continue;
+
+        if (isFirstFourDate) firstFourTeamIds.add(team.id);
 
         if (!teams.has(team.id)) {
           teams.set(team.id, {
@@ -84,6 +89,11 @@ async function fetchBracketTeams() {
       }
     }
     console.log(`[bracket] ${date}: ${teams.size} teams collected so far`);
+  }
+
+  // Mark First Four teams
+  for (const [id, team] of teams) {
+    team.isFirstFour = firstFourTeamIds.has(id);
   }
 
   return [...teams.values()];
@@ -128,8 +138,8 @@ async function fetchPPG(athleteId) {
 
 function insertPlayers(players) {
   const insertStmt = db.prepare(`
-    INSERT INTO players (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO players (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id, espn_athlete_id, is_first_four)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   let inserted = 0;
@@ -137,7 +147,8 @@ function insertPlayers(players) {
     for (const p of players) {
       insertStmt.run(
         uuidv4(), p.name, p.team, p.position, p.jersey,
-        p.seed, p.region, p.ppg, p.teamId
+        p.seed, p.region, p.ppg, p.teamId,
+        p.athleteId || '', p.isFirstFour ? 1 : 0
       );
       inserted++;
     }
@@ -198,7 +209,7 @@ async function pullBracket() {
     for (const player of rosterPlayers) {
       await sleep(80);
       const ppg = await fetchPPG(player.athleteId);
-      enriched.push({ ...player, ppg, team: teamName, seed, region, teamId });
+      enriched.push({ ...player, ppg, team: teamName, seed, region, teamId, isFirstFour: team.isFirstFour });
     }
 
     // Sort by PPG descending, keep top 8 with at least some scoring

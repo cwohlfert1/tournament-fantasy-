@@ -403,8 +403,43 @@ setTimeout(async () => {
 setInterval(pullBracket, 24 * 60 * 60 * 1000);
 
 // Scheduled draft poller — checks every 30 seconds for leagues whose start time has passed
+const { postSystemMessage: postSystemMsg } = require('./wallUtils');
 setInterval(() => {
   try {
+    // Auto-randomize draft order 1hr before scheduled start (one-and-done)
+    const toRandomize = db.prepare(`
+      SELECT id FROM leagues
+      WHERE status = 'lobby'
+        AND draft_order_randomized = 0
+        AND draft_start_time IS NOT NULL
+        AND draft_start_time <= datetime('now', '+60 minutes')
+    `).all();
+    for (const { id } of toRandomize) {
+      try {
+        const members = db.prepare(
+          'SELECT id FROM league_members WHERE league_id = ? ORDER BY RANDOM()'
+        ).all(id);
+        db.transaction(() => {
+          members.forEach((m, idx) => {
+            db.prepare('UPDATE league_members SET draft_order = ? WHERE id = ?').run(idx + 1, m.id);
+          });
+          db.prepare('UPDATE leagues SET draft_order_randomized = 1 WHERE id = ?').run(id);
+        })();
+        postSystemMsg(id, '🎲 Draft order has been automatically randomized — 1 hour until draft time!', io);
+        const updatedMembers = db.prepare(`
+          SELECT lm.draft_order, lm.team_name, u.username
+          FROM league_members lm JOIN users u ON lm.user_id = u.id
+          WHERE lm.league_id = ? ORDER BY lm.draft_order
+        `).all(id);
+        io.to(`draft_${id}`).emit('draft_order_randomized', { members: updatedMembers });
+        io.to(`league_${id}`).emit('draft_order_randomized', { members: updatedMembers });
+        console.log(`[scheduled] Draft order auto-randomized for league ${id}`);
+      } catch (err) {
+        console.error(`[scheduled] Auto-randomize failed for league ${id}:`, err.message);
+      }
+    }
+
+    // Auto-start drafts whose scheduled time has arrived
     const due = db.prepare(`
       SELECT id FROM leagues
       WHERE status = 'lobby'

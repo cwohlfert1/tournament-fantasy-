@@ -183,6 +183,10 @@ try { db.exec('ALTER TABLE leagues ADD COLUMN payout_third INTEGER DEFAULT 10');
 try { db.exec('ALTER TABLE leagues ADD COLUMN payout_bonus REAL DEFAULT 0'); } catch (e) {}
 // ESPN bracket integration
 try { db.exec('ALTER TABLE players ADD COLUMN espn_team_id TEXT'); } catch (e) {}
+try { db.exec("ALTER TABLE players ADD COLUMN espn_athlete_id TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE players ADD COLUMN is_first_four INTEGER DEFAULT 0'); } catch (e) {}
+// Draft order randomizer lock
+try { db.exec('ALTER TABLE leagues ADD COLUMN draft_order_randomized INTEGER DEFAULT 0'); } catch (e) {}
 // Password reset tokens
 try { db.exec('ALTER TABLE users ADD COLUMN password_reset_token TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE users ADD COLUMN password_reset_expires DATETIME'); } catch (e) {}
@@ -192,19 +196,47 @@ try { db.exec("ALTER TABLE players ADD COLUMN injury_headline TEXT DEFAULT ''");
 // Manual injury status designations ('OUT', 'DOUBTFUL', 'QUESTIONABLE', or '')
 try { db.exec("ALTER TABLE players ADD COLUMN injury_status TEXT DEFAULT ''"); } catch (e) {}
 
-// ── Manual OUT designations ─────────────────────────────────────────────────
-// These run on every startup so they survive a Railway redeploy + fresh DB.
-// A commissioner can still clear any flag in the draft room via the ✕ button.
+// ── Injury designations (2026 tournament) ────────────────────────────────────
+// Runs on every startup — survives Railway redeploys. Commissioner can clear any flag.
+const INJURY_DATA = [
+  // EAST REGION
+  { name: 'caleb foster',     team: 'duke',          status: 'OUT',                headline: 'OUT — Foot fracture, out for season. Outside chance of returning for the Final Four.' },
+  { name: 'patrick ngongba',  team: 'duke',          status: 'QUESTIONABLE',       headline: 'QUESTIONABLE — Foot injury, missed ACC Tournament. Status updated before Thursday game vs Siena.' },
+  { name: 'taison chatman',   team: 'ohio state',    status: 'QUESTIONABLE',       headline: 'QUESTIONABLE — Groin injury, missed last game. Hopeful for Thursday vs TCU.' },
+  { name: 'mikel brown',      team: 'louisville',    status: 'DAY-TO-DAY',         headline: "DAY-TO-DAY — Back injury, hasn't played since Feb 28. Dynamic scorer avg 18.2 PPG. Critical for Thursday vs South Florida." },
+  { name: 'donovan dent',     team: 'ucla',          status: 'EXPECTED TO PLAY',   headline: 'EXPECTED TO PLAY — Calf injury, went down in Big Ten Tournament but expected ready for Friday vs UCF.' },
+  { name: 'tyler bilodeau',   team: 'ucla',          status: 'EXPECTED TO PLAY',   headline: 'EXPECTED TO PLAY — Knee injury, no structural damage. Expected to play Friday vs UCF.' },
+  { name: 'silas demary',     team: 'uconn',         status: 'QUESTIONABLE',       headline: 'QUESTIONABLE — Ankle sprain, went down twice in Big East Tournament Final. Massive hit for UConn if out Friday vs Furman.' },
+  { name: 'jaylin stewart',   team: 'uconn',         status: 'QUESTIONABLE',       headline: "QUESTIONABLE — Knee injury, hasn't played since Feb 21. Hoping to return for the tournament." },
+  // SOUTH REGION
+  { name: 'carter welling',   team: 'clemson',       status: 'OUT FOR SEASON',     headline: 'OUT FOR SEASON — Torn ACL vs Wake Forest. Out for rest of season.' },
+  { name: 'caleb wilson',     team: 'north carolina',status: 'OUT FOR SEASON',     headline: 'OUT FOR SEASON — Broken thumb surgery ended season. Was averaging 19.8 PPG and 9.4 RPG.' },
+  { name: 'ethan roberts',    team: 'pennsylvania',  status: 'QUESTIONABLE',       headline: 'QUESTIONABLE — Concussion, missed Ivy League Tournament. Unclear for Thursday vs Illinois.' },
+  // WEST REGION
+  { name: 'nolan winter',     team: 'wisconsin',     status: 'QUESTIONABLE',       headline: 'QUESTIONABLE — Ankle injury, missed last 4 games. Status updated before Thursday vs High Point.' },
+  { name: 'karter knox',      team: 'arkansas',      status: 'DOUBTFUL',           headline: 'DOUBTFUL — Knee surgery, missed 11 of last 12 games. Just got off crutches.' },
+  { name: 'lassina traore',   team: 'texas',         status: 'QUESTIONABLE',       headline: "QUESTIONABLE — Knee injury, hasn't played since Feb 3. Questionable for First Four vs NC State." },
+  { name: 'braden huff',      team: 'gonzaga',       status: 'NOT EXPECTED TO PLAY', headline: 'NOT EXPECTED TO PLAY — Knee injury, missed last 15 games. Unlikely for first weekend but could return Sweet 16 if Gonzaga advances.' },
+  // MIDWEST REGION
+  { name: 'christian anderson', team: 'texas tech',  status: 'WILL PLAY',          headline: 'WILL PLAY — Groin injury but confirmed ready for Friday vs Akron.' },
+  { name: 'lejuan watts',     team: 'texas tech',    status: 'EXPECTED TO PLAY',   headline: 'EXPECTED TO PLAY — Lower leg injury but expected ready by Friday.' },
+  { name: 'aden holloway',    team: 'alabama',       status: 'QUESTIONABLE',       headline: 'QUESTIONABLE — Arrested on marijuana charge Monday morning, status unclear for Friday vs Hofstra. Averages 16.8 PPG.' },
+  { name: 'b.j. edwards',     team: 'smu',           status: 'EXPECTED TO PLAY',   headline: 'EXPECTED TO PLAY — Ankle injury, missed last 5 games but expected to play First Four vs Miami (OH).' },
+  { name: 'jayden quaintance',team: 'kentucky',      status: 'DOUBTFUL',           headline: 'DOUBTFUL — Knee swelling from ACL surgery in Feb 2025. Not expected for first weekend vs Santa Clara.' },
+];
+
+const setInjury = db.prepare(`
+  UPDATE players
+  SET injury_flagged = 1, injury_status = ?, injury_headline = ?
+  WHERE LOWER(name) LIKE ? AND LOWER(team) LIKE ?
+`);
 try {
-  db.prepare(`
-    UPDATE players
-    SET injury_flagged  = 1,
-        injury_status   = 'OUT',
-        injury_headline = 'OUT — Not expected to play in the tournament'
-    WHERE LOWER(name) LIKE '%caleb wilson%'
-      AND LOWER(team)  LIKE '%north carolina%'
-  `).run();
-} catch (e) {}
+  db.transaction(() => {
+    for (const inj of INJURY_DATA) {
+      setInjury.run(inj.status, inj.headline, `%${inj.name}%`, `%${inj.team}%`);
+    }
+  })();
+} catch (e) { console.error('[db] injury seed error:', e.message); }
 // Strategy Hub news cache
 try {
   db.exec(`CREATE TABLE IF NOT EXISTS news_articles (

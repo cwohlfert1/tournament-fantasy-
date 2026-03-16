@@ -51,17 +51,18 @@ function r64Opp(seed) {
 
 const ETP_GAMES = {
   1: 3.8, 2: 3.0, 3: 2.5, 4: 2.2, 5: 1.8, 6: 1.7, 7: 1.6,
-  8: 1.3, 9: 1.2, 10: 1.1, 11: 1.0, 12: 0.9,
+  8: 1.3, 9: 1.2, 10: 1.1, 11: 1.0, 12: 1.0, 13: 1.0, 14: 1.0, 15: 1.0, 16: 1.0,
 };
 
-function expectedGames(seed) {
+function expectedGames(seed, isFirstFour = false) {
   if (!seed) return null;
   const n = parseInt(seed);
-  return ETP_GAMES[n] ?? (n >= 13 && n <= 16 ? 0.5 : null);
+  const base = ETP_GAMES[n] ?? 1.0;
+  return isFirstFour ? base + 0.5 : base;
 }
 
-function calcETP(ppg, seed) {
-  const games = expectedGames(seed);
+function calcETP(ppg, seed, isFirstFour = false) {
+  const games = expectedGames(seed, isFirstFour);
   if (!games || !ppg) return null;
   return Math.round(ppg * games * 10) / 10;
 }
@@ -163,17 +164,26 @@ function RegionBadge({ region }) {
 
 function InjuryBadge({ player, isCommissioner, onClear }) {
   if (!player.injury_flagged) return null;
-  const isOut = player.injury_status === 'OUT';
-  const tip = player.injury_headline
-    ? (isOut ? `🚫 ${player.injury_headline}` : `⚠️ ${player.injury_headline}`)
-    : (isOut ? '🚫 Ruled OUT — not expected to play' : '⚠️ Injury alert — verify before drafting');
+  const s = (player.injury_status || '').toUpperCase();
+  const isRed    = s === 'OUT' || s === 'OUT FOR SEASON';
+  const isOrange = s === 'DOUBTFUL' || s === 'NOT EXPECTED TO PLAY';
+  const isGreen  = s === 'WILL PLAY' || s === 'EXPECTED TO PLAY';
+  // yellow = QUESTIONABLE, DAY-TO-DAY, or anything else
+
+  const colorCls = isRed
+    ? 'bg-red-500/20 border-red-500/40 text-red-400'
+    : isOrange
+      ? 'bg-orange-500/20 border-orange-500/40 text-orange-400'
+      : isGreen
+        ? 'bg-green-500/20 border-green-500/40 text-green-400'
+        : 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400';
+
+  const label = isRed ? '🚫 OUT' : isOrange ? '🟠 DOUBT' : isGreen ? '🟢 ETP' : '⚠️ INJ';
+  const tip = player.injury_headline || (isRed ? 'Ruled OUT — not expected to play' : 'Injury alert — verify before drafting');
+
   return (
-    <span className={`relative group/inj inline-flex items-center gap-0.5 rounded px-1 py-px text-[9px] font-bold cursor-help border ${
-      isOut
-        ? 'bg-red-500/20 border-red-500/40 text-red-400'
-        : 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'
-    }`}>
-      {isOut ? '🚫 OUT' : '⚠️ INJ'}
+    <span className={`relative group/inj inline-flex items-center gap-0.5 rounded px-1 py-px text-[9px] font-bold cursor-help border ${colorCls}`}>
+      {label}
       <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-max max-w-[260px] rounded bg-gray-950 border border-gray-800 px-2 py-1.5 text-[10px] leading-snug text-gray-200 opacity-0 group-hover/inj:opacity-100 transition-opacity duration-150 z-50 text-left shadow-lg whitespace-normal">
         {tip}
       </span>
@@ -181,7 +191,7 @@ function InjuryBadge({ player, isCommissioner, onClear }) {
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onClear(player.id); }}
-          className={`ml-0.5 pointer-events-auto ${isOut ? 'text-red-600 hover:text-red-300' : 'text-yellow-600 hover:text-yellow-300'}`}
+          className={`ml-0.5 pointer-events-auto ${isRed ? 'text-red-600 hover:text-red-300' : 'text-yellow-600 hover:text-yellow-300'}`}
           title="Clear injury flag"
         >✕</button>
       )}
@@ -771,7 +781,7 @@ export default function DraftRoom() {
             }
             targetId = [...pool].sort((a, b) => {
               const score = p => {
-                const base = calcETP(p.season_ppg, p.seed) ?? p.season_ppg ?? 0;
+                const base = calcETP(p.season_ppg, p.seed, !!p.is_first_four) ?? p.season_ppg ?? 0;
                 let s = base;
                 if (p.team && (myTeams[p.team] || 0) >= 2) s *= 0.60;
                 return s;
@@ -781,8 +791,8 @@ export default function DraftRoom() {
             fromSmart = true;
           } else {
             targetId = [...pool].sort((a, b) => {
-              const etpA = calcETP(a.season_ppg, a.seed) ?? a.season_ppg ?? 0;
-              const etpB = calcETP(b.season_ppg, b.seed) ?? b.season_ppg ?? 0;
+              const etpA = calcETP(a.season_ppg, a.seed, !!a.is_first_four) ?? a.season_ppg ?? 0;
+              const etpB = calcETP(b.season_ppg, b.seed, !!b.is_first_four) ?? b.season_ppg ?? 0;
               return etpB - etpA;
             })[0]?.id || null;
           }
@@ -973,7 +983,7 @@ export default function DraftRoom() {
   const etpByPlayerId = useMemo(() => {
     const map = {};
     for (const p of Object.values(playerCacheRef.current)) {
-      const etp = calcETP(p.season_ppg, p.seed);
+      const etp = calcETP(p.season_ppg, p.seed, !!p.is_first_four);
       if (etp !== null) map[p.id] = etp;
     }
     return map;
@@ -989,8 +999,8 @@ export default function DraftRoom() {
     })
     .sort((a, b) => {
       if (sortBy === 'etp') {
-        const ea = calcETP(a.season_ppg, a.seed) ?? -1;
-        const eb = calcETP(b.season_ppg, b.seed) ?? -1;
+        const ea = calcETP(a.season_ppg, a.seed, !!a.is_first_four) ?? -1;
+        const eb = calcETP(b.season_ppg, b.seed, !!b.is_first_four) ?? -1;
         return eb - ea;
       }
       if (sortBy === 'seed') return (a.seed || 99) - (b.seed || 99);
@@ -1331,7 +1341,7 @@ export default function DraftRoom() {
                     const oppSeed = r64Opp(player.seed);
                     const oppName = oppSeed && player.region ? (regionSeedMap[player.region]?.[oppSeed] || `#${oppSeed}`) : null;
                     const canPick = isMyTurn && !picking;
-                    const etp = calcETP(player.season_ppg, player.seed);
+                    const etp = calcETP(player.season_ppg, player.seed, !!player.is_first_four);
                     return (
                       <div key={player.id}
                         className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-800/50 transition-all ${
@@ -1341,9 +1351,21 @@ export default function DraftRoom() {
                         <span className="text-gray-600 font-mono text-[10px] w-4 shrink-0">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`font-semibold text-sm ${player.injury_flagged ? 'text-gray-400' : 'text-white'}`}>
-                              {player.name}
-                            </span>
+                            {player.espn_athlete_id ? (
+                              <a
+                                href={`https://www.espn.com/mens-college-basketball/player/_/id/${player.espn_athlete_id}/${player.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className={`font-semibold text-sm hover:underline ${player.injury_flagged ? 'text-gray-400 hover:text-gray-300' : 'text-white hover:text-brand-300'}`}
+                              >
+                                {player.name}
+                              </a>
+                            ) : (
+                              <span className={`font-semibold text-sm ${player.injury_flagged ? 'text-gray-400' : 'text-white'}`}>
+                                {player.name}
+                              </span>
+                            )}
                             <PosBadge pos={player.position} small />
                             {player.seed ? <SeedBadge seed={player.seed} /> : null}
                             {player.region ? <RegionBadge region={player.region} /> : null}
@@ -1362,11 +1384,11 @@ export default function DraftRoom() {
                               <Tip text="Expected Tournament Points — projected total points based on the player's PPG and how far their team is expected to go in the tournament">
                                 <div className="text-gray-600 text-[9px] leading-none cursor-help">ETP</div>
                               </Tip>
-                              <div className="text-gray-700 text-[9px] leading-none mt-0.5">{player.season_ppg}ppg</div>
+                              <div className="text-gray-700 text-[9px] leading-none mt-0.5">{parseFloat(player.season_ppg || 0).toFixed(1)}ppg</div>
                             </>
                           ) : (
                             <>
-                              <div className="text-brand-400 text-xs font-bold">{player.season_ppg}</div>
+                              <div className="text-brand-400 text-xs font-bold">{parseFloat(player.season_ppg || 0).toFixed(1)}</div>
                               <Tip text="Points Per Game — player's scoring average this season">
                                 <div className="text-gray-600 text-[9px] cursor-help">PPG</div>
                               </Tip>
@@ -1407,7 +1429,7 @@ export default function DraftRoom() {
                   const oppName = oppSeed && player.region ? (regionSeedMap[player.region]?.[oppSeed] || `#${oppSeed}`) : null;
                   const inQueue = watchlist.includes(player.id);
                   const canPick = isMyTurn && !picking;
-                  const etp = calcETP(player.season_ppg, player.seed);
+                  const etp = calcETP(player.season_ppg, player.seed, !!player.is_first_four);
                   return (
                     <div key={player.id}
                       className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-800/40 transition-all group ${
@@ -1416,9 +1438,21 @@ export default function DraftRoom() {
                       onClick={() => canPick && setPickConfirm(player)}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`font-semibold text-sm ${player.injury_flagged ? 'text-gray-400' : 'text-white'}`}>
-                            {player.name}
-                          </span>
+                          {player.espn_athlete_id ? (
+                            <a
+                              href={`https://www.espn.com/mens-college-basketball/player/_/id/${player.espn_athlete_id}/${player.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className={`font-semibold text-sm hover:underline ${player.injury_flagged ? 'text-gray-400 hover:text-gray-300' : 'text-white hover:text-brand-300'}`}
+                            >
+                              {player.name}
+                            </a>
+                          ) : (
+                            <span className={`font-semibold text-sm ${player.injury_flagged ? 'text-gray-400' : 'text-white'}`}>
+                              {player.name}
+                            </span>
+                          )}
                           <PosBadge pos={player.position} small />
                           {player.seed ? <SeedBadge seed={player.seed} /> : null}
                           {player.region ? <RegionBadge region={player.region} /> : null}
@@ -1437,11 +1471,11 @@ export default function DraftRoom() {
                             <Tip text="Expected Tournament Points — projected total points based on the player's PPG and how far their team is expected to go in the tournament">
                               <div className="text-gray-600 text-[9px] leading-none cursor-help">ETP</div>
                             </Tip>
-                            <div className="text-gray-700 text-[9px] leading-none mt-0.5">{player.season_ppg}ppg</div>
+                            <div className="text-gray-700 text-[9px] leading-none mt-0.5">{parseFloat(player.season_ppg || 0).toFixed(1)}ppg</div>
                           </>
                         ) : (
                           <>
-                            <div className="text-brand-400 text-xs font-bold">{player.season_ppg}</div>
+                            <div className="text-brand-400 text-xs font-bold">{parseFloat(player.season_ppg || 0).toFixed(1)}</div>
                             <Tip text="Points Per Game — player's scoring average this season">
                               <div className="text-gray-600 text-[9px] cursor-help">PPG</div>
                             </Tip>

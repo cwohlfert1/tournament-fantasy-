@@ -563,6 +563,56 @@ router.post('/create-test-league', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/admin/leagues/:leagueId/randomize-order
+// Commissioner-only, one-and-done. Shuffles draft order, locks it, and broadcasts.
+router.post('/leagues/:leagueId/randomize-order', authMiddleware, (req, res) => {
+  try {
+    const { leagueId } = req.params;
+    const league = requireCommissioner(req, res, leagueId);
+    if (!league) return;
+
+    if (league.draft_order_randomized) {
+      return res.status(400).json({ error: 'Draft order has already been randomized' });
+    }
+    if (league.status !== 'lobby') {
+      return res.status(400).json({ error: 'Can only randomize draft order while league is in lobby' });
+    }
+
+    const members = db.prepare(
+      'SELECT id, user_id FROM league_members WHERE league_id = ? ORDER BY RANDOM()'
+    ).all(leagueId);
+
+    db.transaction(() => {
+      members.forEach((m, idx) => {
+        db.prepare('UPDATE league_members SET draft_order = ? WHERE id = ?').run(idx + 1, m.id);
+      });
+      db.prepare('UPDATE leagues SET draft_order_randomized = 1 WHERE id = ?').run(leagueId);
+    })();
+
+    // Post system wall message
+    const { postSystemMessage } = require('../wallUtils');
+    const io = req.app.get('io');
+    postSystemMessage(leagueId, '🎲 The draft order has been randomized by the commissioner!', io);
+
+    // Emit updated league state to the draft room
+    const updatedMembers = db.prepare(`
+      SELECT lm.draft_order, lm.team_name, u.username
+      FROM league_members lm JOIN users u ON lm.user_id = u.id
+      WHERE lm.league_id = ? ORDER BY lm.draft_order
+    `).all(leagueId);
+
+    if (io) {
+      io.to(`draft_${leagueId}`).emit('draft_order_randomized', { members: updatedMembers });
+      io.to(`league_${leagueId}`).emit('draft_order_randomized', { members: updatedMembers });
+    }
+
+    res.json({ success: true, members: updatedMembers });
+  } catch (err) {
+    console.error('randomize-order error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/admin/pull-bracket — manually trigger ESPN bracket + roster pull
 router.post('/pull-bracket', authMiddleware, async (req, res) => {
   // Any authenticated user can trigger this (it's read-only from ESPN)
