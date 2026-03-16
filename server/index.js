@@ -1,4 +1,16 @@
 require('dotenv').config();
+
+// ── Env var validation ────────────────────────────────────────────────────────
+const REQUIRED_ENV = ['JWT_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length) {
+  console.error('[startup] Missing required environment variables:', missing.join(', '));
+} else {
+  console.log('[startup] All required env vars present ✓');
+}
+console.log(`[startup] CLIENT_URL = ${process.env.CLIENT_URL || '(not set — will derive from request)'}`);
+console.log(`[startup] DATABASE_PATH = ${process.env.DATABASE_PATH || '(not set — using default)'}`);
+// ─────────────────────────────────────────────────────────────────────────────
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');

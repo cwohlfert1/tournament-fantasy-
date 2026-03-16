@@ -4,11 +4,21 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const ENTRY_FEE = 5.00; // Flat $5 platform fee per league
 
 function getStripe() {
-  return require('stripe')(process.env.STRIPE_SECRET_KEY);
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error('STRIPE_SECRET_KEY environment variable is not set');
+  return require('stripe')(key);
+}
+
+// Derive the base URL from the request if CLIENT_URL env var isn't set.
+// This ensures Stripe redirects back to the correct domain in production
+// even if CLIENT_URL is missing from Railway env vars.
+function getClientUrl(req) {
+  if (process.env.CLIENT_URL) return process.env.CLIENT_URL.replace(/\/$/, '');
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  return `${proto}://${req.get('host')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,6 +44,7 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
       return res.status(409).json({ error: 'Already paid for this league' });
     }
 
+    const clientUrl = getClientUrl(req);
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -46,10 +57,11 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: `${CLIENT_URL}/league/${leagueId}?payment=success`,
-      cancel_url: `${CLIENT_URL}/league/${leagueId}?payment=cancelled`,
+      success_url: `${clientUrl}/league/${leagueId}?payment=success`,
+      cancel_url: `${clientUrl}/league/${leagueId}?payment=cancelled`,
       metadata: { league_id: leagueId, user_id: req.user.id },
     });
+    console.log(`[checkout] session created — redirect base: ${clientUrl}`);
 
     db.prepare(
       'UPDATE member_payments SET stripe_session_id = ? WHERE league_id = ? AND user_id = ?'
