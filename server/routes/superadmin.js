@@ -348,4 +348,103 @@ router.get('/financials', superadmin, (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/superadmin/setup-test-league
+// Deletes ALL existing leagues and their data, then creates "Test Draft 2026"
+// with the requesting superadmin as commissioner + 9 bot users.
+// All 10 payments are pre-marked paid. Draft is NOT started.
+// ---------------------------------------------------------------------------
+router.post('/setup-test-league', superadmin, async (req, res) => {
+  try {
+    const commissionerId = req.user.id;
+
+    // ── 1. Wipe all existing leagues and related rows ──────────────────────
+    const allLeagueIds = db.prepare('SELECT id FROM leagues').all().map(r => r.id);
+    db.transaction(() => {
+      for (const id of allLeagueIds) {
+        db.prepare('DELETE FROM wall_replies WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)').run(id);
+        db.prepare('DELETE FROM wall_reactions WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)').run(id);
+        db.prepare('DELETE FROM wall_posts WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM league_chat_messages WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM draft_picks WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM smart_draft_upgrades WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM member_payments WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM scoring_settings WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM league_members WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM payouts WHERE league_id = ?').run(id);
+        db.prepare('DELETE FROM leagues WHERE id = ?').run(id);
+      }
+    })();
+
+    // ── 2. Create the league ───────────────────────────────────────────────
+    const leagueId   = uuidv4();
+    const inviteCode = 'TESTDRAFT26';
+
+    db.prepare(`
+      INSERT INTO leagues (id, name, commissioner_id, invite_code, status,
+        max_teams, total_rounds, pick_time_limit, draft_status,
+        current_pick, auto_start_on_full, draft_order_randomized,
+        entry_fee, buy_in_amount, stripe_payment_status)
+      VALUES (?, 'Test Draft 2026', ?, ?, 'lobby',
+        10, 10, 60, 'pending',
+        1, 0, 0,
+        5.00, 0, 'unpaid')
+    `).run(leagueId, commissionerId, inviteCode);
+
+    db.prepare('INSERT INTO scoring_settings (id, league_id, pts_per_point) VALUES (?, ?, 1.0)')
+      .run(uuidv4(), leagueId);
+
+    // ── 3. Ensure 9 bot users exist ────────────────────────────────────────
+    const passwordHash = await bcrypt.hash('testpass123', 6);
+    const botUsers = [];
+    for (let i = 1; i <= 9; i++) {
+      const username = 'testuser' + String(i).padStart(2, '0');
+      const email    = `${username}@test.local`;
+      let u = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      if (!u) {
+        const uid = uuidv4();
+        db.prepare('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)')
+          .run(uid, email, username, passwordHash);
+        u = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+      }
+      botUsers.push(u);
+    }
+
+    // ── 4. Add commissioner + bots, all payments paid ──────────────────────
+    const commUser = db.prepare('SELECT username FROM users WHERE id = ?').get(commissionerId);
+    db.transaction(() => {
+      db.prepare(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`)
+        .run(uuidv4(), leagueId, commissionerId, `${commUser?.username || 'Commissioner'}'s Team`);
+      db.prepare(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)`)
+        .run(uuidv4(), leagueId, commissionerId);
+
+      for (const u of botUsers) {
+        db.prepare(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`)
+          .run(uuidv4(), leagueId, u.id, `Team ${u.username}`);
+        db.prepare(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)`)
+          .run(uuidv4(), leagueId, u.id);
+      }
+    })();
+
+    const members = db.prepare(`
+      SELECT lm.team_name, u.username
+      FROM league_members lm JOIN users u ON lm.user_id = u.id
+      WHERE lm.league_id = ? ORDER BY lm.joined_at
+    `).all(leagueId);
+
+    console.log(`[superadmin] setup-test-league: created ${leagueId} with ${members.length} members`);
+    res.json({
+      leagueId,
+      leagueName: 'Test Draft 2026',
+      inviteCode,
+      members,
+      deletedLeagues: allLeagueIds.length,
+      message: `Deleted ${allLeagueIds.length} old league(s). Created "Test Draft 2026" with ${members.length} teams — all paid, draft NOT started.`,
+    });
+  } catch (err) {
+    console.error('setup-test-league error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 module.exports = router;

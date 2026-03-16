@@ -439,6 +439,8 @@ function PlayersTab() {
   const [pullMsg, setPullMsg]             = useState('');
   const [schedLoading, setSchedLoading]   = useState(false);
   const [schedMsg, setSchedMsg]           = useState('');
+  const [setupLoading, setSetupLoading]   = useState(false);
+  const [setupMsg, setSetupMsg]           = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -541,6 +543,22 @@ function PlayersTab() {
     }
   };
 
+  const setupTestLeague = async () => {
+    if (!window.confirm('This will DELETE all existing leagues and create a fresh "Test Draft 2026" with 9 bots. Continue?')) return;
+    setSetupLoading(true);
+    setSetupMsg('');
+    try {
+      const res = await api.post('/superadmin/setup-test-league');
+      setSetupMsg(`✓ ${res.data.message}`);
+      // Navigate to the new league
+      window.open(`/league/${res.data.leagueId}`, '_blank');
+    } catch (e) {
+      setSetupMsg(e.response?.data?.error || 'Setup failed');
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
   const pullSchedule = async () => {
     setSchedLoading(true);
     setSchedMsg('');
@@ -579,8 +597,12 @@ function PlayersTab() {
         <button onClick={pullSchedule} disabled={schedLoading} className="px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded text-sm disabled:opacity-50">
           {schedLoading ? 'Pulling...' : 'Pull Schedule'}
         </button>
+        <button onClick={setupTestLeague} disabled={setupLoading} className="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm disabled:opacity-50">
+          {setupLoading ? 'Setting up...' : '🧪 Setup Test League'}
+        </button>
         {pullMsg && <span className="text-xs text-green-400">{pullMsg}</span>}
         {schedMsg && <span className="text-xs text-teal-400">{schedMsg}</span>}
+        {setupMsg && <span className="text-xs text-purple-300">{setupMsg}</span>}
         <span className="text-xs text-gray-500 ml-auto">{players.length} players</span>
       </div>
 
