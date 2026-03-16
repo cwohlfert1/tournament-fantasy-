@@ -130,8 +130,8 @@ async function pollInjuries() {
       }
     }
 
-    // Reset all flags, then apply newly found ones
-    db.prepare('UPDATE players SET injury_flagged = 0, injury_headline = ?').run('');
+    // Reset auto-detected flags only — preserve manual OUT designations
+    db.prepare("UPDATE players SET injury_flagged = 0, injury_headline = '' WHERE injury_status != 'OUT'").run();
     const update = db.prepare('UPDATE players SET injury_flagged = 1, injury_headline = ? WHERE id = ?');
     for (const [id, headline] of flagged) {
       update.run(headline, id);
@@ -139,6 +139,7 @@ async function pollInjuries() {
 
     // Clear flags for players who have played in the last 5 completed game days
     // (injury news may be stale — if they've suited up recently, they're not hurt)
+    // Never clear manually designated OUT players.
     const recentDates = db.prepare(`
       SELECT DISTINCT game_date FROM games
       WHERE is_completed = 1 ORDER BY game_date DESC LIMIT 5
@@ -149,6 +150,7 @@ async function pollInjuries() {
       const cleared = db.prepare(`
         UPDATE players SET injury_flagged = 0, injury_headline = ''
         WHERE injury_flagged = 1
+        AND injury_status != 'OUT'
         AND id IN (
           SELECT DISTINCT ps.player_id
           FROM player_stats ps
