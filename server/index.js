@@ -65,12 +65,15 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 // Serve built React client in production
 const clientDist = path.join(__dirname, '../client/dist');
-if (fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'));
-  });
-}
+app.use(express.static(clientDist));
+app.get('*', (req, res) => {
+  const indexPath = path.join(clientDist, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Client build not found. Run: cd client && npm run build');
+  }
+});
 
 // Socket.io draft logic
 io.on('connection', (socket) => {
