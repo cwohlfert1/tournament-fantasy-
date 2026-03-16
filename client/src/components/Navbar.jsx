@@ -43,6 +43,11 @@ export default function Navbar() {
                 <Link to="/faq" className="text-gray-300 hover:text-brand-400 transition-colors font-medium">
                   FAQ
                 </Link>
+                {user?.role === 'superadmin' && (
+                  <Link to="/admin" className="text-yellow-400 hover:text-yellow-300 transition-colors font-medium">
+                    Admin
+                  </Link>
+                )}
                 <div className="flex items-center gap-3">
                   <Link to="/profile" className="text-gray-400 text-sm hover:text-brand-300 transition-colors">
                     <span className="text-brand-400 font-semibold hover:text-brand-300">{user.username}</span>
@@ -121,6 +126,15 @@ export default function Navbar() {
                 >
                   FAQ
                 </Link>
+                {user?.role === 'superadmin' && (
+                  <Link
+                    to="/admin"
+                    className="block px-3 py-2 text-yellow-400 hover:text-yellow-300 hover:bg-gray-800 rounded-lg transition-colors font-medium"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Admin
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   className="block w-full text-left px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"

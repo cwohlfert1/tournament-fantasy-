@@ -15,6 +15,12 @@ export function AuthProvider({ children }) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
       api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
+      // Refresh user data (including role) from server in the background
+      api.get('/auth/me').then(res => {
+        const fresh = res.data.user;
+        setUser(fresh);
+        localStorage.setItem('user', JSON.stringify(fresh));
+      }).catch(() => {});
     }
     setLoading(false);
   }, []);

@@ -69,7 +69,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, email: user.email, username: user.username } });
+    res.json({ token, user: { id: user.id, email: user.email, username: user.username, role: user.role || 'user' } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -132,7 +132,7 @@ router.post('/reset-password', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, email, username, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, email, username, role, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
 });

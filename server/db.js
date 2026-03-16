@@ -235,4 +235,11 @@ try {
 // League autodraft mode: 'best_available' (default) or 'smart_draft'
 try { db.exec("ALTER TABLE leagues ADD COLUMN autodraft_mode TEXT DEFAULT 'best_available'"); } catch (e) {}
 
+// Superadmin role
+try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch (e) {}
+// Grant superadmin to platform owner — idempotent
+try {
+  db.prepare("UPDATE users SET role = 'superadmin' WHERE email = 'cwohlfert@gmail.com'").run();
+} catch (e) {}
+
 module.exports = db;

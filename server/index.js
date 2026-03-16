@@ -68,6 +68,7 @@ app.use('/api/giphy', require('./routes/giphy'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/news', require('./routes/news'));
+app.use('/api/superadmin', require('./routes/superadmin'));
 
 // Serve uploaded avatars
 const path = require('path');
