@@ -163,12 +163,17 @@ function RegionBadge({ region }) {
 
 function InjuryBadge({ player, isCommissioner, onClear }) {
   if (!player.injury_flagged) return null;
+  const isOut = player.injury_status === 'OUT';
   const tip = player.injury_headline
-    ? `⚠️ ${player.injury_headline}`
-    : '⚠️ Injury alert — verify before drafting';
+    ? (isOut ? `🚫 ${player.injury_headline}` : `⚠️ ${player.injury_headline}`)
+    : (isOut ? '🚫 Ruled OUT — not expected to play' : '⚠️ Injury alert — verify before drafting');
   return (
-    <span className="relative group/inj inline-flex items-center gap-0.5 bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 rounded px-1 py-px text-[9px] font-bold cursor-help">
-      ⚠️ INJ
+    <span className={`relative group/inj inline-flex items-center gap-0.5 rounded px-1 py-px text-[9px] font-bold cursor-help border ${
+      isOut
+        ? 'bg-red-500/20 border-red-500/40 text-red-400'
+        : 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'
+    }`}>
+      {isOut ? '🚫 OUT' : '⚠️ INJ'}
       <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-max max-w-[260px] rounded bg-gray-950 border border-gray-800 px-2 py-1.5 text-[10px] leading-snug text-gray-200 opacity-0 group-hover/inj:opacity-100 transition-opacity duration-150 z-50 text-left shadow-lg whitespace-normal">
         {tip}
       </span>
@@ -176,7 +181,7 @@ function InjuryBadge({ player, isCommissioner, onClear }) {
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onClear(player.id); }}
-          className="ml-0.5 text-yellow-600 hover:text-yellow-300 pointer-events-auto"
+          className={`ml-0.5 pointer-events-auto ${isOut ? 'text-red-600 hover:text-red-300' : 'text-yellow-600 hover:text-yellow-300'}`}
           title="Clear injury flag"
         >✕</button>
       )}

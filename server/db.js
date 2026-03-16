@@ -189,6 +189,22 @@ try { db.exec('ALTER TABLE users ADD COLUMN password_reset_expires DATETIME'); }
 // Injury news-scraping flags
 try { db.exec('ALTER TABLE players ADD COLUMN injury_flagged INTEGER DEFAULT 0'); } catch (e) {}
 try { db.exec("ALTER TABLE players ADD COLUMN injury_headline TEXT DEFAULT ''"); } catch (e) {}
+// Manual injury status designations ('OUT', 'DOUBTFUL', 'QUESTIONABLE', or '')
+try { db.exec("ALTER TABLE players ADD COLUMN injury_status TEXT DEFAULT ''"); } catch (e) {}
+
+// ── Manual OUT designations ─────────────────────────────────────────────────
+// These run on every startup so they survive a Railway redeploy + fresh DB.
+// A commissioner can still clear any flag in the draft room via the ✕ button.
+try {
+  db.prepare(`
+    UPDATE players
+    SET injury_flagged  = 1,
+        injury_status   = 'OUT',
+        injury_headline = 'OUT — Not expected to play in the tournament'
+    WHERE LOWER(name) LIKE '%caleb wilson%'
+      AND LOWER(team)  LIKE '%north carolina%'
+  `).run();
+} catch (e) {}
 // Strategy Hub news cache
 try {
   db.exec(`CREATE TABLE IF NOT EXISTS news_articles (

@@ -77,7 +77,7 @@ router.delete('/:id/injury-flag', authMiddleware, (req, res) => {
     `).get(req.user.id);
     if (!league) return res.status(403).json({ error: 'Only a league commissioner can clear injury flags' });
 
-    db.prepare("UPDATE players SET injury_flagged = 0, injury_headline = '' WHERE id = ?").run(req.params.id);
+    db.prepare("UPDATE players SET injury_flagged = 0, injury_status = '', injury_headline = '' WHERE id = ?").run(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

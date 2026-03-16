@@ -152,6 +152,41 @@ router.get('/teams', authMiddleware, (req, res) => {
   }
 });
 
+// PUT /api/admin/players/injury — manually set or clear a player's injury designation
+// Body: { playerName, team (optional), status ('OUT'|'DOUBTFUL'|'QUESTIONABLE'|''), headline }
+router.put('/players/injury', authMiddleware, (req, res) => {
+  try {
+    const { playerName, team, status = '', headline = '' } = req.body;
+    if (!playerName) return res.status(400).json({ error: 'playerName is required' });
+
+    let query = 'SELECT id, name, team FROM players WHERE LOWER(name) LIKE ?';
+    const params = [`%${playerName.toLowerCase()}%`];
+    if (team) {
+      query += ' AND LOWER(team) LIKE ?';
+      params.push(`%${team.toLowerCase()}%`);
+    }
+    const matches = db.prepare(query).all(...params);
+    if (!matches.length) return res.status(404).json({ error: `No player found matching "${playerName}"${team ? ` on "${team}"` : ''}` });
+
+    const isFlagged = status !== '' ? 1 : 0;
+    const injuryHeadline = headline || (status === 'OUT' ? 'OUT — Not expected to play in the tournament' : '');
+
+    const stmt = db.prepare(`
+      UPDATE players
+      SET injury_flagged = ?, injury_status = ?, injury_headline = ?
+      WHERE id = ?
+    `);
+    db.transaction(() => {
+      for (const p of matches) stmt.run(isFlagged, status.toUpperCase(), injuryHeadline, p.id);
+    })();
+
+    res.json({ success: true, updated: matches.map(p => `${p.name} (${p.team})`) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PUT /api/admin/teams/:teamName/eliminate
 router.put('/teams/eliminate', authMiddleware, (req, res) => {
   try {
