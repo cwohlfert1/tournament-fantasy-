@@ -214,10 +214,23 @@ export default function Landing() {
   useDocTitle('TourneyRun — Player Pool Fantasy');
   const { user } = useAuth();
 
-  const [c1, r1] = useCountUp(68);
-  const [c2, r2] = useCountUp(300);
+  const [copyConfirm, setCopyConfirm] = useState(false);
 
   const tickerText = '🏀 The 2026 Tournament starts Thursday March 19th at 12PM ET  ·  Draft day is coming  ·  Secure your spot before your friends do  ·  $5 entry per team  ·  You keep 100% of the prize pool  ·  ';
+
+  const SHARE_TEXT = "Skip the bracket this year 🏀 We're doing TourneyRun — draft real players, score real points, win real money. Join my league: tourneyrun.app";
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ text: SHARE_TEXT }); } catch (e) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(SHARE_TEXT);
+        setCopyConfirm(true);
+        setTimeout(() => setCopyConfirm(false), 2500);
+      } catch (e) {}
+    }
+  };
 
   return (
     <div className="overflow-x-hidden bg-gray-950">
@@ -233,85 +246,117 @@ export default function Landing() {
       </div>
 
       {/* ── Hero ── */}
-      <section className="relative min-h-screen flex items-center px-4 py-16 overflow-hidden">
+      <section className="relative flex items-center justify-center px-4 py-16 sm:py-24 overflow-hidden">
         {/* Glow orbs */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-brand-600/10 rounded-full blur-3xl"
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-600/10 rounded-full blur-3xl"
             style={{ animation: 'glowPulse 4s ease-in-out infinite' }} />
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-brand-800/15 rounded-full blur-3xl" />
-          <div className="absolute top-0 left-0 w-64 h-64 bg-brand-900/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-72 h-72 bg-brand-800/15 rounded-full blur-3xl" />
+          <div className="absolute top-0 left-0 w-52 h-52 bg-brand-900/20 rounded-full blur-3xl" />
         </div>
-
         <Particles />
 
-        <div className="relative max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left — copy */}
-          <div>
-            <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-bold px-4 py-1.5 rounded-full mb-5 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-ping" />
-              2026 College Basketball Fantasy
-            </div>
-
-            {/* Hook line — mobile-first, reads first */}
-            <p className="text-gray-400 text-base sm:text-lg font-semibold mb-3 leading-snug">
-              Tired of busting your bracket on day one? 🤦
-            </p>
-
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] mb-5">
-              <span className="bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent block">
-                Your Players.
-              </span>
-              <span className="bg-gradient-to-r from-brand-300 via-brand-400 to-brand-500 bg-clip-text text-transparent block">
-                Their Points.
-              </span>
-              <span className="bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent block">
-                Your Prize.
-              </span>
-            </h1>
-
-            <p className="text-gray-300 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl">
-              Unlike bracket challenges,{' '}
-              <span className="text-white font-semibold">your players score your points</span>{' '}
-              all tournament long — every bucket counts.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 mb-10">
-              <Link
-                to={user ? '/create-league' : '/register'}
-                className="group relative inline-flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-400 text-white font-black text-lg px-8 py-4 rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-brand-500/30 hover:shadow-brand-500/50"
-              >
-                <span>Create Your Account</span>
-                <span className="text-brand-200 text-sm font-normal">— Free</span>
-                <span className="absolute -inset-0.5 rounded-xl bg-brand-400/20 blur opacity-0 group-hover:opacity-100 transition-opacity" />
-              </Link>
-              <a
-                href="#how-it-works"
-                className="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-white/5 border border-gray-600 hover:border-gray-400 text-gray-300 hover:text-white font-bold text-lg px-8 py-4 rounded-xl transition-all duration-200"
-              >
-                See How It Works
-              </a>
-            </div>
-
-            {/* Micro-stats */}
-            <div className="flex items-center gap-6 flex-wrap">
-              <div ref={r1} className="text-center" style={{ animation: 'countUp 0.6s ease-out' }}>
-                <div className="text-2xl font-black text-brand-400">{c1}+</div>
-                <div className="text-gray-500 text-xs">Tournament Teams</div>
-              </div>
-              <div className="w-px h-8 bg-gray-700" />
-              <div ref={r2} className="text-center">
-                <div className="text-2xl font-black text-brand-400">{c2}+</div>
-                <div className="text-gray-500 text-xs">Draftable Players</div>
-              </div>
-              <div className="w-px h-8 bg-gray-700" />
-              <div className="text-center">
-                <div className="text-2xl font-black text-brand-400">1pt</div>
-                <div className="text-gray-500 text-xs">Per Point Scored</div>
-              </div>
-            </div>
+        <div className="relative max-w-xl mx-auto w-full text-center">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-bold px-4 py-1.5 rounded-full mb-5 uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-ping" />
+            2026 College Basketball Fantasy
           </div>
 
-          {/* Right — mockup */}
+          {/* Pre-headline hook */}
+          <p className="text-gray-400 text-base sm:text-lg font-semibold mb-3 leading-snug">
+            Tired of busting your bracket on day one? 🤦
+          </p>
+
+          {/* Main headline */}
+          <h1 className="text-5xl sm:text-6xl font-black leading-[1.05] mb-4">
+            <span className="bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent block">Your Players.</span>
+            <span className="bg-gradient-to-r from-brand-300 via-brand-400 to-brand-500 bg-clip-text text-transparent block">Their Points.</span>
+            <span className="bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent block">Your Prize.</span>
+          </h1>
+
+          {/* Blue subtext */}
+          <p className="text-brand-400 font-bold text-lg sm:text-xl mb-3">
+            Unlike brackets — your season never ends early
+          </p>
+
+          {/* Trust line */}
+          <p className="text-gray-400 text-sm sm:text-base leading-relaxed mb-8 max-w-sm mx-auto">
+            We charge $5 per team to play. That's it. We never touch your prize pool. 💰
+          </p>
+
+          {/* 3 CTAs stacked full-width */}
+          <div className="flex flex-col gap-3 w-full max-w-xs mx-auto sm:max-w-sm">
+            <Link
+              to={user ? '/create-league' : '/register'}
+              className="w-full inline-flex items-center justify-center bg-brand-500 hover:bg-brand-400 text-white font-black text-base px-6 py-4 rounded-xl transition-all duration-200 hover:scale-105 shadow-xl shadow-brand-500/30"
+            >
+              Create Your Account — Free
+            </Link>
+            <a
+              href="#how-it-works"
+              className="w-full inline-flex items-center justify-center bg-transparent border-2 border-brand-500/50 hover:border-brand-500 text-brand-400 hover:text-brand-300 font-bold text-base px-6 py-4 rounded-xl transition-all duration-200"
+            >
+              See How It Works
+            </a>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="w-full inline-flex items-center justify-center gap-2 bg-transparent border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-gray-200 font-medium text-sm px-6 py-3.5 rounded-xl transition-all duration-200"
+            >
+              {copyConfirm ? '✓ Copied! Send it to your crew 🏀' : '📲 Text This To Your Group Chat'}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Grab Your Crew ── */}
+      <section className="py-16 sm:py-20 px-4 bg-gray-900/40">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl sm:text-4xl font-black text-white mb-4 leading-tight">
+              Grab Your Crew. Forget the Bracket.<br className="hidden sm:block" /> Play All Tournament Long.
+            </h2>
+            <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+              Brackets are busted by day one. TourneyRun keeps every game meaningful — draft real players, score real points, and play with your people for three full weeks of action.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4 mb-10">
+            {[
+              { icon: '🍺', title: 'Round up your group', desc: 'Invite friends, coworkers, or family. Anyone can join with an invite code.' },
+              { icon: '📅', title: 'Schedule your draft', desc: 'Pick a time that works for everyone. Commissioner sets it, everyone shows up.' },
+              { icon: '🏆', title: 'Play for real stakes', desc: 'Set your own buy-in. We charge $5 per team to play — your prize pool stays 100% yours.' },
+            ].map(card => (
+              <div key={card.title} className="bg-gray-900 border border-gray-800 hover:border-brand-500/40 rounded-2xl p-5 transition-all duration-200 hover:-translate-y-0.5">
+                <div className="text-3xl mb-3">{card.icon}</div>
+                <h3 className="text-white font-bold text-base mb-2">{card.title}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center">
+            <Link
+              to={user ? '/create-league' : '/register'}
+              className="inline-flex items-center justify-center bg-brand-500 hover:bg-brand-400 text-white font-black text-base px-8 py-4 rounded-xl transition-all duration-200 hover:scale-105 shadow-lg shadow-brand-500/20"
+            >
+              Start Your Group League — Free
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Live Draft Room Mockup ── */}
+      <section className="py-16 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="text-brand-400 text-xs font-bold uppercase tracking-widest mb-3">Live draft room</div>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">
+              A live draft your crew will actually show up for.
+            </h2>
+            <p className="text-gray-400 text-sm mt-2">Real-time snake draft — countdown timer, auto-pick, live player queue.</p>
+          </div>
           <DraftMockup />
         </div>
       </section>
