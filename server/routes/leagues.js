@@ -195,6 +195,75 @@ router.get('/:id', authMiddleware, (req, res) => {
   }
 });
 
+// PATCH /api/leagues/:id/settings — commissioner edits league settings (lobby only)
+router.patch('/:id/settings', authMiddleware, (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Only the commissioner can edit settings' });
+    }
+    if (league.status !== 'lobby') {
+      return res.status(403).json({ error: 'Settings cannot be changed after the draft has started' });
+    }
+
+    const { draft_start_time, pick_time_limit, max_teams, total_rounds } = req.body;
+
+    const validTimers = [30, 60, 90, 120];
+    const timer = parseInt(pick_time_limit);
+    if (pick_time_limit !== undefined && !validTimers.includes(timer)) {
+      return res.status(400).json({ error: 'Pick timer must be 30, 60, 90, or 120 seconds' });
+    }
+
+    const rounds = parseInt(total_rounds);
+    if (total_rounds !== undefined && (isNaN(rounds) || rounds < 1 || rounds > 20)) {
+      return res.status(400).json({ error: 'Draft rounds must be between 1 and 20' });
+    }
+
+    const maxT = parseInt(max_teams);
+    if (max_teams !== undefined) {
+      if (isNaN(maxT) || maxT < 2 || maxT > 20) {
+        return res.status(400).json({ error: 'Max teams must be between 2 and 20' });
+      }
+      const { cnt } = db.prepare('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?').get(req.params.id);
+      if (maxT < cnt) {
+        return res.status(400).json({ error: `Can't set max teams below current member count (${cnt})` });
+      }
+    }
+
+    db.prepare(`
+      UPDATE leagues SET
+        draft_start_time = COALESCE(?, draft_start_time),
+        pick_time_limit  = COALESCE(?, pick_time_limit),
+        max_teams        = COALESCE(?, max_teams),
+        total_rounds     = COALESCE(?, total_rounds)
+      WHERE id = ?
+    `).run(
+      draft_start_time !== undefined ? (draft_start_time || null) : undefined,
+      pick_time_limit  !== undefined ? timer  : undefined,
+      max_teams        !== undefined ? maxT   : undefined,
+      total_rounds     !== undefined ? rounds : undefined,
+      req.params.id,
+    );
+
+    const updated = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+
+    // Broadcast system message to anyone currently in the draft room socket
+    const io = req.app.get('io');
+    if (io) {
+      const { addMessage, makeSystemMsg } = require('../chatStore');
+      const sysMsg = makeSystemMsg('⚙️ Commissioner updated league settings');
+      addMessage(req.params.id, sysMsg);
+      io.to(`draft_${req.params.id}`).emit('chat_message', sysMsg);
+    }
+
+    res.json({ league: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/leagues/:id/members
 router.get('/:id/members', authMiddleware, (req, res) => {
   try {

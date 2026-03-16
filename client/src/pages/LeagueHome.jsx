@@ -68,6 +68,13 @@ export default function LeagueHome() {
   const [avatarError, setAvatarError]         = useState('');
   const [instrCopied, setInstrCopied]         = useState(false);
 
+  // Edit settings modal
+  const [editOpen, setEditOpen]       = useState(false);
+  const [editForm, setEditForm]       = useState({});
+  const [editSaving, setEditSaving]   = useState(false);
+  const [editSuccess, setEditSuccess] = useState(false);
+  const [editError, setEditError]     = useState('');
+
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -155,6 +162,40 @@ export default function LeagueHome() {
       alert(err.response?.data?.error || 'Failed to populate test league');
     } finally {
       setPopulateLoading(false);
+    }
+  };
+
+  const openEditSettings = () => {
+    setEditForm({
+      draft_start_time: league.draft_start_time
+        ? new Date(league.draft_start_time).toISOString().slice(0, 16)
+        : '',
+      pick_time_limit: league.pick_time_limit || 60,
+      max_teams:       league.max_teams        || 10,
+      total_rounds:    league.total_rounds     || 10,
+    });
+    setEditSuccess(false);
+    setEditError('');
+    setEditOpen(true);
+  };
+
+  const saveSettings = async () => {
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const payload = {
+        pick_time_limit:  editForm.pick_time_limit,
+        max_teams:        editForm.max_teams,
+        total_rounds:     editForm.total_rounds,
+        draft_start_time: editForm.draft_start_time || null,
+      };
+      const res = await api.patch(`/leagues/${id}/settings`, payload);
+      setLeague(res.data.league);
+      setEditSuccess(true);
+    } catch (err) {
+      setEditError(err.response?.data?.error || 'Failed to save settings');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -281,6 +322,11 @@ export default function LeagueHome() {
               <Link to={`/league/${id}/admin`} className="btn-secondary px-5 py-2.5">
                 Enter Stats
               </Link>
+            )}
+            {isCommissioner && league.status === 'lobby' && (
+              <button onClick={openEditSettings} className="btn-secondary px-5 py-2.5 flex items-center gap-2">
+                ⚙️ Edit Settings
+              </button>
             )}
           </div>
         </div>
@@ -856,6 +902,147 @@ export default function LeagueHome() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Edit Settings Modal ── */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => { if (!editSaving) setEditOpen(false); }}
+          />
+
+          <div className="relative w-full max-w-lg bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+              <div>
+                <h2 className="text-lg font-bold text-white">⚙️ Edit League Settings</h2>
+                <p className="text-gray-500 text-xs mt-0.5">Settings lock once the draft begins</p>
+              </div>
+              {!editSaving && (
+                <button onClick={() => setEditOpen(false)}
+                  className="text-gray-500 hover:text-white transition-colors text-xl leading-none">
+                  ×
+                </button>
+              )}
+            </div>
+
+            {editSuccess ? (
+              /* ── Success state ── */
+              <div className="px-6 py-10 text-center">
+                <div className="text-4xl mb-3">✅</div>
+                <p className="text-white font-semibold text-lg mb-1">Settings updated</p>
+                <p className="text-gray-400 text-sm">All team members will see the changes immediately.</p>
+                <button onClick={() => setEditOpen(false)}
+                  className="btn-primary px-8 py-2.5 mt-6">
+                  Done
+                </button>
+              </div>
+            ) : (
+              /* ── Form ── */
+              <div className="px-6 py-5 space-y-5">
+
+                {/* Draft start time */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1.5">
+                    Draft Start Time <span className="text-gray-600 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-brand-500 transition-colors"
+                    value={editForm.draft_start_time}
+                    onChange={e => setEditForm(f => ({ ...f, draft_start_time: e.target.value }))}
+                  />
+                  {editForm.draft_start_time && (
+                    <button onClick={() => setEditForm(f => ({ ...f, draft_start_time: '' }))}
+                      className="text-xs text-gray-500 hover:text-red-400 mt-1 transition-colors">
+                      Clear scheduled time
+                    </button>
+                  )}
+                </div>
+
+                {/* Pick timer */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">Pick Timer</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[{ v: 30, l: '30s' }, { v: 60, l: '60s' }, { v: 90, l: '90s' }, { v: 120, l: '2 min' }].map(({ v, l }) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setEditForm(f => ({ ...f, pick_time_limit: v }))}
+                        className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                          editForm.pick_time_limit === v
+                            ? 'bg-brand-500/20 border-brand-500/60 text-brand-400'
+                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-white'
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Max teams + Draft rounds */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-1.5">
+                      Max Teams
+                    </label>
+                    <input
+                      type="number"
+                      min={members.length}
+                      max={20}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm font-semibold focus:outline-none focus:border-brand-500 transition-colors"
+                      value={editForm.max_teams}
+                      onChange={e => setEditForm(f => ({ ...f, max_teams: parseInt(e.target.value) || f.max_teams }))}
+                    />
+                    <p className="text-gray-600 text-[10px] mt-1">min {members.length} (current members)</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-1.5">
+                      Draft Rounds
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white text-sm font-semibold focus:outline-none focus:border-brand-500 transition-colors"
+                      value={editForm.total_rounds}
+                      onChange={e => setEditForm(f => ({ ...f, total_rounds: parseInt(e.target.value) || f.total_rounds }))}
+                    />
+                    <p className="text-gray-600 text-[10px] mt-1">players per team</p>
+                  </div>
+                </div>
+
+                {/* Lock notice */}
+                <div className="flex items-start gap-2 bg-yellow-500/5 border border-yellow-500/20 rounded-xl px-3.5 py-2.5">
+                  <span className="text-yellow-500 text-sm mt-0.5 shrink-0">🔒</span>
+                  <p className="text-yellow-400/80 text-xs leading-relaxed">
+                    These settings will be locked permanently once you start the draft.
+                  </p>
+                </div>
+
+                {editError && (
+                  <p className="text-red-400 text-sm text-center">{editError}</p>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-1">
+                  <button onClick={() => setEditOpen(false)} disabled={editSaving}
+                    className="flex-1 btn-secondary py-2.5 disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={saveSettings} disabled={editSaving}
+                    className="flex-1 btn-primary py-2.5 disabled:opacity-50">
+                    {editSaving ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
