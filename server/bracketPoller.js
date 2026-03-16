@@ -124,41 +124,26 @@ async function fetchPPG(athleteId) {
   }
 }
 
-// ── Step 4 — Upsert players into DB ──────────────────────────────────────────
+// ── Step 4 — Insert players into DB (assumes table was cleared beforehand) ────
 
-function upsertPlayers(players) {
+function insertPlayers(players) {
   const insertStmt = db.prepare(`
     INSERT INTO players (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const updateStmt = db.prepare(`
-    UPDATE players
-    SET position = ?, season_ppg = ?, seed = ?, region = ?, espn_team_id = ?
-    WHERE team = ? AND LOWER(name) = LOWER(?)
-  `);
 
-  let inserted = 0, updated = 0;
-
+  let inserted = 0;
   db.transaction(() => {
     for (const p of players) {
-      const existing = db.prepare(
-        'SELECT id FROM players WHERE team = ? AND LOWER(name) = LOWER(?)'
-      ).get(p.team, p.name);
-
-      if (existing) {
-        updateStmt.run(p.position, p.ppg, p.seed, p.region, p.teamId, p.team, p.name);
-        updated++;
-      } else {
-        insertStmt.run(
-          uuidv4(), p.name, p.team, p.position, p.jersey,
-          p.seed, p.region, p.ppg, p.teamId
-        );
-        inserted++;
-      }
+      insertStmt.run(
+        uuidv4(), p.name, p.team, p.position, p.jersey,
+        p.seed, p.region, p.ppg, p.teamId
+      );
+      inserted++;
     }
   })();
 
-  return { inserted, updated };
+  return inserted;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -186,9 +171,17 @@ async function pullBracket() {
     console.log(`[bracket]   ${r} (${list.length}): ${list.join(', ')}`);
   }
 
-  let totalInserted = 0, totalUpdated = 0, teamsProcessed = 0;
+  // 2. Wipe existing player data so transferred/graduated/NBA players are removed
+  console.log('[bracket] Clearing existing player data...');
+  db.transaction(() => {
+    db.prepare('DELETE FROM draft_picks').run();
+    db.prepare('DELETE FROM players').run();
+  })();
+  console.log('[bracket] Players and draft picks cleared.');
 
-  // 2. For each team: fetch roster → fetch PPG per player → upsert top 5
+  let totalInserted = 0, teamsProcessed = 0;
+
+  // 3. For each team: fetch roster → fetch PPG per player → insert top 8
   for (const team of teams) {
     const { teamId, teamName, seed, region } = team;
 
@@ -203,22 +196,26 @@ async function pullBracket() {
     // Fetch PPG for each player sequentially
     const enriched = [];
     for (const player of rosterPlayers) {
-      await sleep(80); // tight but polite between player stat calls
+      await sleep(80);
       const ppg = await fetchPPG(player.athleteId);
       enriched.push({ ...player, ppg, team: teamName, seed, region, teamId });
     }
 
-    // Sort by PPG, keep top 5
+    // Sort by PPG descending, keep top 8 with at least some scoring
     enriched.sort((a, b) => b.ppg - a.ppg);
-    const top5 = enriched.slice(0, 5);
+    const top8 = enriched.filter(p => p.ppg > 0).slice(0, 8);
 
-    const { inserted, updated } = upsertPlayers(top5);
+    if (!top8.length) {
+      console.warn(`[bracket]   ${teamName}: no players with PPG data, skipping`);
+      continue;
+    }
+
+    const inserted = insertPlayers(top8);
     totalInserted += inserted;
-    totalUpdated  += updated;
     teamsProcessed++;
 
-    const ppgLine = top5.map(p => `${p.name} (${p.ppg})`).join(', ');
-    console.log(`[bracket]   ✓ ${teamName} [${region} ${seed}]: ${ppgLine}`);
+    const ppgLine = top8.map(p => `${p.name} (${p.ppg})`).join(', ');
+    console.log(`[bracket]   ✓ ${teamName} [${region || '?'} ${seed}]: ${ppgLine}`);
   }
 
   const finalCount = db.prepare('SELECT COUNT(*) as c FROM players').get().c;
@@ -226,16 +223,14 @@ async function pullBracket() {
   const elapsed    = ((Date.now() - startTime) / 1000).toFixed(1);
 
   console.log(`[bracket] ── Pull complete in ${elapsed}s ──`);
-  console.log(`[bracket]   Teams in bracket: ${teams.length} | DB teams: ${finalTeams} | DB players: ${finalCount}`);
-  console.log(`[bracket]   Inserted: ${totalInserted} | Updated: ${totalUpdated}`);
+  console.log(`[bracket]   Teams in bracket: ${teams.length} | Teams with data: ${finalTeams} | Players inserted: ${finalCount}`);
 
   return {
-    success:        true,
-    teamsFound:     teams.length,
+    success:         true,
+    teamsFound:      teams.length,
     teamsProcessed,
     playersInserted: totalInserted,
-    playersUpdated:  totalUpdated,
-    elapsed:        `${elapsed}s`,
+    elapsed:         `${elapsed}s`,
   };
 }
 
