@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import api from '../api';
+import BallLoader from '../components/BallLoader';
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
@@ -35,16 +36,7 @@ export default function PaymentSuccess() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-3 animate-bounce">🏀</div>
-          <p className="text-gray-400">Activating your league...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader fullScreen message="Activating your league..." />;
 
   if (error) {
     return (

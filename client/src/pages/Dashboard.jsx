@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { useDocTitle } from '../hooks/useDocTitle';
+import BallLoader from '../components/BallLoader';
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS = {
@@ -100,18 +101,7 @@ export default function Dashboard() {
   }, [user?.id]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-6">
-          <div className="h-16 bg-gray-800 rounded-xl w-1/2" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-52 bg-gray-800 rounded-2xl" />)}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader />;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

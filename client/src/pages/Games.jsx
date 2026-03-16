@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
 import api from '../api';
 import { useDocTitle } from '../hooks/useDocTitle';
+import BallLoader from '../components/BallLoader';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -281,15 +282,7 @@ export default function Games() {
     setActiveDate(todayGroup ? today : grouped[0]?.[0]);
   }, [grouped.length]);
 
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-800 rounded-xl" />)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader />;
 
   const activeDayGames = grouped.find(([d]) => d === activeDate)?.[1] || [];
 

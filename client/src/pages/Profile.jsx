@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { useDocTitle } from '../hooks/useDocTitle';
+import BallLoader from '../components/BallLoader';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -378,16 +379,7 @@ export default function Profile() {
   }
 
   // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 w-48 bg-gray-800 rounded-lg" />
-          {[1,2,3].map(i => <div key={i} className="h-44 bg-gray-800 rounded-2xl" />)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader />;
 
   if (error && !profile) {
     return (

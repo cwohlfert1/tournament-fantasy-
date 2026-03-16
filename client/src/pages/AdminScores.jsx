@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
+import BallLoader from '../components/BallLoader';
 
 const ROUNDS = [
   'First Round', 'Second Round', 'Round of 16', 'Top 8', 'Semifinals', 'Championship'
@@ -187,7 +188,7 @@ export default function AdminScores() {
   const team1Players = gamePlayers.filter(p => p.team === selectedGame?.team1);
   const team2Players = gamePlayers.filter(p => p.team === selectedGame?.team2);
 
-  if (loading) return <div className="text-center py-12 text-gray-400">Loading...</div>;
+  if (loading) return <BallLoader />;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">

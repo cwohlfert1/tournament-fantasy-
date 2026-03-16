@@ -5,6 +5,7 @@ import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
+import BallLoader from '../components/BallLoader';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -249,15 +250,7 @@ export default function Leaderboard() {
     };
   }, [leagueId, applyUpdate]);
 
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-4">
-          {[1, 2, 3].map(i => <div key={i} className="h-20 bg-gray-800 rounded-xl" />)}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader />;
 
   // ── Prize pool math ──────────────────────────────────────────────────────────
   const buyIn        = parseFloat(league?.buy_in_amount) || 0;

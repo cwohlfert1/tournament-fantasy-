@@ -5,6 +5,7 @@ import api from '../api';
 import socket from '../socket';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
+import BallLoader from '../components/BallLoader';
 
 // ─── Position styling (complete Tailwind strings — no dynamic construction) ──
 
@@ -1093,16 +1094,7 @@ export default function DraftRoom() {
 
   // ── Loading / error states ────────────────────────────────────────────────
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-5xl mb-3 animate-bounce">🏀</div>
-          <p className="text-gray-400 text-lg">Loading draft room...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader fullScreen message="Loading draft room..." />;
 
   if (!state) {
     return (

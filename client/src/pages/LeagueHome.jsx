@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import BallLoader from '../components/BallLoader';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import Disclaimer from '../components/Disclaimer';
@@ -410,21 +411,7 @@ export default function LeagueHome() {
   };
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-4">
-          <div className="h-14 bg-gray-800 rounded-xl w-2/3" />
-          <div className="h-6 bg-gray-800 rounded-full w-36" />
-          <div className="grid grid-cols-4 gap-3 mt-6">
-            {[0,1,2,3].map(i => <div key={i} className="h-28 bg-gray-800 rounded-2xl" />)}
-          </div>
-          <div className="h-48 bg-gray-800 rounded-2xl" />
-          <div className="h-48 bg-gray-800 rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader />;
 
   if (!league) return <div className="text-center py-12 text-gray-400">League not found</div>;
 

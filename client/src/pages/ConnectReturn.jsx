@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import BallLoader from '../components/BallLoader';
 
 export default function ConnectReturn() {
   const [status, setStatus] = useState(null); // { connected, details_submitted }
@@ -16,16 +17,7 @@ export default function ConnectReturn() {
       .catch(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-3 animate-bounce">🔗</div>
-          <p className="text-gray-400">Checking your Stripe account...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader fullScreen message="Checking your Stripe account..." />;
 
   const isConnected = status?.connected;
 

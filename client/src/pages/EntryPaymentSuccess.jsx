@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import api from '../api';
 import Disclaimer from '../components/Disclaimer';
+import BallLoader from '../components/BallLoader';
 
 export default function EntryPaymentSuccess() {
   const [searchParams] = useSearchParams();
@@ -23,16 +24,7 @@ export default function EntryPaymentSuccess() {
       .catch(() => setLoading(false));
   }, [leagueId]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-3 animate-bounce">🏀</div>
-          <p className="text-gray-400">Confirming your payment...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <BallLoader fullScreen message="Confirming your payment..." />;
 
   const paidCount = paymentStatus?.paid_count ?? 0;
   const totalCount = paymentStatus?.total_count ?? 0;

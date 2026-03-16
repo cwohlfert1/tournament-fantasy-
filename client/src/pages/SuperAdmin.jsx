@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
+import BallLoader from '../components/BallLoader';
 
 const TABS = ['Leagues', 'Users', 'Players', 'Financials'];
 
@@ -30,7 +31,7 @@ function statusColor(status) {
 }
 
 function Spinner() {
-  return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  return <BallLoader />;
 }
 
 function Err({ msg }) {
