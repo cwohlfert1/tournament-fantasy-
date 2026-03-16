@@ -233,7 +233,7 @@ function DraftBoardGrid({ league, members, picks, currentPick, currentPicker, nu
                       {pick ? (
                         <div className={`rounded border px-1 py-0.5 text-center ${style.cell}`} style={{ height: 36 }}>
                           <div className="font-semibold truncate leading-tight" style={{ fontSize: 9 }}>
-                            {pick.player_name.split(' ').slice(-1)[0]}
+                            {pick.player_name}
                           </div>
                           <div className="opacity-60 truncate" style={{ fontSize: 8 }}>
                             {etpByPlayerId[pick.player_id]
@@ -281,7 +281,11 @@ function PickTicker({ picks, userId }) {
               <div className={`font-semibold truncate ${pick.user_id === userId ? 'text-brand-400' : 'text-white'}`} style={{ fontSize: 10 }}>
                 {pick.player_name}
               </div>
-              <div className="text-gray-600 truncate" style={{ fontSize: 9 }}>{pick.username}</div>
+              <div className="text-gray-600 truncate" style={{ fontSize: 9 }}>
+                {pick.team
+                  ? `${pick.team}${pick.region ? ` · ${pick.region}` : ''}`
+                  : pick.username}
+              </div>
             </div>
             <PosBadge pos={pick.position} small />
           </div>
@@ -322,10 +326,14 @@ function ManagerRosterCard({ member, picks, currentPicker, userId }) {
       {myPicks.length > 0 ? (
         <div className="space-y-0.5 max-h-28 overflow-y-auto">
           {myPicks.map(p => (
-            <div key={p.id} className="flex items-center gap-1">
-              <div className={`w-1 h-1 rounded-full shrink-0 ${ps(p.position).dot}`} />
-              <span className="text-gray-300 truncate" style={{ fontSize: 9 }}>{p.player_name}</span>
-              {p.seed ? <SeedBadge seed={p.seed} /> : null}
+            <div key={p.id} className="flex items-start gap-1">
+              <div className={`w-1 h-1 rounded-full shrink-0 mt-0.5 ${ps(p.position).dot}`} />
+              <div className="min-w-0">
+                <span className="text-gray-300 truncate block" style={{ fontSize: 9 }}>{p.player_name}</span>
+                <span className="text-gray-600 truncate block" style={{ fontSize: 8 }}>
+                  {p.team}{p.region ? ` · ${p.region}` : (p.seed ? ` · #${p.seed}` : '')}
+                </span>
+              </div>
             </div>
           ))}
         </div>
@@ -640,6 +648,7 @@ export default function DraftRoom() {
   const [error, setError] = useState('');
   const [autoDraftToast, setAutoDraftToast] = useState(null);
   const [draftConfirm, setDraftConfirm] = useState(null); // player to confirm drafting despite injury flag
+  const [pickConfirm, setPickConfirm] = useState(null);   // accidental-pick confirmation modal
 
   // Watchlist stored in localStorage per user per league
   const [watchlist, setWatchlist] = useState(() => {
@@ -900,6 +909,12 @@ export default function DraftRoom() {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       return b.season_ppg - a.season_ppg;
     });
+
+  // Enrich picks with team/region from the player cache (for ticker + roster cards)
+  const enrichedPicks = picks.map(p => {
+    const cached = playerCacheRef.current[p.player_id];
+    return { ...p, team: p.team || cached?.team || '', region: p.region || cached?.region || '' };
+  });
 
   // ── Loading / error states ────────────────────────────────────────────────
 
@@ -1185,7 +1200,7 @@ export default function DraftRoom() {
                         className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-800/50 transition-all ${
                           canPick ? 'hover:bg-brand-500/8 cursor-pointer' : 'cursor-default'
                         }`}
-                        onClick={() => canPick && requestPick(player)}>
+                        onClick={() => canPick && setPickConfirm(player)}>
                         <span className="text-gray-600 font-mono text-[10px] w-4 shrink-0">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -1261,7 +1276,7 @@ export default function DraftRoom() {
                       className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-800/40 transition-all group ${
                         canPick ? 'hover:bg-brand-500/8 cursor-pointer hover:border-brand-500/20' : 'cursor-default'
                       }`}
-                      onClick={() => canPick && requestPick(player)}>
+                      onClick={() => canPick && setPickConfirm(player)}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`font-semibold text-sm ${player.injury_flagged ? 'text-gray-400' : 'text-white'}`}>
@@ -1341,7 +1356,7 @@ export default function DraftRoom() {
               <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
               Live Feed
             </h3>
-            <PickTicker picks={picks} userId={user?.id} />
+            <PickTicker picks={enrichedPicks} userId={user?.id} />
           </div>
 
           {/* Manager cards — hidden on mobile when chat tab is active */}
@@ -1351,7 +1366,7 @@ export default function DraftRoom() {
               <div className="space-y-2 max-h-[30vh] overflow-y-auto">
                 {members.map(m => (
                   <ManagerRosterCard
-                    key={m.id} member={m} picks={picks}
+                    key={m.id} member={m} picks={enrichedPicks}
                     currentPicker={draftComplete ? null : currentPicker}
                     userId={user?.id}
                   />
@@ -1372,6 +1387,37 @@ export default function DraftRoom() {
         </div>
 
       </div>
+
+      {/* ── Pick Confirmation Modal (accidental pick guard) ── */}
+      {pickConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl max-w-sm w-full p-6">
+            <h3 className="text-white font-bold text-lg mb-1">Draft this player?</h3>
+            <p className="text-gray-300 text-sm mb-1">
+              <span className="text-white font-semibold">{pickConfirm.name}</span>
+            </p>
+            <p className="text-gray-500 text-xs mb-5">
+              {pickConfirm.team}{pickConfirm.region ? ` · ${pickConfirm.region}` : ''}{pickConfirm.seed ? ` · #${pickConfirm.seed} seed` : ''}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPickConfirm(null)}
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { requestPick(pickConfirm); setPickConfirm(null); }}
+                className="flex-1 px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-sm font-bold transition-colors"
+              >
+                Yes, Draft
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Injury Draft Confirmation Modal ── */}
       {draftConfirm && (
