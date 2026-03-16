@@ -153,9 +153,10 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
     }
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items:  lineItems,
-      mode:        'payment',
+      payment_method_types:  ['card'],
+      line_items:            lineItems,
+      mode:                  'payment',
+      allow_promotion_codes: true,
       success_url: `${clientUrl}/league/${leagueId}?payment=success`,
       cancel_url:  `${clientUrl}/league/${leagueId}?payment=cancelled`,
       metadata: {
