@@ -6,6 +6,25 @@ const { selectSmartDraftPlayer } = require('./smartDraft');
 // Per-league timeout handles — keyed by leagueId
 const timers = {};
 
+// ── Bot users — testuser01-testuser09 auto-pick fast ─────────────────────────
+function isBotUsername(username) {
+  return /^testuser0[1-9]$/i.test(username || '');
+}
+
+// ETP calculation (mirrors client-side calcETP)
+const ETP_GAMES = {
+  1: 3.8, 2: 3.0, 3: 2.5, 4: 2.2, 5: 1.8, 6: 1.7, 7: 1.6,
+  8: 1.3, 9: 1.2, 10: 1.1, 11: 1.0, 12: 1.0, 13: 1.0, 14: 1.0, 15: 1.0, 16: 1.0,
+};
+
+function calcETP(ppg, seed, isFirstFour) {
+  if (!seed || !ppg) return 0;
+  const n = parseInt(seed);
+  const base = ETP_GAMES[n] ?? 1.0;
+  const games = isFirstFour ? base + 0.5 : base;
+  return ppg * games;
+}
+
 /**
  * Schedule a server-side auto-pick for the current pick in a league.
  * Fires (pick_time_limit + 2) seconds after being called, then checks
@@ -22,7 +41,26 @@ function scheduleAutoPick(leagueId, io) {
   if (!league || league.status !== 'drafting') return;
 
   const expectedPick = league.current_pick;
-  const delay = (league.pick_time_limit + 2) * 1000; // +2s grace so client fires first
+
+  // Check if current picker is a bot — if so, pick quickly
+  const members = db.prepare(`
+    SELECT lm.*, u.username FROM league_members lm
+    JOIN users u ON lm.user_id = u.id
+    WHERE lm.league_id = ? ORDER BY lm.draft_order
+  `).all(leagueId);
+  const numTeams = members.length;
+  const totalPicks = numTeams * league.total_rounds;
+  if (expectedPick > totalPicks) return;
+  const round = Math.ceil(expectedPick / numTeams);
+  const pickInRound = (expectedPick - 1) % numTeams;
+  const draftPos = round % 2 === 1 ? pickInRound + 1 : numTeams - pickInRound;
+  const currentPicker = members.find(m => m.draft_order === draftPos);
+
+  // Bots pick in 2-3 seconds; real users get the full timer
+  const isBot = currentPicker && isBotUsername(currentPicker.username);
+  const delay = isBot
+    ? 2000 + Math.random() * 1000  // 2–3 seconds
+    : (league.pick_time_limit + 2) * 1000;
 
   timers[leagueId] = setTimeout(() => {
     _doAutoPick(leagueId, expectedPick, io);
@@ -59,13 +97,6 @@ function _doAutoPick(leagueId, expectedPick, io) {
     const currentPicker = members.find(m => m.draft_order === draftPos);
     if (!currentPicker) return;
 
-    // ── Smart Draft check ────────────────────────────────────────────────────
-    const hasSmart = db.prepare(
-      "SELECT id FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'"
-    ).get(currentPicker.user_id, leagueId);
-
-    const useSmartDraft = !!(hasSmart || league.autodraft_mode === 'smart_draft');
-
     // ── Fetch all available players ──────────────────────────────────────────
     const allAvailable = db.prepare(`
       SELECT * FROM players
@@ -76,14 +107,31 @@ function _doAutoPick(leagueId, expectedPick, io) {
     let available     = null;
     let usedSmartDraft = false;
 
-    if (useSmartDraft && allAvailable.length) {
-      available = selectSmartDraftPlayer(leagueId, currentPicker.user_id, allAvailable);
-      if (available) usedSmartDraft = true;
-    }
+    // ── Bot users always pick highest ETP (no smart draft, no injury skip) ──
+    if (isBotUsername(currentPicker.username)) {
+      const sorted = [...allAvailable].sort((a, b) => {
+        const etpA = calcETP(a.season_ppg, a.seed, !!a.is_first_four);
+        const etpB = calcETP(b.season_ppg, b.seed, !!b.is_first_four);
+        return etpB - etpA;
+      });
+      available = sorted[0] || null;
+    } else {
+      // ── Smart Draft check ──────────────────────────────────────────────────
+      const hasSmart = db.prepare(
+        "SELECT id FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'"
+      ).get(currentPicker.user_id, leagueId);
 
-    if (!available) {
-      // Best Available: prefer non-injured, fall back to anything if all injured
-      available = allAvailable.find(p => !p.injury_flagged) || allAvailable[0] || null;
+      const useSmartDraft = !!(hasSmart || league.autodraft_mode === 'smart_draft');
+
+      if (useSmartDraft && allAvailable.length) {
+        available = selectSmartDraftPlayer(leagueId, currentPicker.user_id, allAvailable);
+        if (available) usedSmartDraft = true;
+      }
+
+      if (!available) {
+        // Best Available: prefer non-injured, fall back to anything if all injured
+        available = allAvailable.find(p => !p.injury_flagged) || allAvailable[0] || null;
+      }
     }
 
     if (!available) return;
