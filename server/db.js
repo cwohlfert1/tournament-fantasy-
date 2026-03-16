@@ -269,6 +269,29 @@ try { db.exec("ALTER TABLE leagues ADD COLUMN autodraft_mode TEXT DEFAULT 'best_
 // Smart Draft on/off toggle (purchased users can pause without losing their upgrade)
 try { db.exec("ALTER TABLE smart_draft_upgrades ADD COLUMN enabled INTEGER DEFAULT 1"); } catch (e) {}
 
+// ── Dev/owner Smart Draft seed — survives redeploys via INSERT OR IGNORE ──────
+// Ensures cwohlfert always has Smart Draft active without overwriting real data.
+try {
+  const cwohlfert = db.prepare("SELECT id FROM users WHERE username = 'cwohlfert'").get();
+  if (cwohlfert) {
+    const leagues = db.prepare(
+      'SELECT id FROM leagues WHERE id IN (SELECT league_id FROM league_members WHERE user_id = ?)'
+    ).all(cwohlfert.id);
+    const seedSD = db.prepare(`
+      INSERT OR IGNORE INTO smart_draft_upgrades
+        (id, user_id, league_id, stripe_session_id, status, enabled, purchased_at)
+      VALUES (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+              substr(lower(hex(randomblob(2))),2) || '-' ||
+              substr('89ab',abs(random()) % 4 + 1, 1) ||
+              substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))),
+              ?, ?, 'dev_seed', 'active', 1, CURRENT_TIMESTAMP)
+    `);
+    for (const league of leagues) {
+      seedSD.run(cwohlfert.id, league.id);
+    }
+  }
+} catch (e) { console.error('[db] smart_draft dev seed error:', e.message); }
+
 // Standalone Smart Draft credit purchases (before the user is tied to a league)
 try {
   db.exec(`CREATE TABLE IF NOT EXISTS smart_draft_credits (
