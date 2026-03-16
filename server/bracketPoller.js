@@ -7,6 +7,11 @@
  * Bracket source:  ESPN postseason scoreboard, seasontype=3, groups=100
  * Roster source:   site.api.espn.com teams/{id}/roster
  * Stats source:    sports.core.api.espn.com athlete statistics
+ *
+ * SAFETY RULE: this file must NEVER touch the draft_picks table.
+ * draft_picks is user data. The players table is a reference/catalog table.
+ * Refreshing player data preserves all existing player UUIDs by keying on
+ * espn_athlete_id, so draft_picks.player_id foreign keys remain valid.
  */
 
 const https = require('https');
@@ -134,27 +139,52 @@ async function fetchPPG(athleteId) {
   }
 }
 
-// ── Step 4 — Insert players into DB (assumes table was cleared beforehand) ────
+// ── Step 4 — Upsert players: preserve existing UUIDs, never touch draft_picks ─
+//
+// Uses espn_athlete_id as the stable natural key.
+// If a player already exists (matched by espn_athlete_id):  UPDATE their stats.
+// If they are new: INSERT with a fresh UUID.
+// This means draft_picks.player_id foreign keys are never broken across refreshes.
 
-function insertPlayers(players) {
-  const insertStmt = db.prepare(`
-    INSERT INTO players (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id, espn_athlete_id, is_first_four)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+const findByAthleteId = db.prepare(
+  'SELECT id FROM players WHERE espn_athlete_id = ? LIMIT 1'
+);
+const insertPlayer = db.prepare(`
+  INSERT INTO players
+    (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id, espn_athlete_id, is_first_four)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const updatePlayer = db.prepare(`
+  UPDATE players
+  SET name=?, team=?, position=?, jersey_number=?, seed=?, region=?,
+      season_ppg=?, espn_team_id=?, is_first_four=?
+  WHERE espn_athlete_id=?
+`);
 
-  let inserted = 0;
+function upsertPlayers(players) {
+  let upserted = 0;
   db.transaction(() => {
     for (const p of players) {
-      insertStmt.run(
-        uuidv4(), p.name, p.team, p.position, p.jersey,
-        p.seed, p.region, p.ppg, p.teamId,
-        p.athleteId || '', p.isFirstFour ? 1 : 0
-      );
-      inserted++;
+      const athleteId = p.athleteId || '';
+      const existing  = athleteId ? findByAthleteId.get(athleteId) : null;
+      if (existing) {
+        updatePlayer.run(
+          p.name, p.team, p.position, p.jersey,
+          p.seed, p.region, p.ppg, p.teamId,
+          p.isFirstFour ? 1 : 0,
+          athleteId
+        );
+      } else {
+        insertPlayer.run(
+          uuidv4(), p.name, p.team, p.position, p.jersey,
+          p.seed, p.region, p.ppg, p.teamId,
+          athleteId, p.isFirstFour ? 1 : 0
+        );
+      }
+      upserted++;
     }
   })();
-
-  return inserted;
+  return upserted;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -182,17 +212,16 @@ async function pullBracket() {
     console.log(`[bracket]   ${r} (${list.length}): ${list.join(', ')}`);
   }
 
-  // 2. Wipe existing player data so transferred/graduated/NBA players are removed
-  console.log('[bracket] Clearing existing player data...');
-  db.transaction(() => {
-    db.prepare('DELETE FROM draft_picks').run();
-    db.prepare('DELETE FROM players').run();
-  })();
-  console.log('[bracket] Players and draft picks cleared.');
+  // 2. NOTE: we do NOT clear any tables here.
+  //    Players are upserted by espn_athlete_id (see upsertPlayers).
+  //    draft_picks is NEVER touched — it contains user data.
+  const picksBefore = db.prepare('SELECT COUNT(*) as cnt FROM draft_picks').get().cnt;
+  console.log(`[bracket] Players reference table refresh starting (draft_picks preserved: ${picksBefore} picks)`);
 
-  let totalInserted = 0, teamsProcessed = 0;
+  let totalUpserted = 0, teamsProcessed = 0;
+  const seenAthleteIds = new Set(); // track all athlete IDs in this pull
 
-  // 3. For each team: fetch roster → fetch PPG per player → insert top 8
+  // 3. For each team: fetch roster → fetch PPG per player → upsert top 8
   for (const team of teams) {
     const { teamId, teamName, seed, region } = team;
 
@@ -221,26 +250,49 @@ async function pullBracket() {
       continue;
     }
 
-    const inserted = insertPlayers(top8);
-    totalInserted += inserted;
+    top8.forEach(p => p.athleteId && seenAthleteIds.add(p.athleteId));
+    const upserted = upsertPlayers(top8);
+    totalUpserted += upserted;
     teamsProcessed++;
 
     const ppgLine = top8.map(p => `${p.name} (${p.ppg})`).join(', ');
     console.log(`[bracket]   ✓ ${teamName} [${region || '?'} ${seed}]: ${ppgLine}`);
   }
 
-  const finalCount = db.prepare('SELECT COUNT(*) as c FROM players').get().c;
-  const finalTeams = db.prepare('SELECT COUNT(DISTINCT team) as c FROM players').get().c;
-  const elapsed    = ((Date.now() - startTime) / 1000).toFixed(1);
+  // 4. Remove players that were NOT in this pull AND have no draft picks.
+  //    Players with picks are kept even if ESPN no longer lists them.
+  if (seenAthleteIds.size > 0) {
+    const placeholders = [...seenAthleteIds].map(() => '?').join(',');
+    const removed = db.prepare(`
+      DELETE FROM players
+      WHERE espn_athlete_id NOT IN (${placeholders})
+        AND id NOT IN (SELECT DISTINCT player_id FROM draft_picks)
+    `).run(...seenAthleteIds);
+    if (removed.changes > 0) {
+      console.log(`[bracket] Removed ${removed.changes} stale player(s) not in current bracket (none had draft picks)`);
+    }
+  }
+
+  const picksAfter  = db.prepare('SELECT COUNT(*) as cnt FROM draft_picks').get().cnt;
+  const finalCount  = db.prepare('SELECT COUNT(*) as c FROM players').get().c;
+  const finalTeams  = db.prepare('SELECT COUNT(DISTINCT team) as c FROM players').get().c;
+  const elapsed     = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  // Guard: draft_picks must never change during a bracket pull
+  if (picksAfter !== picksBefore) {
+    console.error(`[bracket] CRITICAL: draft_picks count changed from ${picksBefore} to ${picksAfter} — this should never happen!`);
+  } else {
+    console.log(`[bracket] Players reference table updated (draft picks preserved: ${picksAfter} picks)`);
+  }
 
   console.log(`[bracket] ── Pull complete in ${elapsed}s ──`);
-  console.log(`[bracket]   Teams in bracket: ${teams.length} | Teams with data: ${finalTeams} | Players inserted: ${finalCount}`);
+  console.log(`[bracket]   Teams in bracket: ${teams.length} | Teams with data: ${finalTeams} | Players upserted: ${finalCount}`);
 
   return {
     success:         true,
     teamsFound:      teams.length,
     teamsProcessed,
-    playersInserted: totalInserted,
+    playersUpserted: totalUpserted,
     elapsed:         `${elapsed}s`,
   };
 }
