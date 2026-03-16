@@ -466,8 +466,13 @@ setInterval(() => {
 }, 30000);
 
 // ESPN live scoring poller — smart polling (2 min live window, 30 min otherwise)
-const { startSmartPoller } = require('./espnPoller');
+const { startSmartPoller, pullSchedule } = require('./espnPoller');
 startSmartPoller(io);
+
+// Pull full tournament schedule at startup (after bracket pull finishes) + every 6h
+// This populates the games table with all scheduled games including future ones.
+setTimeout(() => pullSchedule(io), 12 * 1000);
+setInterval(() => pullSchedule(io), 6 * 60 * 60 * 1000);
 
 // Injury news poller — scans NCAA basketball news feeds every 2 hours
 const { pollInjuries } = require('./injuryPoller');

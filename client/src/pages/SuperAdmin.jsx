@@ -435,8 +435,10 @@ function PlayersTab() {
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', team: '', position: '', seed: '', region: '', season_ppg: '' });
   const [busy, setBusy] = useState('');
-  const [pullLoading, setPullLoading] = useState(false);
-  const [pullMsg, setPullMsg] = useState('');
+  const [pullLoading, setPullLoading]     = useState(false);
+  const [pullMsg, setPullMsg]             = useState('');
+  const [schedLoading, setSchedLoading]   = useState(false);
+  const [schedMsg, setSchedMsg]           = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -539,6 +541,19 @@ function PlayersTab() {
     }
   };
 
+  const pullSchedule = async () => {
+    setSchedLoading(true);
+    setSchedMsg('');
+    try {
+      const res = await api.post('/superadmin/pull-schedule');
+      setSchedMsg(`Schedule pulled — ${res.data.inserted ?? 0} inserted, ${res.data.updated ?? 0} updated`);
+    } catch (e) {
+      setSchedMsg(e.response?.data?.error || 'Pull failed');
+    } finally {
+      setSchedLoading(false);
+    }
+  };
+
   const filtered = players.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.team.toLowerCase().includes(search.toLowerCase())
@@ -561,7 +576,11 @@ function PlayersTab() {
         <button onClick={pullBracket} disabled={pullLoading} className="px-3 py-1.5 bg-orange-700 hover:bg-orange-600 text-white rounded text-sm disabled:opacity-50">
           {pullLoading ? 'Pulling...' : 'Pull ESPN Bracket'}
         </button>
+        <button onClick={pullSchedule} disabled={schedLoading} className="px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded text-sm disabled:opacity-50">
+          {schedLoading ? 'Pulling...' : 'Pull Schedule'}
+        </button>
         {pullMsg && <span className="text-xs text-green-400">{pullMsg}</span>}
+        {schedMsg && <span className="text-xs text-teal-400">{schedMsg}</span>}
         <span className="text-xs text-gray-500 ml-auto">{players.length} players</span>
       </div>
 

@@ -615,12 +615,24 @@ router.post('/leagues/:leagueId/randomize-order', authMiddleware, (req, res) => 
 
 // POST /api/admin/pull-bracket — manually trigger ESPN bracket + roster pull
 router.post('/pull-bracket', authMiddleware, async (req, res) => {
-  // Any authenticated user can trigger this (it's read-only from ESPN)
   try {
     const result = await pullBracket();
     res.json(result);
   } catch (err) {
     console.error('[admin] pull-bracket error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/pull-schedule — manually trigger full tournament schedule pull
+router.post('/pull-schedule', authMiddleware, async (req, res) => {
+  try {
+    const { pullSchedule } = require('../espnPoller');
+    const io = req.app.get('io');
+    const result = await pullSchedule(io);
+    res.json(result);
+  } catch (err) {
+    console.error('[admin] pull-schedule error:', err);
     res.status(500).json({ error: err.message });
   }
 });

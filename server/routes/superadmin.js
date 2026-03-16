@@ -292,6 +292,19 @@ router.post('/pull-bracket', superadmin, async (req, res) => {
   }
 });
 
+// POST /api/superadmin/pull-schedule — trigger full tournament schedule pull
+router.post('/pull-schedule', superadmin, async (req, res) => {
+  try {
+    const { pullSchedule } = require('../espnPoller');
+    const io = req.app.get('io');
+    const result = await pullSchedule(io);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Financials ────────────────────────────────────────────────────────────────
 
 // GET /api/superadmin/financials — payment overview

@@ -7,6 +7,16 @@ const { postEliminations, checkAndPostRankChanges } = require('./wallUtils');
 const SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard';
 const SUMMARY_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=';
 
+// All 2026 NCAA tournament dates (First Four through Championship)
+const TOURNAMENT_DATES = [
+  '20260318','20260319','20260320','20260321','20260322',
+  '20260326','20260327','20260328','20260329',
+  '20260404','20260406',
+];
+
+const SCHEDULE_URL = date =>
+  `${SCOREBOARD_URL}?dates=${date}&groups=100&seasontype=3&limit=100`;
+
 // ── Live-window detection ────────────────────────────────────────────────────
 // Active game windows: Thu–Sun, 12:00 PM – 11:00 PM Eastern
 function isLiveWindow() {
@@ -201,6 +211,134 @@ function pushStandingsToLeagues(io) {
   }
 }
 
+// ── Schedule seeder ──────────────────────────────────────────────────────────
+// Fetches all tournament dates from ESPN scoreboard and upserts game rows
+// including scheduled (future) games. Safe to run repeatedly — idempotent.
+function parseRoundName(headline) {
+  const h = (headline || '').toLowerCase();
+  if (h.includes('first four'))            return 'First Four';
+  if (h.includes('first round'))           return 'First Round';
+  if (h.includes('second round'))          return 'Second Round';
+  if (h.includes('sweet 16') || h.includes('sweet sixteen')) return 'Sweet 16';
+  if (h.includes('elite 8') || h.includes('elite eight'))    return 'Elite 8';
+  if (h.includes('final four'))            return 'Final Four';
+  if (h.includes('national championship') || h.includes('championship game')) return 'Championship';
+  return 'First Round';
+}
+
+function parseRegion(headline) {
+  const m = (headline || '').match(/[-–]\s*(\w+)\s+Region/i);
+  return m ? m[1] : '';
+}
+
+async function pullSchedule(io) {
+  console.log('[schedule] Pulling full tournament schedule from ESPN...');
+  let inserted = 0, updated = 0;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  for (const date of TOURNAMENT_DATES) {
+    let data;
+    try {
+      data = await fetchJson(SCHEDULE_URL(date));
+    } catch (err) {
+      console.warn(`[schedule] Failed to fetch date ${date}:`, err.message);
+      continue;
+    }
+    await sleep(150);
+
+    for (const event of (data.events || [])) {
+      const comp = event.competitions?.[0];
+      if (!comp) continue;
+
+      const c0 = comp.competitors?.[0];
+      const c1 = comp.competitors?.[1];
+      if (!c0?.team || !c1?.team) continue;
+
+      const team1Name = c0.team.displayName;
+      const team2Name = c1.team.displayName;
+      if (!team1Name || !team2Name) continue;
+      if (team1Name.toLowerCase().includes('tbd') || team2Name.toLowerCase().includes('tbd')) continue;
+
+      const espnEventId = event.id;
+      const gameDate    = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
+      const tipOffTime  = event.date || '';
+
+      const note        = comp.notes?.[0]?.headline || '';
+      const roundName   = parseRoundName(note);
+      const region      = parseRegion(note);
+
+      const broadcasts  = comp.broadcasts || [];
+      const tvNetwork   = broadcasts.flatMap(b => b.names || []).join(', ');
+
+      const venue   = comp.venue || {};
+      const city    = venue.address?.city || '';
+      const state   = venue.address?.state || '';
+      const location = [venue.fullName, city && state ? `${city}, ${state}` : (city || state)]
+        .filter(Boolean).join(' — ');
+
+      const statusType  = comp.status?.type;
+      const isCompleted = statusType?.completed === true;
+      const score1      = isCompleted ? (parseInt(c0.score) || 0) : 0;
+      const score2      = isCompleted ? (parseInt(c1.score) || 0) : 0;
+      const winnerName  = isCompleted ? (score1 >= score2 ? team1Name : team2Name) : '';
+
+      // Try to find an existing game by espn_event_id first, then by name matching
+      const byId = db.prepare('SELECT * FROM games WHERE espn_event_id = ?').get(espnEventId);
+      if (byId) {
+        // Update metadata only — don't clobber scores already set by the poller
+        db.prepare(`
+          UPDATE games SET
+            game_date    = COALESCE(NULLIF(game_date,  ''), ?),
+            round_name   = COALESCE(NULLIF(round_name, ''), ?),
+            tip_off_time = COALESCE(NULLIF(tip_off_time, ''), ?),
+            tv_network   = COALESCE(NULLIF(tv_network,  ''), ?),
+            location     = COALESCE(NULLIF(location,    ''), ?),
+            region       = COALESCE(NULLIF(region,      ''), ?)
+          WHERE espn_event_id = ?
+        `).run(gameDate, roundName, tipOffTime, tvNetwork, location, region, espnEventId);
+        updated++;
+        continue;
+      }
+
+      // Try name-matching against existing rows (e.g. ones created by schedule/generate)
+      const nameMatch = findMatchingGame(team1Name, team2Name, true);
+      if (nameMatch) {
+        db.prepare(`
+          UPDATE games SET
+            espn_event_id = COALESCE(NULLIF(espn_event_id, ''), ?),
+            game_date     = COALESCE(NULLIF(game_date,  ''), ?),
+            round_name    = COALESCE(NULLIF(round_name, ''), ?),
+            tip_off_time  = COALESCE(NULLIF(tip_off_time, ''), ?),
+            tv_network    = COALESCE(NULLIF(tv_network,  ''), ?),
+            location      = COALESCE(NULLIF(location,    ''), ?),
+            region        = COALESCE(NULLIF(region,      ''), ?)
+          WHERE id = ?
+        `).run(espnEventId, gameDate, roundName, tipOffTime, tvNetwork, location, region, nameMatch.game.id);
+        updated++;
+        continue;
+      }
+
+      // New game — insert it
+      db.prepare(`
+        INSERT INTO games
+          (id, espn_event_id, game_date, round_name, team1, team2,
+           tip_off_time, tv_network, location, region,
+           is_completed, winner_team, team1_score, team2_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        uuidv4(), espnEventId, gameDate, roundName, team1Name, team2Name,
+        tipOffTime, tvNetwork, location, region,
+        isCompleted ? 1 : 0, winnerName, score1, score2
+      );
+      inserted++;
+    }
+  }
+
+  console.log(`[schedule] Done — ${inserted} inserted, ${updated} updated`);
+  if (io) pushGamesUpdate(io);
+  return { inserted, updated };
+}
+
 // ── Main poll ────────────────────────────────────────────────────────────────
 async function pollESPN(io) {
   try {
@@ -307,4 +445,4 @@ function startSmartPoller(io) {
   _pollerTimeout = setTimeout(tick, 15 * 1000);
 }
 
-module.exports = { pollESPN, startSmartPoller };
+module.exports = { pollESPN, startSmartPoller, pullSchedule };
