@@ -365,6 +365,7 @@ export default function Leaderboard() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`font-bold text-base ${isMe ? 'text-brand-400' : 'text-white'}`}>
                           {team.team_name}
+                          {i === standings.length - 1 && standings.length > 1 && <span className="ml-1">💀</span>}
                         </span>
                         {isMe && (
                           <span className="text-xs bg-brand-500/20 text-brand-400 border border-brand-500/30 px-1.5 py-0.5 rounded-full">You</span>
