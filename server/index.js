@@ -111,6 +111,7 @@ io.on('connection', (socket) => {
 
       // Send current state
       const state = getDraftState(leagueId);
+      if (!state) return socket.emit('error', { message: 'League not found' });
       socket.emit('draft_state', state);
     } catch (err) {
       socket.emit('error', { message: 'Auth failed' });

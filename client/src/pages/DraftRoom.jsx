@@ -818,17 +818,19 @@ export default function DraftRoom() {
 
   // ── Socket setup ──────────────────────────────────────────────────────────
   useEffect(() => {
-    socket.connect();
+    try { socket.connect(); } catch (e) { console.error('Socket connect failed', e); }
 
     socket.emit('join_draft_room', { leagueId, token });
 
     socket.on('draft_state', (data) => {
+      if (!data || !data.league) { setLoading(false); return; }
       setState(data);
       setLoading(false);
       if (data.league?.status === 'drafting' && !data.draftComplete) resetTimer(data.league.pick_time_limit);
     });
 
     socket.on('draft_started', (data) => {
+      if (!data || !data.league) return;
       setState(data);
       setLoading(false);
       resetTimer(data.league?.pick_time_limit);
@@ -836,6 +838,7 @@ export default function DraftRoom() {
     });
 
     socket.on('pick_made', (data) => {
+      if (!data) return;
       setState(prev => {
         if (!prev) return prev;
         const numTeams = prev.members.length;
@@ -850,7 +853,7 @@ export default function DraftRoom() {
         };
       });
       // Confetti — bigger burst for your own pick
-      launchConfetti(data.pick.user_id === user?.id ? 1.4 : 0.5);
+      launchConfetti(data.pick?.user_id === user?.id ? 1.4 : 0.5);
       fetchAvailablePlayers();
       if (!data.draftComplete) resetTimer(state?.league?.pick_time_limit || 60);
       else if (timerRef.current) clearInterval(timerRef.current);
@@ -859,12 +862,14 @@ export default function DraftRoom() {
     });
 
     socket.on('draft_completed', (data) => {
+      if (!data) return;
       setState(data);
       if (timerRef.current) clearInterval(timerRef.current);
     });
 
     socket.on('error', (data) => {
-      setError(data.message || 'An error occurred');
+      setError(data?.message || 'An error occurred');
+      setLoading(false);
       pickingRef.current = false;
       setPicking(false);
       setTimeout(() => setError(''), 4000);
@@ -873,6 +878,7 @@ export default function DraftRoom() {
     Promise.all([api.get(`/draft/${leagueId}/state`), fetchAvailablePlayers()])
       .then(([draftRes]) => {
         const data = draftRes.data;
+        if (!data || !data.league) { setLoading(false); return; }
         setState(data);
         setLoading(false);
         if (data.league?.status === 'drafting' && !data.draftComplete) resetTimer(data.league.pick_time_limit);
