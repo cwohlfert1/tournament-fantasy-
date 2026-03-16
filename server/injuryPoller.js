@@ -137,6 +137,30 @@ async function pollInjuries() {
       update.run(headline, id);
     }
 
+    // Clear flags for players who have played in the last 5 completed game days
+    // (injury news may be stale — if they've suited up recently, they're not hurt)
+    const recentDates = db.prepare(`
+      SELECT DISTINCT game_date FROM games
+      WHERE is_completed = 1 ORDER BY game_date DESC LIMIT 5
+    `).all().map(r => r.game_date);
+
+    if (recentDates.length > 0) {
+      const ph = recentDates.map(() => '?').join(',');
+      const cleared = db.prepare(`
+        UPDATE players SET injury_flagged = 0, injury_headline = ''
+        WHERE injury_flagged = 1
+        AND id IN (
+          SELECT DISTINCT ps.player_id
+          FROM player_stats ps
+          JOIN games g ON ps.game_id = g.id
+          WHERE g.is_completed = 1 AND g.game_date IN (${ph})
+        )
+      `).run(...recentDates);
+      if (cleared.changes > 0) {
+        console.log(`[Injuries] Cleared ${cleared.changes} flag(s) for players who played in the last ${recentDates.length} game day(s).`);
+      }
+    }
+
     console.log(`[Injuries] Done — ${flagged.size} player(s) flagged from news.`);
   } catch (err) {
     console.error('[Injuries poller] Fatal error:', err.message);

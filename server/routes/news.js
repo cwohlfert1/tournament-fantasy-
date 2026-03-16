@@ -23,7 +23,15 @@ router.get('/', authMiddleware, (req, res) => {
     query += ' LIMIT ?';
     params.push(parseInt(limit) || 40);
 
-    const articles = db.prepare(query).all(...params);
+    const raw = db.prepare(query).all(...params);
+
+    // Filter out injury articles older than 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const articles = raw.filter(a => {
+      if (a.feed_tag !== 'injuries') return true;
+      const d = new Date(a.published_at);
+      return isNaN(d) || d >= thirtyDaysAgo;
+    });
 
     // Always include the latest injury article timestamp so the client can badge-detect
     const latestInjury = db.prepare(

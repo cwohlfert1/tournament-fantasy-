@@ -98,6 +98,18 @@ async function pollNews() {
       }
     }
 
+    // Prune injury articles older than 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const injuryArticles = db.prepare("SELECT id, published_at FROM news_articles WHERE feed_tag = 'injuries'").all();
+    const staleInjuryIds = injuryArticles
+      .filter(a => { const d = new Date(a.published_at); return !isNaN(d) && d < thirtyDaysAgo; })
+      .map(a => a.id);
+    if (staleInjuryIds.length > 0) {
+      const ph = staleInjuryIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM news_articles WHERE id IN (${ph})`).run(...staleInjuryIds);
+      console.log(`[News] Pruned ${staleInjuryIds.length} stale injury article(s) older than 30 days.`);
+    }
+
     // Prune oldest articles beyond MAX_ARTICLES
     const count = db.prepare('SELECT COUNT(*) as n FROM news_articles').get().n;
     if (count > MAX_ARTICLES) {
