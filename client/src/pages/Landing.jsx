@@ -31,7 +31,7 @@ const STYLES = `
 `;
 
 // ─── Countdown hook ───────────────────────────────────────────────────────────
-const TOURNAMENT_DATE = new Date('2026-03-19T17:00:00Z'); // 12:00 PM ET (UTC-5)
+const TOURNAMENT_DATE = new Date('2026-03-19T16:00:00Z'); // 12:00 PM EDT (UTC-4, DST active in March)
 
 function useCountdown() {
   const calc = () => {
