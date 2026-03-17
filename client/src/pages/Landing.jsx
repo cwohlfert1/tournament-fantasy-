@@ -893,6 +893,9 @@ export default function Landing() {
         <p className="text-gray-700 text-xs">
           Skill-based fantasy game · Not available in WA, ID, MT, NV, LA
         </p>
+        <p className="text-gray-700 text-xs mt-1">
+          TourneyRun charges a $5 platform fee per team for use of the software. Prize pools are managed independently by league commissioners outside of TourneyRun.
+        </p>
       </div>
     </div>
   );
