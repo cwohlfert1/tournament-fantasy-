@@ -83,56 +83,162 @@ function matchPlayer(espnName, players) {
   return null;
 }
 
-// ── ESPN event matching ─────────────────────────────────────────────────────────
-const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
-const ESPN_LEADERBOARD = id => `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event=${id}`;
+// ── Date helper ─────────────────────────────────────────────────────────────────
+function toESPNDate(dateStr) {
+  // Converts '2026-03-12' → '20260312'
+  return (dateStr || '').replace(/-/g, '').slice(0, 8);
+}
 
-function scoreFromEvent(event) {
-  // Handle both scoreboard and leaderboard response shapes
-  if (event?.competitions?.[0]?.competitors) return event.competitions[0].competitors;
-  if (event?.competitors) return event.competitors;
-  return [];
+// ── ESPN endpoints ──────────────────────────────────────────────────────────────
+// The scoreboard endpoint supports ?dates=YYYYMMDD-YYYYMMDD for historical events.
+// This is the only reliable way to retrieve completed tournament data.
+// The leaderboard?event=ID endpoint does NOT return data for historical events.
+const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
+
+// ── Unified competitor parser ────────────────────────────────────────────────────
+// ESPN returns two different shapes depending on whether we hit the current or
+// dated scoreboard endpoint:
+//
+// LIVE / CURRENT format:
+//   comp.displayName                  — player name
+//   comp.linescores = [{value:68}, …] — simple indexed array
+//   comp.sortOrder                    — finish position
+//   comp.status.type.name             — 'STATUS_CUT', 'STATUS_WD', etc.
+//
+// HISTORICAL (dated scoreboard) format:
+//   comp.athlete.displayName          — player name
+//   comp.linescores = [               — round-level objects keyed by period (1–4)
+//     {period:1, value:68, linescores:[...hole data...]},
+//     {period:2, value:67, ...},
+//   ]
+//   comp.order                        — finish position
+//   (no status field — derive cut from whether round 3/4 exist)
+function parseCompetitor(comp) {
+  // Name
+  const name = comp.displayName || comp.athlete?.displayName || '';
+
+  // Linescores — detect format by checking if any item has a nested `linescores` array
+  const ls = comp.linescores || [];
+  const isHistorical = ls.some(l => l.linescores !== undefined);
+
+  let r1 = null, r2 = null, r3 = null, r4 = null;
+  if (isHistorical) {
+    // Period-keyed rounds (1–4 are round-level, nested entries are holes)
+    const rounds = ls.filter(l => l.period >= 1 && l.period <= 4);
+    r1 = rounds.find(l => l.period === 1)?.value ?? null;
+    r2 = rounds.find(l => l.period === 2)?.value ?? null;
+    r3 = rounds.find(l => l.period === 3)?.value ?? null;
+    r4 = rounds.find(l => l.period === 4)?.value ?? null;
+  } else {
+    // Simple indexed array (live scoreboard)
+    r1 = ls[0]?.value != null ? Number(ls[0].value) : null;
+    r2 = ls[1]?.value != null ? Number(ls[1].value) : null;
+    r3 = ls[2]?.value != null ? Number(ls[2].value) : null;
+    r4 = ls[3]?.value != null ? Number(ls[3].value) : null;
+  }
+
+  // Validate: stroke counts should be between 55–95 for a golf round
+  const valid = v => v !== null && v >= 55 && v <= 95;
+  const r1v = valid(r1) ? r1 : null;
+  const r2v = valid(r2) ? r2 : null;
+  const r3v = valid(r3) ? r3 : null;
+  const r4v = valid(r4) ? r4 : null;
+
+  // Cut status
+  let madeCut;
+  const statusName = (comp.status?.type?.name || comp.status?.type?.id || '').toUpperCase();
+  if (statusName) {
+    madeCut = !statusName.includes('CUT') && !statusName.includes('WD') && !statusName.includes('DQ');
+  } else {
+    // Historical: derive from rounds played — cut players only have 2 rounds
+    madeCut = r3v !== null || r4v !== null;
+  }
+
+  // Finish position — historical uses `order`, live uses `sortOrder`
+  const finishPos = comp.order ? parseInt(comp.order) : (comp.sortOrder ? parseInt(comp.sortOrder) : null);
+
+  return { name, r1: r1v, r2: r2v, r3: r3v, r4: r4v, madeCut, finishPos };
+}
+
+// ── ESPN event lookup ────────────────────────────────────────────────────────────
+function nameWords(str) {
+  return norm(str).split(' ').filter(w => w.length > 3);
+}
+
+function nameMatchScore(tournName, espnName) {
+  const tWords = nameWords(tournName);
+  return tWords.filter(w => norm(espnName).includes(w)).length;
 }
 
 async function findEspnEvent(tournament) {
-  // 1. If we already have the ESPN ID stored, use it directly
-  if (tournament.espn_event_id) {
-    try {
-      const data = await fetchJson(ESPN_LEADERBOARD(tournament.espn_event_id));
-      const ev = data?.events?.[0] || data;
-      if (scoreFromEvent(ev).length > 0) return { event: ev, source: 'stored_id' };
-    } catch (e) {
-      console.warn('[golf-sync] Stored espn_event_id fetch failed:', e.message);
+  const tWords = nameWords(tournament.name);
+  const tStart = new Date(tournament.start_date);
+  const tEnd   = tournament.end_date ? new Date(tournament.end_date) : new Date(tStart.getTime() + 6 * 86400000);
+
+  function pickBest(events) {
+    if (events.length === 0) return null;
+    if (events.length === 1) return events[0];
+    let best = null, bestScore = 0;
+    for (const ev of events) {
+      const s = nameMatchScore(tournament.name, ev.name || ev.shortName || '');
+      if (s > bestScore) { bestScore = s; best = ev; }
+    }
+    return bestScore >= 1 ? best : null;
+  }
+
+  function scoreFromEvent(ev) {
+    if (ev?.competitions?.[0]?.competitors) return ev.competitions[0].competitors;
+    if (ev?.competitors) return ev.competitors;
+    return [];
+  }
+
+  function storeId(espnId) {
+    if (espnId) {
+      db.prepare('UPDATE golf_tournaments SET espn_event_id = ? WHERE id = ?').run(espnId, tournament.id);
     }
   }
 
-  // 2. Fetch scoreboard and match by name or date
-  const data = await fetchJson(ESPN_SCOREBOARD);
-  const events = data?.events || [];
-
-  const tWords = norm(tournament.name).split(' ').filter(w => w.length > 3);
-  const tStart = new Date(tournament.start_date);
-
-  // Name match: majority of significant words overlap
-  let best = null, bestScore = 0;
-  for (const ev of events) {
-    const eName = norm(ev.name || '');
-    const matches = tWords.filter(w => eName.includes(w)).length;
-    if (matches > bestScore) { bestScore = matches; best = ev; }
+  // ── Step 1: Dated scoreboard — works for historical AND current events ─────
+  // Format: ?dates=YYYYMMDD-YYYYMMDD  (tournament week window ± 1 day buffer)
+  try {
+    const startStr = toESPNDate(new Date(tStart.getTime() - 86400000).toISOString().slice(0, 10));
+    const endStr   = toESPNDate(new Date(tEnd.getTime()   + 86400000).toISOString().slice(0, 10));
+    const data = await fetchJson(`${ESPN_SCOREBOARD}?dates=${startStr}-${endStr}`);
+    const events = data?.events || [];
+    const match = pickBest(events);
+    if (match && scoreFromEvent(match).length > 0) {
+      storeId(match.id);
+      return { event: match, source: `dated_scoreboard(${startStr}-${endStr})` };
+    }
+    if (match) {
+      // Event found but no competitors yet (future tournament)
+      storeId(match.id);
+      return { event: match, source: `dated_scoreboard_empty` };
+    }
+  } catch (e) {
+    console.warn('[golf-sync] Dated scoreboard failed:', e.message);
   }
-  if (bestScore >= 2) {
-    if (best.id) db.prepare('UPDATE golf_tournaments SET espn_event_id = ? WHERE id = ?').run(best.id, tournament.id);
-    return { event: best, source: 'name_match' };
-  }
 
-  // Date fallback: start_date within 5 days
-  const byDate = events.find(ev => {
-    const d = new Date(ev.date || ev.competitions?.[0]?.date || '');
-    return !isNaN(d) && Math.abs(d - tStart) < 5 * 86400000;
-  });
-  if (byDate) {
-    if (byDate.id) db.prepare('UPDATE golf_tournaments SET espn_event_id = ? WHERE id = ?').run(byDate.id, tournament.id);
-    return { event: byDate, source: 'date_match' };
+  // ── Step 2: Current scoreboard — fallback for active/upcoming ────────────
+  try {
+    const data = await fetchJson(ESPN_SCOREBOARD);
+    const events = data?.events || [];
+    const match = pickBest(events);
+    if (match) {
+      storeId(match.id);
+      return { event: match, source: 'current_scoreboard' };
+    }
+    // Date proximity fallback
+    const byDate = events.find(ev => {
+      const d = new Date(ev.date || ev.competitions?.[0]?.date || '');
+      return !isNaN(d) && Math.abs(d - tStart) < 5 * 86400000;
+    });
+    if (byDate) {
+      storeId(byDate.id);
+      return { event: byDate, source: 'date_match' };
+    }
+  } catch (e) {
+    console.warn('[golf-sync] Current scoreboard failed:', e.message);
   }
 
   return null;
@@ -154,7 +260,7 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   const { event, source } = found;
   if (!silent) console.log(`[golf-sync] Matched via ${source}: "${event.name || event.shortName}"`);
 
-  const competitors = scoreFromEvent(event);
+  const competitors = (event?.competitions?.[0]?.competitors) || (event?.competitors) || [];
   if (competitors.length === 0) {
     return { synced: 0, notMatched: [], warning: 'ESPN event has no competitors yet' };
   }
@@ -174,39 +280,17 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
 
   db.transaction(() => {
     for (const comp of competitors) {
-      const espnName = comp.displayName || comp.athlete?.displayName || comp.athlete?.fullName || '';
-      if (!espnName) continue;
+      const { name, r1, r2, r3, r4, madeCut, finishPos } = parseCompetitor(comp);
+      if (!name) continue;
 
-      const player = matchPlayer(espnName, allPlayers);
+      const player = matchPlayer(name, allPlayers);
       if (!player) {
-        notMatched.push(espnName);
+        notMatched.push(name);
         continue;
       }
 
-      // Round scores — ESPN linescores values can be actual stroke counts
-      const ls = comp.linescores || [];
-      const r1 = ls[0]?.value != null ? Number(ls[0].value) : null;
-      const r2 = ls[1]?.value != null ? Number(ls[1].value) : null;
-      const r3 = ls[2]?.value != null ? Number(ls[2].value) : null;
-      const r4 = ls[3]?.value != null ? Number(ls[3].value) : null;
-
-      // Validate: stroke counts should be between 60-90 for a golf round
-      const valid = v => v !== null && v >= 55 && v <= 95;
-      const r1v = valid(r1) ? r1 : null;
-      const r2v = valid(r2) ? r2 : null;
-      const r3v = valid(r3) ? r3 : null;
-      const r4v = valid(r4) ? r4 : null;
-
-      // Cut status
-      const statusName = (comp.status?.type?.name || comp.status?.type?.id || '').toUpperCase();
-      const madeCut = !statusName.includes('CUT') && !statusName.includes('WD') && !statusName.includes('DQ');
-
-      // Finish position — sortOrder is rank
-      const finishPos = comp.sortOrder ? parseInt(comp.sortOrder) : null;
-
-      const fp = calcFantasyPts(r1v, r2v, r3v, r4v, finishPos, madeCut, par, !!tournament.is_major);
-
-      upsert.run(uuidv4(), tournament.id, player.id, r1v, r2v, r3v, r4v, madeCut ? 1 : 0, finishPos, fp);
+      const fp = calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, !!tournament.is_major);
+      upsert.run(uuidv4(), tournament.id, player.id, r1, r2, r3, r4, madeCut ? 1 : 0, finishPos, fp);
       synced++;
     }
   })();
@@ -217,7 +301,6 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   ).all(tournament.id);
   for (const { member_id } of affected) recalcMemberPoints(member_id);
 
-  // Store last sync time on tournament
   db.prepare('UPDATE golf_tournaments SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(tournament.id);
 
   if (!silent) {
@@ -240,7 +323,6 @@ async function runAutoSync() {
   // Only sync Thu–Sun (tournament days)
   if (![0, 4, 5, 6].includes(dow)) return;
 
-  // Find any active tournament, or any tournament whose window overlaps today
   const tournament = db.prepare(`
     SELECT * FROM golf_tournaments
     WHERE status = 'active'
@@ -256,7 +338,6 @@ async function runAutoSync() {
     _lastSyncTime = new Date().toISOString();
     _lastSyncResult = { ...result, tournamentName: tournament.name };
 
-    // Auto-activate tournament if we got data
     if (result.synced > 0 && tournament.status === 'scheduled') {
       db.prepare("UPDATE golf_tournaments SET status = 'active' WHERE id = ?").run(tournament.id);
     }
@@ -267,9 +348,7 @@ async function runAutoSync() {
 
 function scheduleAutoSync() {
   if (_syncInterval) clearInterval(_syncInterval);
-  // Every 30 minutes
   _syncInterval = setInterval(runAutoSync, 30 * 60 * 1000);
-  // Initial run after 8s (let server fully start)
   setTimeout(runAutoSync, 8000);
   console.log('[golf-sync] Scheduled — 30 min intervals, Thu–Sun during active tournaments');
 }
@@ -302,8 +381,7 @@ async function backfillCompleted() {
   for (const t of completed) {
     try {
       const result = await syncTournamentScores(t.id, { silent: false });
-      console.log(`[golf-sync] Backfill ${t.name}: synced=${result.synced}`);
-      // Space out requests to avoid rate limiting
+      console.log(`[golf-sync] Backfill ${t.name}: synced=${result.synced}, unmatched=${result.notMatched?.length || 0}`);
       await new Promise(r => setTimeout(r, 2000));
     } catch (e) {
       console.error(`[golf-sync] Backfill error for ${t.name}:`, e.message);

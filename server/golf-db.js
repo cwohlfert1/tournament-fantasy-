@@ -214,6 +214,21 @@ const _golfColMigrations = [
 ];
 for (const sql of _golfColMigrations) { try { db.exec(sql); } catch (_) {} }
 
+// ── Seed known ESPN event IDs for 2026 completed tournaments ──────────────────
+// These allow the sync service to skip name-matching and hit the dated scoreboard
+// directly. IDs verified via ESPN core API on 2026-03-17.
+const _espnIdSeeds = [
+  { pattern: '%Pebble Beach%',   id: '401811932' },
+  { pattern: '%Genesis Invit%',  id: '401811933' },
+  { pattern: '%Arnold Palmer%',  id: '401811935' },
+  { pattern: '%PLAYERS%',        id: '401811937' },
+];
+for (const { pattern, id } of _espnIdSeeds) {
+  try {
+    db.prepare('UPDATE golf_tournaments SET espn_event_id = ? WHERE name LIKE ? AND (espn_event_id IS NULL OR espn_event_id = \'\')').run(id, pattern);
+  } catch (_) {}
+}
+
 // ── Seed golf_players (March 2026 OWGR) ───────────────────────────────────────
 const GOLF_PLAYERS = [
   // Elite $800 (rank 1-10)
