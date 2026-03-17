@@ -64,8 +64,9 @@ function StatusBadge({ status }) {
 }
 
 // ── Draft countdown widget ─────────────────────────────────────────────────────
-function DraftCountdown({ draftStartTime }) {
+function DraftCountdown({ draftStartTime, leagueId }) {
   const target = new Date(draftStartTime).getTime();
+  const navigate = useNavigate();
 
   function calc() {
     const diff = target - Date.now();
@@ -73,7 +74,8 @@ function DraftCountdown({ draftStartTime }) {
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
-    return { h, m, s };
+    const totalMin = h * 60 + m;
+    return { h, m, s, totalMin };
   }
 
   const [remaining, setRemaining] = useState(calc);
@@ -96,45 +98,92 @@ function DraftCountdown({ draftStartTime }) {
 
   const pad = n => String(n).padStart(2, '0');
 
+  const isLive    = remaining === null;
+  const isSoon    = isLive || (remaining && remaining.totalMin < 5);
+  const isNearby  = isLive || (remaining && remaining.totalMin < 30);
+
+  const btnBg     = isSoon ? '#22c55e' : '#f97316';
+  const btnText   = isSoon ? '🔴 Draft is Live — Join Now!' : '🏀 Join Draft Room →';
+  const btnShadow = isSoon
+    ? '0 0 0 0 rgba(34,197,94,0.5)'
+    : '0 0 0 0 rgba(249,115,22,0.5)';
+
+  const JoinBtn = () => (
+    <button
+      onClick={() => navigate(`/league/${leagueId}/draft`)}
+      style={{
+        marginTop: 12,
+        width: '100%',
+        background: btnBg,
+        color: '#fff',
+        fontWeight: 600,
+        fontSize: 13,
+        border: 'none',
+        borderRadius: 8,
+        padding: '10px',
+        cursor: 'pointer',
+        animation: 'draftBtnPulse 2s infinite',
+        '--pulse-color': btnShadow,
+      }}
+    >
+      {btnText}
+    </button>
+  );
+
   return (
-    <div style={{
-      background: '#1a2535',
-      borderRadius: 8,
-      padding: '12px 16px',
-      borderLeft: '3px solid #f97316',
-      marginBottom: 16,
-    }}>
-      {remaining === null ? (
-        <div style={{ color: '#22c55e', fontWeight: 700, fontSize: 13 }}>🏀 Draft is live!</div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: '#f97316', flexShrink: 0,
-              animation: 'pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite',
-            }} />
-            <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-              Draft Starts
-            </span>
-          </div>
-          <div style={{ color: '#fff', fontSize: 12, fontWeight: 500, marginBottom: 10 }}>
-            {dateLabel}
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            {[['h', 'HRS'], ['m', 'MIN'], ['s', 'SEC']].map(([key, label]) => (
-              <div key={key} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
-                  {pad(remaining[key])}
+    <>
+      <style>{`
+        @keyframes draftBtnPulse {
+          0%   { box-shadow: 0 0 0 0 var(--pulse-color); }
+          70%  { box-shadow: 0 0 0 8px rgba(0,0,0,0); }
+          100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+        }
+      `}</style>
+      <div style={{
+        background: '#1a2535',
+        borderRadius: 8,
+        padding: '12px 16px',
+        borderLeft: '3px solid #f97316',
+        marginBottom: 16,
+      }}>
+        {isLive ? (
+          <>
+            <div style={{ color: '#22c55e', fontWeight: 700, fontSize: 13, marginBottom: 0 }}>
+              🏀 Draft is Live!
+            </div>
+            <JoinBtn />
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%', background: '#f97316', flexShrink: 0,
+                animation: 'pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite',
+              }} />
+              <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Draft Starts
+              </span>
+            </div>
+            <div style={{ color: '#fff', fontSize: 12, fontWeight: 500, marginBottom: 10 }}>
+              {dateLabel}
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {[['h', 'HRS'], ['m', 'MIN'], ['s', 'SEC']].map(([key, label]) => (
+                <div key={key} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
+                    {pad(remaining[key])}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b', letterSpacing: '0.05em', marginTop: 3 }}>
+                    {label}
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: '#64748b', letterSpacing: '0.05em', marginTop: 3 }}>
-                  {label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+              ))}
+            </div>
+            {isNearby && <JoinBtn />}
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -428,7 +477,7 @@ export default function Dashboard() {
 
                   {/* ── Draft countdown (lobby + draft_start_time set) ── */}
                   {league.draft_status !== 'completed' && league.draft_start_time && (
-                    <DraftCountdown draftStartTime={league.draft_start_time} />
+                    <DraftCountdown draftStartTime={league.draft_start_time} leagueId={league.id} />
                   )}
 
                   {/* ── Standings / payout card (active + draft complete) ── */}
