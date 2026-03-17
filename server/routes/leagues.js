@@ -288,6 +288,49 @@ router.patch('/:id/settings', authMiddleware, (req, res) => {
   }
 });
 
+// GET /api/leagues/:id/live-games — live game data with league players
+router.get('/:id/live-games', authMiddleware, (req, res) => {
+  try {
+    const leagueId = req.params.id;
+
+    const liveGames = db.prepare('SELECT * FROM games WHERE is_live = 1').all();
+
+    if (liveGames.length === 0) {
+      return res.json({ liveGames: [], hasLeaguePlayers: false });
+    }
+
+    // All drafted players in this league with owner info
+    const picks = db.prepare(`
+      SELECT dp.player_id, dp.user_id, p.name AS player_name, p.team, p.is_eliminated,
+             lm.team_name AS owner_team_name, u.username AS owner_username
+      FROM draft_picks dp
+      JOIN players p ON p.id = dp.player_id
+      JOIN league_members lm ON lm.league_id = dp.league_id AND lm.user_id = dp.user_id
+      JOIN users u ON u.id = dp.user_id
+      WHERE dp.league_id = ?
+    `).all(leagueId);
+
+    const picksByTeam = {};
+    for (const pick of picks) {
+      if (!picksByTeam[pick.team]) picksByTeam[pick.team] = [];
+      picksByTeam[pick.team].push(pick);
+    }
+
+    let hasLeaguePlayers = false;
+    const gamesWithPlayers = liveGames.map(game => {
+      const t1p = picksByTeam[game.team1] || [];
+      const t2p = picksByTeam[game.team2] || [];
+      if (t1p.length || t2p.length) hasLeaguePlayers = true;
+      return { ...game, team1_players: t1p, team2_players: t2p };
+    });
+
+    res.json({ liveGames: gamesWithPlayers, hasLeaguePlayers });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/leagues/:id/members
 router.get('/:id/members', authMiddleware, (req, res) => {
   try {

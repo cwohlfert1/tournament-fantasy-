@@ -8,6 +8,7 @@ import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
 import { teamEmoji, playerAvatarStyle } from '../teamEmojis';
 import TrashTalkTab from './TrashTalkTab';
+import LiveGamesBanner from '../components/LiveGamesBanner';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
@@ -210,6 +211,7 @@ export default function LeagueHome() {
   const [avatarError, setAvatarError]         = useState('');
   const [smartDraftUsers, setSmartDraftUsers] = useState(new Set());
   const [instrCopied, setInstrCopied]         = useState(false);
+  const [hasLiveGames, setHasLiveGames]       = useState(false);
 
   // Edit settings modal
   const [editOpen, setEditOpen]       = useState(false);
@@ -453,7 +455,7 @@ export default function LeagueHome() {
   const tabs = [
     { id: 'overview',    label: 'Overview'      },
     { id: 'roster',      label: 'My Roster'     },
-    { id: 'standings',   label: 'Standings'     },
+    { id: 'standings',   label: 'Standings', dot: hasLiveGames, dotPulse: hasLiveGames },
     { id: 'trashtalk',   label: '💬 Trash Talk' },
     { id: 'payments',    label: 'Payments', dot: myPaymentDue },
     ...(isCommissioner ? [{ id: 'admin', label: 'Admin' }] : []),
@@ -576,7 +578,7 @@ export default function LeagueHome() {
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
             }`}>
             {t.label}
-            {t.dot && <span className="w-2 h-2 bg-red-500 rounded-full" />}
+            {t.dot && <span className={`w-2 h-2 bg-red-500 rounded-full${t.dotPulse ? ' animate-pulse' : ''}`} />}
           </button>
         ))}
       </div>
@@ -1131,6 +1133,11 @@ export default function LeagueHome() {
 
         return (
           <div>
+            {/* ── Live Game Banner ── */}
+            {league.status === 'active' && (
+              <LiveGamesBanner leagueId={id} onLiveStatus={setHasLiveGames} />
+            )}
+
             {/* ── Single Game Bonus card ── */}
             {bonus > 0 && (
               <div

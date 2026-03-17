@@ -7,6 +7,7 @@ import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
 import { teamEmoji, teamColor, playerAvatarStyle } from '../teamEmojis';
+import LiveGamesBanner from '../components/LiveGamesBanner';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -370,6 +371,11 @@ export default function Leaderboard() {
           </Link>
         </div>
       </div>
+
+      {/* Live game banner */}
+      {league?.status === 'active' && (
+        <LiveGamesBanner leagueId={leagueId} />
+      )}
 
       {/* Prize pool banner */}
       {hasPrizePool && (

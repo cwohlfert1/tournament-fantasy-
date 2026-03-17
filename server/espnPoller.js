@@ -445,7 +445,9 @@ async function pollESPN(io) {
 
     if (isInProgress) {
       nowLiveGameIds.add(game.id);
-      db.prepare('UPDATE games SET is_live = 1 WHERE id = ?').run(game.id);
+      const s1 = flipped ? score2 : score1;
+      const s2 = flipped ? score1 : score2;
+      db.prepare('UPDATE games SET is_live = 1, team1_score = ?, team2_score = ? WHERE id = ?').run(s1, s2, game.id);
     }
 
     try {
