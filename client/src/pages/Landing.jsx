@@ -635,17 +635,17 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                icon: '🎯',
+                svg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="15"/><circle cx="12" cy="12" r="1" fill="#60a5fa"/></svg>,
                 title: 'Draft Like a Pro',
                 desc: 'Real-time snake draft with live countdown timer, auto-pick, and player queue. No waiting, no confusion.',
               },
               {
-                icon: '📊',
+                svg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
                 title: 'Score Every Point',
                 desc: 'Live scoring updates as your players perform. Watch your standings shift in real time with every bucket.',
               },
               {
-                icon: '💵',
+                svg: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>,
                 title: 'Win Real Money',
                 desc: 'Commissioner sets the stakes. Everyone pays. Winner takes the pot. No middleman. No platform cut.',
               },
@@ -656,7 +656,7 @@ export default function Landing() {
               >
                 <div className="absolute inset-0 rounded-2xl bg-brand-500/0 group-hover:bg-brand-500/3 transition-colors duration-300" />
                 <div className="relative">
-                  <div className="text-4xl mb-4 group-hover:scale-110 transition-transform duration-200 inline-block">{card.icon}</div>
+                  <div style={{ background: '#1e3a5f22', borderRadius: 10, padding: 10, marginBottom: 14, display: 'inline-flex' }}>{card.svg}</div>
                   <h3 className="text-xl font-black text-white mb-2">{card.title}</h3>
                   <p className="text-gray-400 leading-relaxed text-sm">{card.desc}</p>
                 </div>
