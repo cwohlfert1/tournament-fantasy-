@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Flag, Calendar, TrendingUp, Award, RefreshCw, Target, ArrowRight, Plus } from 'lucide-react';
+import { Flag, Calendar, TrendingUp, Award, RefreshCw, Target, ArrowRight, Plus, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDocTitle } from '../../hooks/useDocTitle';
 
@@ -113,6 +113,36 @@ export default function GolfLanding() {
               <p className="text-gray-500 text-sm leading-relaxed">{body}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── Invite Friends ── */}
+      <div style={{ background: '#111827' }} className="py-20 px-4">
+        <div className="max-w-xl mx-auto text-center">
+          <div className="inline-block text-green-400 text-xs font-black uppercase tracking-widest mb-4">
+            Invite Friends
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4">
+            Forget daily fantasy.<br />Do this all season long.
+          </h2>
+          <p className="text-gray-400 text-base leading-relaxed mb-8">
+            Grab your crew and draft before the Masters.
+            One draft. 13 events. Bragging rights til The Open.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/golf/create"
+              className="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-7 py-3.5 rounded-full transition-all shadow-lg shadow-green-500/25"
+            >
+              Create a League <ArrowRight className="w-4 h-4" />
+            </Link>
+            <a
+              href="sms:?body=Forget%20DraftKings%20for%20one%20week%20-%20do%20this%20all%20season.%20Golf%20fantasy%20on%20TourneyRun%2C%20one%20draft%2C%20majors%20count%201.5x.%20Join%20here%3A%20https%3A%2F%2Fw"
+              className="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-gray-800 border border-gray-700 text-gray-300 font-semibold px-7 py-3.5 rounded-full transition-all"
+            >
+              <MessageCircle className="w-4 h-4" /> Text a Friend
+            </a>
+          </div>
         </div>
       </div>
 
