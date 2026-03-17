@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import api from '../api';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
+import { teamEmoji } from '../teamEmojis';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -198,7 +199,7 @@ function GameCard({ game, myDraftedPlayerIds }) {
                   >
                     {isLive && <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse" />}
                     {p.player_name}
-                    {p.points !== null && (
+                    {p.points !== null && p.points > 0 && (
                       <span className={`font-bold ml-0.5 ${isLive ? 'text-green-400' : 'text-brand-400'}`}>
                         {p.points} pts
                       </span>

@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
+import { teamEmoji } from '../teamEmojis';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -98,7 +99,7 @@ function SgBonusCard({ sgLeader, sgBoard, bonus }) {
                 </div>
                 {/* School · round · opponent */}
                 <div className="text-gray-400 text-sm mt-1 flex flex-wrap items-center gap-1.5">
-                  {sgLeader.player_team && <span className="font-medium text-gray-300">{sgLeader.player_team}</span>}
+                  {sgLeader.player_team && <span className="font-medium text-gray-300">{teamEmoji(sgLeader.player_team)} {sgLeader.player_team}</span>}
                   {sgLeader.player_team && <span className="text-gray-600">·</span>}
                   {sgLeader.round_name && <span>{sgLeader.round_name}</span>}
                   {sgLeader.round_name && sgLeader.opponent && <span className="text-gray-600">·</span>}
@@ -152,7 +153,7 @@ function SgBonusCard({ sgLeader, sgBoard, bonus }) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className={`font-bold text-sm ${i === 0 ? 'text-white' : 'text-gray-300'}`}>{row.player_name}</span>
-                          <span className="text-gray-500 text-xs">{row.player_team}</span>
+                          <span className="text-gray-500 text-xs">{teamEmoji(row.player_team)} {row.player_team}</span>
                           {row.round_name && <span className="text-gray-600 text-xs">· {row.round_name}</span>}
                         </div>
                         {row.owner_user_id ? (
@@ -652,14 +653,14 @@ export default function Leaderboard() {
                                       )}
                                     </div>
                                     <div className="text-gray-500 text-[10px] mt-0.5">
-                                      {player.team}{player.position ? ` · ${player.position}` : ''}
+                                      {teamEmoji(player.team)} {player.team}{player.position ? ` · ${player.position}` : ''}
                                     </div>
                                   </div>
 
                                   {/* Points */}
                                   <div className="text-right flex-shrink-0">
                                     <div className="font-bold text-sm" style={{ color: player.fantasy_points > 0 ? '#378ADD' : '#6b7280' }}>
-                                      {player.fantasy_points}
+                                      {player.fantasy_points > 0 ? player.fantasy_points : '—'}
                                     </div>
                                     <div className="text-gray-600 text-[9px]">pts</div>
                                   </div>

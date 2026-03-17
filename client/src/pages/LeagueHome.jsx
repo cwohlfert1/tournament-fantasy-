@@ -6,6 +6,7 @@ import api from '../api';
 import Disclaimer from '../components/Disclaimer';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
+import { teamEmoji } from '../teamEmojis';
 import TrashTalkTab from './TrashTalkTab';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1003,7 +1004,7 @@ export default function LeagueHome() {
                             {pick.player_name}
                           </div>
                           <div className="text-gray-500 text-xs truncate">
-                            {pick.team}{pick.position ? ` · ${pick.position}` : ''}
+                            {teamEmoji(pick.team)} {pick.team}{pick.position ? ` · ${pick.position}` : ''}
                             {pick.region ? ` · ${pick.region}` : ''}
                           </div>
                         </div>
@@ -1018,7 +1019,7 @@ export default function LeagueHome() {
                         {hasScores && (
                           <div className="text-right shrink-0 min-w-[36px]">
                             <div className="font-bold text-xs" style={{ color: fantasyPts > 0 ? '#60a5fa' : '#6b7280' }}>
-                              {fantasyPts != null ? fantasyPts.toFixed(1) : '—'}
+                              {fantasyPts != null && fantasyPts > 0 ? fantasyPts.toFixed(1) : '—'}
                             </div>
                             <div className="text-gray-600 text-[10px]">pts</div>
                           </div>
