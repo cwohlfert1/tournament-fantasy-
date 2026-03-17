@@ -197,6 +197,10 @@ try { db.exec('ALTER TABLE players ADD COLUMN injury_flagged INTEGER DEFAULT 0')
 try { db.exec("ALTER TABLE players ADD COLUMN injury_headline TEXT DEFAULT ''"); } catch (e) {}
 // Manual injury status designations ('OUT', 'DOUBTFUL', 'QUESTIONABLE', or '')
 try { db.exec("ALTER TABLE players ADD COLUMN injury_status TEXT DEFAULT ''"); } catch (e) {}
+// Per-game stats enrichment (round code + opponent derived at insert time)
+try { db.exec("ALTER TABLE player_stats ADD COLUMN round TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE player_stats ADD COLUMN opponent TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE player_stats ADD COLUMN played_at DATETIME"); } catch (e) {}
 
 // ── Injury designations (2026 tournament) ────────────────────────────────────
 // Runs on every startup — survives Railway redeploys. Commissioner can clear any flag.

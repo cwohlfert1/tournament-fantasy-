@@ -18,16 +18,30 @@ const SCHEDULE_URL = date =>
   `${SCOREBOARD_URL}?dates=${date}&groups=100&seasontype=3&limit=100`;
 
 // ── Live-window detection ────────────────────────────────────────────────────
-// Active game windows: Thu–Sun, 12:00 PM – 11:00 PM Eastern
+// Poll aggressively on actual tournament dates (11am–midnight ET), slow otherwise.
 function isLiveWindow() {
   const now = new Date();
-  // Get current ET time
-  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  const et = new Date(etString);
-  const day = et.getDay(); // 0=Sun,1=Mon,...,4=Thu,5=Fri,6=Sat
+  const etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const et = new Date(etStr);
   const hour = et.getHours();
-  const isWeekend = day === 0 || day === 4 || day === 5 || day === 6; // Thu-Sun
-  return isWeekend && hour >= 12 && hour < 23;
+  if (hour < 11 || hour >= 24) return false;
+  const y = et.getFullYear();
+  const mo = String(et.getMonth() + 1).padStart(2, '0');
+  const d  = String(et.getDate()).padStart(2, '0');
+  return TOURNAMENT_DATES.includes(`${y}${mo}${d}`);
+}
+
+// ── Round code helper ────────────────────────────────────────────────────────
+function roundNameToCode(roundName) {
+  const n = (roundName || '').toLowerCase();
+  if (n.includes('first four'))   return 'First Four';
+  if (n.includes('first round'))  return 'R64';
+  if (n.includes('second round')) return 'R32';
+  if (n.includes('sweet 16'))     return 'S16';
+  if (n.includes('elite 8'))      return 'E8';
+  if (n.includes('final four'))   return 'F4';
+  if (n.includes('championship')) return 'NCG';
+  return roundName || '';
 }
 
 // ── HTTP helper ─────────────────────────────────────────────────────────────
@@ -88,6 +102,11 @@ function findMatchingPlayer(espnDisplayName) {
 }
 
 async function processBoxScore(gameId, summary) {
+  // Look up game metadata once — needed for round code and opponent derivation
+  const game = db.prepare('SELECT team1, team2, round_name FROM games WHERE id = ?').get(gameId);
+  const roundCode = game ? roundNameToCode(game.round_name) : '';
+  const playedAt  = new Date().toISOString();
+
   const playerGroups = summary.boxscore?.players || [];
   for (const group of playerGroups) {
     const statsBlock = group.statistics?.[0];
@@ -95,6 +114,16 @@ async function processBoxScore(gameId, summary) {
     const labels = statsBlock.names || statsBlock.labels || [];
     const ptsIdx = labels.indexOf('PTS');
     if (ptsIdx === -1) continue;
+
+    // ESPN tells us which team this group belongs to
+    const groupTeamName = group.team?.displayName || '';
+
+    // Derive opponent: the other team in this game
+    let opponent = '';
+    if (game) {
+      opponent = teamsMatch(groupTeamName, game.team1) ? game.team2 : game.team1;
+    }
+
     const athletes = statsBlock.athletes || [];
     for (const entry of athletes) {
       const displayName = entry.athlete?.displayName || entry.athlete?.shortName;
@@ -103,10 +132,14 @@ async function processBoxScore(gameId, summary) {
       const player = findMatchingPlayer(displayName);
       if (!player) continue;
       db.prepare(`
-        INSERT INTO player_stats (id, game_id, player_id, points)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(game_id, player_id) DO UPDATE SET points = excluded.points
-      `).run(uuidv4(), gameId, player.id, pts);
+        INSERT INTO player_stats (id, game_id, player_id, points, round, opponent, played_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(game_id, player_id) DO UPDATE SET
+          points   = excluded.points,
+          round    = COALESCE(NULLIF(player_stats.round,    ''), excluded.round),
+          opponent = COALESCE(NULLIF(player_stats.opponent, ''), excluded.opponent),
+          played_at = COALESCE(player_stats.played_at, excluded.played_at)
+      `).run(uuidv4(), gameId, player.id, pts, roundCode, opponent, playedAt);
     }
   }
 }
@@ -436,8 +469,8 @@ let _pollerTimeout = null;
 function startSmartPoller(io) {
   async function tick() {
     await pollESPN(io);
-    const delay = isLiveWindow() ? 2 * 60 * 1000 : 30 * 60 * 1000;
-    console.log(`[ESPN] Next poll in ${delay / 60000} min (live window: ${isLiveWindow()})`);
+    const delay = isLiveWindow() ? 5 * 60 * 1000 : 30 * 60 * 1000;
+    console.log(`[ESPN] Next poll in ${delay / 60000} min (tournament window: ${isLiveWindow()})`);
     _pollerTimeout = setTimeout(tick, delay);
   }
 
