@@ -1,15 +1,19 @@
 const express = require('express');
-const Anthropic = require('@anthropic-ai/sdk');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { buildStandings } = require('../standingsBuilder');
 
 const router = express.Router();
-const anthropic = new Anthropic(); // uses ANTHROPIC_API_KEY from env
 
 // POST /api/sindarius/chat
 router.post('/chat', authMiddleware, async (req, res) => {
   try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.error('[sindarius] ANTHROPIC_API_KEY is not set');
+      return res.status(500).json({ error: 'API key not configured' });
+    }
+
     const { message, leagueId, conversationHistory = [] } = req.body;
     if (!message?.trim()) return res.status(400).json({ error: 'message required' });
 
@@ -70,22 +74,39 @@ ${gamesText}
 
 Keep responses under 4 sentences. Be entertaining. Drop basketball slang naturally. Never break character.`;
 
-    // ── Anthropic call ────────────────────────────────────────────────────────
+    // ── Anthropic call (direct fetch — no SDK dependency at runtime) ─────────
 
     const safeHistory = conversationHistory
       .filter(m => m.role && m.content)
-      .slice(-8); // last 4 exchanges
+      .slice(-8);
 
-    const response = await anthropic.messages.create({
+    const body = {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       system: systemPrompt,
       messages: [...safeHistory, { role: 'user', content: message.trim() }],
+    };
+
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
     });
 
-    res.json({ reply: response.content[0].text });
+    if (!anthropicRes.ok) {
+      const errText = await anthropicRes.text();
+      console.error('[sindarius] Anthropic API error:', anthropicRes.status, errText);
+      return res.status(500).json({ error: 'Anthropic API error — try again.' });
+    }
+
+    const data = await anthropicRes.json();
+    res.json({ reply: data.content[0].text });
   } catch (err) {
-    console.error('[sindarius] error:', err.message);
+    console.error('[sindarius] error:', err.message, err.stack);
     res.status(500).json({ error: "Sindarius is having a moment — try again." });
   }
 });
