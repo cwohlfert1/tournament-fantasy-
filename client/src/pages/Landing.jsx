@@ -427,24 +427,18 @@ export default function Landing() {
             <span key={i} style={{
               display: 'inline-flex', alignItems: 'center',
               paddingLeft: 48, paddingRight: 0,
-              fontSize: 12, letterSpacing: '0.3px', whiteSpace: 'nowrap',
+              fontSize: 12, fontWeight: 400, letterSpacing: '0.3px', whiteSpace: 'nowrap',
+              color: '#94a3b8',
             }}>
-              <span style={{ color: '#64748b' }}>The 2026 Tournament starts </span>
-              <span style={{ color: '#94a3b8', fontWeight: 600 }}>Thursday March 19th</span>
-              <span style={{ color: '#64748b' }}> at </span>
-              <span style={{ color: '#94a3b8', fontWeight: 600 }}>12PM ET</span>
+              The 2026 Tournament starts Thursday March 19th at 12PM ET
               <span style={{ color: '#1e3a5f', margin: '0 14px', fontSize: 14 }}>·</span>
-              <span style={{ color: '#64748b' }}>Draft day is coming</span>
+              Draft day is coming
               <span style={{ color: '#1e3a5f', margin: '0 10px', fontSize: 14 }}>·</span>
-              <span style={{ color: '#94a3b8' }}>Secure your spot</span>
-              <span style={{ color: '#64748b' }}> before your friends do</span>
+              Secure your spot before your friends do
               <span style={{ color: '#1e3a5f', margin: '0 14px', fontSize: 14 }}>·</span>
-              <span style={{ color: '#94a3b8', fontWeight: 600 }}>$5 entry</span>
-              <span style={{ color: '#64748b' }}> per team</span>
+              $5 entry per team
               <span style={{ color: '#1e3a5f', margin: '0 10px', fontSize: 14 }}>·</span>
-              <span style={{ color: '#64748b' }}>You keep </span>
-              <span style={{ color: '#94a3b8', fontWeight: 600 }}>100%</span>
-              <span style={{ color: '#64748b' }}> of the prize pool</span>
+              You keep 100% of the prize pool
               <span style={{ color: '#1e3a5f', margin: '0 14px', fontSize: 14 }}>·</span>
             </span>
           ))}
