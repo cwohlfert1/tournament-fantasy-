@@ -9,6 +9,7 @@ import { useDocTitle } from '../hooks/useDocTitle';
 import { teamEmoji, playerAvatarStyle } from '../teamEmojis';
 import TrashTalkTab from './TrashTalkTab';
 import LiveGamesBanner from '../components/LiveGamesBanner';
+import SindariusTab from '../components/SindariusTab';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
@@ -469,6 +470,7 @@ export default function LeagueHome() {
     { id: 'roster',      label: 'My Roster'     },
     { id: 'standings',   label: 'Standings', dot: hasLiveGames, dotPulse: hasLiveGames },
     { id: 'trashtalk',   label: '💬 Trash Talk' },
+    { id: 'sindarius',   label: '🧠 Ask AI'     },
     { id: 'payments',    label: 'Payments', dot: myPaymentDue },
     ...(isCommissioner ? [{ id: 'admin', label: 'Admin' }] : []),
   ];
@@ -1537,6 +1539,13 @@ export default function LeagueHome() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* SINDARIUS TAB                                                        */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {tab === 'sindarius' && (
+        <SindariusTab leagueId={id} />
       )}
 
       {/* ── Edit Settings Modal ── */}

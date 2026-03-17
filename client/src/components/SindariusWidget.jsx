@@ -86,7 +86,7 @@ export default function SindariusWidget() {
   const isMe = (msg) => msg.role === 'user';
 
   return (
-    <div style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 9900 }}>
+    <div style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 9900 }} className="hidden md:block">
 
       {/* ── Chat panel ── */}
       {open && (
