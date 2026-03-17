@@ -296,14 +296,9 @@ export default function Landing() {
             <span className="bg-gradient-to-br from-white to-gray-300 bg-clip-text text-transparent block">Your Prize.</span>
           </h1>
 
-          {/* Blue subtext */}
-          <p className="text-brand-400 font-bold text-lg sm:text-xl mb-3">
-            Unlike brackets — your season never ends early
-          </p>
-
-          {/* Trust line */}
-          <p className="text-gray-400 text-sm sm:text-base leading-relaxed mb-8 max-w-sm mx-auto">
-            We charge $5 per team to play. That's it. We never touch your prize pool. 💰
+          {/* Supporting subheadline */}
+          <p className="text-gray-300 text-base sm:text-lg leading-relaxed mb-8 max-w-sm mx-auto">
+            Draft college basketball players. Score points as they win games. Play for 3 full weeks. Win real money.
           </p>
 
           {/* 2 CTAs stacked full-width */}
@@ -322,6 +317,22 @@ export default function Landing() {
               {copyConfirm ? '✓ Copied! Send it to your crew 🏀' : '📲 Text This To Your Group Chat'}
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* ── Stats bar ── */}
+      <section className="py-8 px-4 bg-gray-900/60 border-y border-gray-800">
+        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-4">
+          {[
+            { num: '8',    label: 'years running'          },
+            { num: '100%', label: 'prize pool to winners'  },
+            { num: '$0',   label: 'platform cut'           },
+          ].map(stat => (
+            <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 text-center">
+              <div className="text-2xl sm:text-3xl font-black text-brand-400 mb-1">{stat.num}</div>
+              <div className="text-gray-400 text-xs sm:text-sm font-medium leading-tight">{stat.label}</div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -517,6 +528,52 @@ export default function Landing() {
               Create Your League — Free
             </Link>
             <p className="text-gray-600 text-xs mt-3">Free to join · $5 entry per team · We never touch your prize pool</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Testimonials ── */}
+      <section className="py-16 px-4 bg-gray-900/40">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <div className="text-brand-400 text-xs font-bold uppercase tracking-widest mb-3">What people are saying</div>
+            <h2 className="text-3xl sm:text-4xl font-black text-white">Trusted since 2016</h2>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-5">
+            {[
+              {
+                quote: 'Way better than brackets. My players stayed alive all tournament long.',
+                name:  'Pat T.',
+                loc:   'Charlotte, NC',
+                init:  'PT',
+              },
+              {
+                quote: 'Won $340 last year. Already signed up my whole office for 2026.',
+                name:  'Garrett W.',
+                loc:   'New York, NY',
+                init:  'GW',
+              },
+              {
+                quote: 'Finally a fantasy game that keeps me locked in all three weeks. Not just day one.',
+                name:  'Jordan K.',
+                loc:   'Chicago, IL',
+                init:  'JK',
+              },
+            ].map(t => (
+              <div key={t.name} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col gap-4">
+                <p className="text-gray-200 text-sm leading-relaxed flex-1">"{t.quote}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-brand-400 text-xs font-black shrink-0">
+                    {t.init}
+                  </div>
+                  <div>
+                    <div className="text-white text-sm font-bold">{t.name}</div>
+                    <div className="text-gray-500 text-xs">{t.loc}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
