@@ -6,10 +6,11 @@ import api from '../api';
 
 // ─── Keyframe injection ───────────────────────────────────────────────────────
 const STYLES = `
-@keyframes floatParticle {
-  0%   { transform: translateY(0px) rotate(0deg);   opacity: 0.25; }
-  50%  { transform: translateY(-28px) rotate(180deg); opacity: 0.55; }
-  100% { transform: translateY(0px) rotate(360deg); opacity: 0.25; }
+@keyframes driftUp {
+  0%   { transform: translateY(0px)    translateX(0px);                opacity: 0;    }
+  8%   {                                                                opacity: 0.18; }
+  92%  {                                                                opacity: 0.18; }
+  100% { transform: translateY(-820px) translateX(var(--dx, 0px));     opacity: 0;    }
 }
 @keyframes glowPulse {
   0%, 100% { opacity: 0.18; transform: scale(1);    }
@@ -78,33 +79,83 @@ function useCountUp(target, duration = 1400) {
   return [count, ref];
 }
 
-// ─── Particles ────────────────────────────────────────────────────────────────
-const PARTICLE_SEEDS = Array.from({ length: 14 }, (_, i) => ({
-  id: i,
-  left:     `${4 + (i * 6.7) % 92}%`,
-  top:      `${5 + (i * 9.1) % 85}%`,
-  fontSize: `${14 + (i * 4) % 18}px`,
-  delay:    `${(i * 0.35) % 3.5}s`,
-  duration: `${3.2 + (i * 0.6) % 3.8}s`,
-}));
+// ─── Floating player cards ────────────────────────────────────────────────────
+// Lightened team colors (raw school colors brightened for dark-bg readability)
+const FLOAT_CARDS = [
+  { name: 'Cameron Boozer',    initials: 'CB', team: 'Duke',    emoji: '😈', pos: 'F', seed: 1, etp: '61.2', avatarBg: 'rgba(0,48,135,0.22)',   textColor: '#8ca2c9', left: '4%',  delay: '0s',  dur: '18s', dx: '12px'  },
+  { name: 'Thomas Haugh',      initials: 'TH', team: 'Florida', emoji: '🐊', pos: 'F', seed: 1, etp: '58.4', avatarBg: 'rgba(0,33,165,0.22)',   textColor: '#8c9bd7', left: '12%', delay: '2s',  dur: '22s', dx: '-8px'  },
+  { name: 'Kingston Flemings', initials: 'KF', team: 'Houston', emoji: '🐆', pos: 'G', seed: 2, etp: '49.1', avatarBg: 'rgba(200,16,46,0.22)',  textColor: '#e693a1', left: '28%', delay: '3s',  dur: '16s', dx: '18px'  },
+  { name: 'Yaxel Lendeborg',   initials: 'YL', team: 'Michigan',emoji: '🦡', pos: 'F', seed: 1, etp: '54.7', avatarBg: 'rgba(255,203,5,0.18)',  textColor: '#ffcb05', left: '40%', delay: '5s',  dur: '20s', dx: '-14px' },
+  { name: 'Brayden Burries',   initials: 'BB', team: 'Arizona', emoji: '🐱', pos: 'G', seed: 1, etp: '52.3', avatarBg: 'rgba(204,0,51,0.22)',   textColor: '#e88ca3', left: '55%', delay: '7s',  dur: '14s', dx: '8px'   },
+  { name: 'Graham Ike',        initials: 'GI', team: 'Gonzaga', emoji: '🐶', pos: 'F', seed: 3, etp: '46.8', avatarBg: 'rgba(0,41,102,0.22)',   textColor: '#8c9fba', left: '64%', delay: '9s',  dur: '19s', dx: '-20px' },
+  { name: 'Isaiah Evans',      initials: 'IE', team: 'Duke',    emoji: '😈', pos: 'G', seed: 1, etp: '50.1', avatarBg: 'rgba(0,48,135,0.22)',   textColor: '#8ca2c9', left: '72%', delay: '11s', dur: '21s', dx: '16px'  },
+  { name: 'Koa Peat',          initials: 'KP', team: 'Arizona', emoji: '🐱', pos: 'F', seed: 1, etp: '55.9', avatarBg: 'rgba(204,0,51,0.22)',   textColor: '#e88ca3', left: '82%', delay: '1s',  dur: '17s', dx: '-10px' },
+];
 
-function Particles() {
+function FloatingCards({ slowdown }) {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
-      {PARTICLE_SEEDS.map(p => (
-        <span
-          key={p.id}
-          style={{
-            position: 'absolute',
-            left: p.left,
-            top: p.top,
-            fontSize: p.fontSize,
-            animation: `floatParticle ${p.duration} ease-in-out ${p.delay} infinite`,
-          }}
-        >
-          🏀
-        </span>
-      ))}
+    <div className="absolute inset-0 pointer-events-none select-none" aria-hidden style={{ zIndex: 0 }}>
+      {FLOAT_CARDS.map((card, i) => {
+        const baseDur = parseFloat(card.dur);
+        const dur = slowdown ? `${(baseDur / 0.6).toFixed(1)}s` : card.dur;
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: card.left,
+              bottom: '-80px',
+              width: 168,
+              animation: `driftUp ${dur} linear ${card.delay} infinite`,
+              '--dx': card.dx,
+            }}
+          >
+            <div style={{
+              background: '#0f1923',
+              border: '0.5px solid #1f2d3d',
+              borderRadius: 10,
+              padding: '10px 12px',
+            }}>
+              {/* Row 1: avatar + name */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                  background: card.avatarBg,
+                  border: `1px solid ${card.textColor}44`,
+                  color: card.textColor,
+                  fontSize: 8, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {card.initials}
+                </div>
+                <span style={{
+                  color: '#ffffff', fontSize: 11, fontWeight: 600, lineHeight: 1.2,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {card.name}
+                </span>
+              </div>
+              {/* Row 2: team + emoji */}
+              <div style={{ fontSize: 9, color: card.textColor, marginBottom: 6, paddingLeft: 29 }}>
+                {card.team} {card.emoji}
+              </div>
+              {/* Row 3: pos·seed pill + ETP */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 29 }}>
+                <span style={{
+                  background: '#1a2535', border: '0.5px solid #2a3a50',
+                  borderRadius: 4, padding: '1px 5px',
+                  fontSize: 9, fontWeight: 700, color: '#6b8cba', lineHeight: 1.4,
+                }}>
+                  {card.pos}·#{card.seed}
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b' }}>
+                  {card.etp} ETP
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -218,6 +269,7 @@ export default function Landing() {
 
   const [copyConfirm, setCopyConfirm] = useState(false);
   const [sdLoading, setSdLoading] = useState(false);
+  const [heroHovered, setHeroHovered] = useState(false);
 
   const handleSmartDraftCta = async () => {
     if (user) {
@@ -267,7 +319,11 @@ export default function Landing() {
       </div>
 
       {/* ── Hero ── */}
-      <section className="relative flex items-center justify-center px-4 py-16 sm:py-24 overflow-hidden">
+      <section
+        className="relative flex items-center justify-center px-4 py-16 sm:py-24 overflow-hidden"
+        onMouseEnter={() => setHeroHovered(true)}
+        onMouseLeave={() => setHeroHovered(false)}
+      >
         {/* Glow orbs */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-600/10 rounded-full blur-3xl"
@@ -275,9 +331,9 @@ export default function Landing() {
           <div className="absolute bottom-0 right-0 w-72 h-72 bg-brand-800/15 rounded-full blur-3xl" />
           <div className="absolute top-0 left-0 w-52 h-52 bg-brand-900/20 rounded-full blur-3xl" />
         </div>
-        <Particles />
+        <FloatingCards slowdown={heroHovered} />
 
-        <div className="relative max-w-xl mx-auto w-full text-center">
+        <div className="relative z-10 max-w-xl mx-auto w-full text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-bold px-4 py-1.5 rounded-full mb-5 uppercase tracking-wider">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-ping" />
