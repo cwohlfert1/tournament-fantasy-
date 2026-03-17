@@ -56,6 +56,7 @@ import JoinGolfLeague from './pages/golf/JoinGolfLeague';
 import GolfLeague from './pages/golf/GolfLeague';
 import GolfDraft from './pages/golf/GolfDraft';
 import GolfAuctionDraft from './pages/golf/GolfAuctionDraft';
+import GolfScoreEntry from './pages/golf/GolfScoreEntry';
 
 export default function App() {
   return (
@@ -97,6 +98,7 @@ export default function App() {
             <Route path="/golf/league/:id" element={<ProtectedRoute><GolfLeague /></ProtectedRoute>} />
             <Route path="/golf/league/:id/draft" element={<ProtectedRoute><GolfDraft /></ProtectedRoute>} />
             <Route path="/golf/league/:id/auction" element={<ProtectedRoute><GolfAuctionDraft /></ProtectedRoute>} />
+            <Route path="/golf/league/:id/scores" element={<ProtectedRoute><GolfScoreEntry /></ProtectedRoute>} />
           </Routes>
         </div>
       </BrowserRouter>

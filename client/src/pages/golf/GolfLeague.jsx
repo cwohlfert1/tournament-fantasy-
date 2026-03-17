@@ -153,23 +153,33 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
       </div>
 
       {/* Commissioner actions */}
-      {isComm && league.format_type !== 'dk' && league.draft_status !== 'completed' && (
+      {isComm && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-800">
             <Zap className="w-4 h-4 text-green-400" />
             <h3 className="text-white font-bold text-sm">Commissioner Actions</h3>
           </div>
+          {league.format_type !== 'dk' && league.draft_status !== 'completed' && (
+            <>
+              <button
+                onClick={() => navigate(`/golf/league/${league.id}/draft`)}
+                className="w-full py-3 bg-green-500 hover:bg-green-400 text-white font-bold rounded-xl transition-all mb-2"
+              >
+                Go to Draft Room →
+              </button>
+              <p className="text-gray-600 text-xs mb-3 text-center">
+                {league.format_type === 'pool'
+                  ? 'Snake draft — each pick is a golfer for the season.'
+                  : 'Draft core players. Flex spots fill via waiver wire.'}
+              </p>
+            </>
+          )}
           <button
-            onClick={() => navigate(`/golf/league/${league.id}/draft`)}
-            className="w-full py-3 bg-green-500 hover:bg-green-400 text-white font-bold rounded-xl transition-all"
+            onClick={() => navigate(`/golf/league/${league.id}/scores`)}
+            className="w-full py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-200 font-bold rounded-xl transition-all"
           >
-            Go to Draft Room →
+            Enter Scores →
           </button>
-          <p className="text-gray-600 text-xs mt-2 text-center">
-            {league.format_type === 'pool'
-              ? 'Snake draft — each pick is a golfer for the season.'
-              : 'Draft core players. Flex spots fill via waiver wire.'}
-          </p>
         </div>
       )}
 
@@ -790,6 +800,9 @@ function StandingsTab({ leagueId, currentUserId }) {
 
   const MEDAL_COLORS = ['text-yellow-400', 'text-gray-300', 'text-orange-400'];
 
+  // Determine tied ranks
+  const ptsList = standings.map(s => s.season_points || 0);
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-800 flex items-center gap-2">
@@ -799,27 +812,42 @@ function StandingsTab({ leagueId, currentUserId }) {
       <div className="divide-y divide-gray-800">
         {standings.map((s, i) => {
           const isMe = s.user_id === currentUserId;
+          const pts = s.season_points || 0;
+          const isTied = ptsList.filter(p => p === pts).length > 1;
+          const rankLabel = isTied ? `T${i + 1}` : `${i + 1}`;
+          const weekPts = s.points_this_week != null ? Number(s.points_this_week).toFixed(1) : null;
+          const tournsPlayed = s.tournaments_played || 0;
+
           return (
             <div
               key={s.user_id}
               className={`flex items-center justify-between px-5 py-3.5 gap-3 ${isMe ? 'bg-green-500/5' : ''}`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <span className="w-7 flex items-center justify-center shrink-0">
+                <span className="w-8 flex items-center justify-center shrink-0">
                   {i < 3
                     ? <Award className={`w-5 h-5 ${MEDAL_COLORS[i]}`} />
-                    : <span className="text-gray-500 text-sm font-bold">{i + 1}</span>}
+                    : <span className="text-gray-500 text-sm font-bold">{rankLabel}</span>}
                 </span>
                 <div className="min-w-0">
                   <div className={`text-sm font-semibold truncate ${isMe ? 'text-green-400' : 'text-white'}`}>
                     {s.team_name}
                   </div>
-                  <div className="text-gray-500 text-xs">{s.username}</div>
+                  <div className="text-gray-500 text-xs flex items-center gap-2">
+                    <span>{s.username}</span>
+                    {tournsPlayed > 0 && (
+                      <span className="text-gray-600">· {tournsPlayed} event{tournsPlayed !== 1 ? 's' : ''}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-white font-black">{(s.total_points || 0).toFixed(1)}</div>
-                <div className="text-gray-600 text-xs">pts</div>
+                <div className="text-white font-black tabular-nums">{pts.toFixed(1)}</div>
+                {weekPts !== null && Number(weekPts) !== 0 ? (
+                  <div className="text-gray-500 text-xs tabular-nums">{Number(weekPts) > 0 ? '+' : ''}{weekPts} this wk</div>
+                ) : (
+                  <div className="text-gray-600 text-xs">pts</div>
+                )}
               </div>
             </div>
           );
@@ -831,7 +859,7 @@ function StandingsTab({ leagueId, currentUserId }) {
 
 // ── Tab: Schedule ──────────────────────────────────────────────────────────────
 
-function ScheduleTab() {
+function ScheduleTab({ leagueId, isComm }) {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -871,12 +899,13 @@ function ScheduleTab() {
         {tournaments.map(t => {
           const isMajor = !!t.is_major;
           const isSig   = t.is_signature === 1 && !isMajor;
+          const isDone  = t.status === 'completed';
           return (
             <div
               key={t.id}
               className={`flex items-start gap-3 px-4 py-4 ${
                 isMajor ? 'border-l-2 border-yellow-500 bg-yellow-500/3' : ''
-              } ${t.status === 'completed' ? 'opacity-55' : ''}`}
+              } ${isDone ? 'opacity-55' : ''}`}
             >
               {/* Date column */}
               <div className="w-14 shrink-0 text-center">
@@ -903,9 +932,17 @@ function ScheduleTab() {
                 )}
               </div>
 
-              {/* Status pill */}
-              <div className="shrink-0 pt-0.5">
+              {/* Right side: status + commissioner link */}
+              <div className="shrink-0 pt-0.5 flex flex-col items-end gap-1.5">
                 <StatusPill status={t.status} />
+                {isComm && (isDone || t.status === 'active') && (
+                  <Link
+                    to={`/golf/league/${leagueId}/scores?tournament=${t.id}`}
+                    className="text-[10px] font-bold text-green-400 hover:text-green-300 transition-colors whitespace-nowrap"
+                  >
+                    Enter Scores →
+                  </Link>
+                )}
               </div>
             </div>
           );
@@ -1039,7 +1076,7 @@ export default function GolfLeague() {
         <OverviewTab league={league} members={members} user={user} isComm={isComm} navigate={navigate} />
       )}
       {tab === 'schedule' && (
-        <ScheduleTab />
+        <ScheduleTab leagueId={id} isComm={isComm} />
       )}
       {tab === 'roster' && (
         <RosterTab leagueId={id} league={league} />

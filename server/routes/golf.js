@@ -39,6 +39,29 @@ function calcFantasyPoints(score, isMajor) {
   return Math.round(pts * 10) / 10;
 }
 
+// Commissioner score entry formula:
+// Each round: (score - par) * -1.5  (negative round = good)
+// Finish bonuses: 1st +30, top5 +12, top10 +8, top25 +3, cut +2, missed -5
+// Major: × 1.5
+function calcCommissionerPts(score, par, isMajor) {
+  let pts = 0;
+  [score.r1, score.r2, score.r3, score.r4].forEach(r => {
+    if (r !== null && r !== undefined && r !== '') pts += (Number(r) - par) * -1.5;
+  });
+  const pos = (score.finish_position !== null && score.finish_position !== undefined && score.finish_position !== '')
+    ? parseInt(score.finish_position) : null;
+  if (pos !== null) {
+    if (pos === 1)      pts += 30;
+    else if (pos <= 5)  pts += 12;
+    else if (pos <= 10) pts += 8;
+    else if (pos <= 25) pts += 3;
+  }
+  if (score.made_cut) pts += 2;
+  else pts -= 5;
+  if (isMajor) pts *= 1.5;
+  return Math.round(pts * 10) / 10;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function getMember(leagueId, userId) {
   return db.prepare('SELECT * FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?').get(leagueId, userId);
@@ -273,13 +296,54 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
     const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
     if (!getMember(req.params.id, req.user.id) && league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not a member' });
+    const activeTournament = db.prepare("SELECT id FROM golf_tournaments WHERE status = 'active' ORDER BY start_date ASC LIMIT 1").get();
+    const activeTournId = activeTournament?.id || '';
     const standings = db.prepare(`
       SELECT glm.*, u.username, u.avatar_url,
-             (SELECT COUNT(*) FROM golf_rosters gr WHERE gr.member_id = glm.id AND gr.dropped_at IS NULL) as roster_count
+        (SELECT COALESCE(SUM(gs.fantasy_points), 0)
+         FROM golf_weekly_lineups wl
+         JOIN golf_scores gs ON wl.player_id = gs.player_id AND wl.tournament_id = gs.tournament_id
+         WHERE wl.member_id = glm.id AND wl.is_started = 1 AND gs.tournament_id = ?
+        ) as points_this_week,
+        (SELECT COUNT(DISTINCT gs.tournament_id)
+         FROM golf_weekly_lineups wl
+         JOIN golf_scores gs ON wl.player_id = gs.player_id AND wl.tournament_id = gs.tournament_id
+         WHERE wl.member_id = glm.id AND wl.is_started = 1
+        ) as tournaments_played
       FROM golf_league_members glm JOIN users u ON glm.user_id = u.id
       WHERE glm.golf_league_id = ? ORDER BY glm.season_points DESC
-    `).all(req.params.id);
-    res.json({ standings });
+    `).all(activeTournId, req.params.id);
+    res.json({ standings, active_tournament_id: activeTournId || null });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+router.post('/leagues/:id/scores', authMiddleware, (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'Not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const { tournament_id, par = 72, scores } = req.body;
+    if (!tournament_id || !Array.isArray(scores)) return res.status(400).json({ error: 'tournament_id and scores required' });
+    const t = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournament_id);
+    if (!t) return res.status(404).json({ error: 'Tournament not found' });
+    const parInt = parseInt(par) || 72;
+    const upsert = db.prepare(`
+      INSERT INTO golf_scores (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(tournament_id, player_id) DO UPDATE SET
+        round1=excluded.round1, round2=excluded.round2, round3=excluded.round3, round4=excluded.round4,
+        made_cut=excluded.made_cut, finish_position=excluded.finish_position,
+        fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
+    `);
+    db.transaction(() => {
+      for (const s of scores) {
+        const fp = calcCommissionerPts(s, parInt, !!t.is_major);
+        upsert.run(uuidv4(), t.id, s.player_id, s.r1 ?? null, s.r2 ?? null, s.r3 ?? null, s.r4 ?? null, s.made_cut ? 1 : 0, s.finish_position ?? null, fp);
+      }
+    })();
+    const affected = db.prepare('SELECT DISTINCT wl.member_id FROM golf_weekly_lineups wl WHERE wl.tournament_id = ? AND wl.is_started = 1').all(t.id);
+    for (const { member_id } of affected) recalcMemberPoints(member_id);
+    res.json({ ok: true, updated: scores.length });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
