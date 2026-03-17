@@ -7,6 +7,8 @@ function fmt(n) {
   return n % 1 === 0 ? `$${n}` : `$${n.toFixed(2)}`;
 }
 
+const STRIPE_ENABLED = import.meta.env.VITE_STRIPE_ENABLED === 'true';
+
 export default function JoinLeague() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ invite_code: '', team_name: '', venmo_handle: '', zelle_handle: '' });
@@ -126,24 +128,36 @@ export default function JoinLeague() {
             </div>
           )}
 
-          <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-3 text-sm text-brand-300">
-            Test card: <span className="font-mono font-semibold">4242 4242 4242 4242</span> — any future date, any CVC
-          </div>
-
-          <button
-            onClick={handlePayEntryFee}
-            disabled={paying}
-            className="btn-primary w-full py-3 text-lg"
-          >
-            {paying ? 'Redirecting to Stripe...' : 'Pay $5.00 Access Fee'}
-          </button>
-
-          <button
-            onClick={() => navigate(`/league/${league.id}`)}
-            className="w-full mt-1 text-center text-gray-400 hover:text-gray-200 text-sm py-2 transition-colors"
-          >
-            Pay later — go to league
-          </button>
+          {STRIPE_ENABLED ? (
+            <>
+              <button
+                onClick={handlePayEntryFee}
+                disabled={paying}
+                className="btn-primary w-full py-3 text-lg"
+              >
+                {paying ? 'Redirecting to Stripe...' : 'Pay $5.00 Access Fee'}
+              </button>
+              <button
+                onClick={() => navigate(`/league/${league.id}`)}
+                className="w-full mt-1 text-center text-gray-400 hover:text-gray-200 text-sm py-2 transition-colors"
+              >
+                Pay later — go to league
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-4 text-sm text-brand-300 leading-relaxed">
+                <span className="font-semibold block mb-1">Payment collected separately</span>
+                Payment is collected via Venmo or Zelle. Join now to reserve your spot — your commissioner will confirm payment directly.
+              </div>
+              <button
+                onClick={() => navigate(`/league/${league.id}`)}
+                className="btn-primary w-full py-3 text-lg"
+              >
+                Go to League →
+              </button>
+            </>
+          )}
 
           <Disclaimer className="text-center mt-1" />
         </div>
@@ -288,6 +302,13 @@ export default function JoinLeague() {
               {!form.venmo_handle.trim() && !form.zelle_handle.trim() && (
                 <p className="text-amber-400/80 text-xs">⚠ Fill in at least one to continue</p>
               )}
+            </div>
+          )}
+
+          {!STRIPE_ENABLED && preview && (
+            <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-3 text-sm text-brand-300 leading-relaxed">
+              <span className="font-semibold">Payment collected separately via Venmo or Zelle.</span>{' '}
+              Join now to reserve your spot — your commissioner will confirm payment directly.
             </div>
           )}
 

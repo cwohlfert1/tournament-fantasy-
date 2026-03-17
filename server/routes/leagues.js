@@ -135,6 +135,20 @@ router.post('/join', authMiddleware, (req, res) => {
       return res.json({ league, members, requiresPayment: false });
     }
 
+    // Stripe disabled — bypass payment, mark as free so user has full access
+    const stripeEnabled = process.env.STRIPE_ENABLED === 'true';
+    if (!stripeEnabled) {
+      const existing = db.prepare('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?').get(league.id, req.user.id);
+      if (!existing) {
+        db.prepare(`
+          INSERT INTO member_payments (id, league_id, user_id, amount, status)
+          VALUES (?, ?, ?, 5.00, 'free')
+        `).run(uuidv4(), league.id, req.user.id);
+      }
+      const members = db.prepare('SELECT * FROM league_members WHERE league_id = ?').all(league.id);
+      return res.json({ league, members, requiresPayment: false });
+    }
+
     // Create a $5 pending payment record
     const existing = db.prepare('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?').get(league.id, req.user.id);
     if (!existing) {
