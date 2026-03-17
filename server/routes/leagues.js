@@ -119,6 +119,17 @@ router.post('/join', authMiddleware, (req, res) => {
       INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)
     `).run(uuidv4(), league.id, req.user.id, team_name);
 
+    // Free access code — skip payment entirely
+    const FREE_CODE = 'G7V9XM6W';
+    if (invite_code.toUpperCase() === FREE_CODE) {
+      db.prepare(`
+        INSERT OR IGNORE INTO member_payments (id, league_id, user_id, amount, status)
+        VALUES (?, ?, ?, 0, 'free')
+      `).run(uuidv4(), league.id, req.user.id);
+      const members = db.prepare('SELECT * FROM league_members WHERE league_id = ?').all(league.id);
+      return res.json({ league, members, requiresPayment: false });
+    }
+
     // Create a $5 pending payment record
     const existing = db.prepare('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?').get(league.id, req.user.id);
     if (!existing) {
