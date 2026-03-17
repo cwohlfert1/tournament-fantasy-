@@ -228,6 +228,19 @@ function InjuryBadge({ player, isCommissioner, onClear }) {
   );
 }
 
+// Position pill style for the draft board (inline hex colors)
+const BOARD_POS_PILL = {
+  G:  { background: '#3b82f622', color: '#60a5fa', border: '1px solid #3b82f644' },
+  PG: { background: '#3b82f622', color: '#60a5fa', border: '1px solid #3b82f644' },
+  SG: { background: '#3b82f622', color: '#60a5fa', border: '1px solid #3b82f644' },
+  F:  { background: '#22c55e22', color: '#4ade80', border: '1px solid #22c55e44' },
+  SF: { background: '#22c55e22', color: '#4ade80', border: '1px solid #22c55e44' },
+  PF: { background: '#22c55e22', color: '#4ade80', border: '1px solid #22c55e44' },
+  C:  { background: '#f9731622', color: '#fb923c', border: '1px solid #f9731644' },
+};
+const BOARD_POS_FALLBACK = { background: '#6b728022', color: '#9ca3af', border: '1px solid #6b728044' };
+function boardPosPill(pos) { return BOARD_POS_PILL[pos] || BOARD_POS_FALLBACK; }
+
 // Draft board grid
 function DraftBoardGrid({ league, members, picks, currentPick, currentPicker, numTeams, userId, etpByPlayerId = {} }) {
   const rounds = league?.total_rounds || 0;
@@ -240,7 +253,7 @@ function DraftBoardGrid({ league, members, picks, currentPick, currentPicker, nu
 
   return (
     <div className="overflow-x-auto">
-      <table className="border-collapse text-[10px]" style={{ minWidth: `${members.length * 90 + 48}px` }}>
+      <table className="border-collapse text-[10px]" style={{ minWidth: `${members.length * 116 + 48}px` }}>
         <thead>
           <tr>
             <th className="sticky left-0 bg-gray-950 z-10 w-12 pb-2 text-left">
@@ -249,11 +262,11 @@ function DraftBoardGrid({ league, members, picks, currentPick, currentPicker, nu
             {members.map(m => {
               const accent = ownerAccentColor(m.username);
               return (
-                <th key={m.id} className="px-1 pb-2 text-center w-[88px]" style={{ borderTop: `2px solid ${accent}` }}>
-                  <div className="font-bold truncate text-white" style={{ fontSize: 10 }}>
+                <th key={m.id} className="text-left w-[114px]" style={{ borderTop: `2px solid ${accent}`, padding: '8px 10px' }}>
+                  <div className="font-bold truncate text-white" style={{ fontSize: 12 }}>
                     {m.team_name}
                   </div>
-                  <div className="text-gray-500 text-[9px] truncate">{m.username}</div>
+                  <div className="truncate text-gray-500" style={{ fontSize: 11 }}>{m.username}</div>
                 </th>
               );
             })}
@@ -274,30 +287,35 @@ function DraftBoardGrid({ league, members, picks, currentPick, currentPicker, nu
                 {members.map(m => {
                   const pick = pickMap[round]?.[m.user_id];
                   const isActivePick = isActive && currentPicker?.user_id === m.user_id;
-                  const style = pick ? ps(pick.position) : null;
+                  const tColor = pick ? teamColor(pick.team) : null;
+                  const pillStyle = pick ? boardPosPill(pick.position) : null;
                   return (
                     <td key={m.id} className="px-0.5 py-0.5">
                       {pick ? (
-                        <div className="rounded border border-gray-700/50 bg-gray-900/60 px-1 py-0.5 text-center" style={{ height: 46 }}>
-                          <div className="font-semibold truncate leading-tight" style={{ fontSize: 9, color: teamColor(pick.team) || '#e5e7eb' }}>
-                            {pick.player_name}
-                          </div>
-                          <div className="truncate leading-tight text-gray-500" style={{ fontSize: 8 }}>
-                            {teamEmoji(pick.team)} {pick.team}
-                          </div>
-                          <div className="opacity-60 truncate text-gray-400" style={{ fontSize: 7 }}>
-                            {etpByPlayerId[pick.player_id]
-                              ? <>{etpByPlayerId[pick.player_id]} etp</>
-                              : <>{pick.position} {pick.seed ? `#${pick.seed}` : ''}</>
-                            }
+                        <div className="rounded border border-gray-700/50 bg-gray-900/60 flex items-start gap-1.5"
+                          style={{ padding: '10px' }}>
+                          {/* Avatar */}
+                          <PlayerInitialsAvatar name={pick.player_name} team={pick.team} size={26} />
+                          {/* Text stack */}
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate leading-tight text-white" style={{ fontSize: 12, fontWeight: 500 }}>
+                              {pick.player_name}
+                            </div>
+                            <div className="truncate leading-tight" style={{ fontSize: 11, color: tColor || '#6b7280' }}>
+                              {pick.team} {teamEmoji(pick.team)}
+                            </div>
+                            <div className="mt-0.5 inline-flex items-center rounded px-1 py-px leading-none"
+                              style={{ fontSize: 9, fontWeight: 700, ...pillStyle }}>
+                              {pick.position}{pick.seed ? ` · #${pick.seed}` : ''}
+                            </div>
                           </div>
                         </div>
                       ) : isActivePick ? (
-                        <div className="rounded border-2 border-brand-500 bg-brand-500/10 flex items-center justify-center animate-pulse" style={{ height: 36 }}>
+                        <div className="rounded border-2 border-brand-500 bg-brand-500/10 flex items-center justify-center animate-pulse" style={{ height: 72 }}>
                           <span className="text-brand-400 font-bold" style={{ fontSize: 9 }}>PICK</span>
                         </div>
                       ) : (
-                        <div className="rounded border border-gray-800/40 bg-gray-900/10" style={{ height: 36 }} />
+                        <div className="rounded border border-gray-800/40 bg-gray-900/10" style={{ height: 72 }} />
                       )}
                     </td>
                   );
