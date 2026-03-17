@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
-import { teamEmoji } from '../teamEmojis';
+import { teamEmoji, teamColor } from '../teamEmojis';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -653,7 +653,8 @@ export default function Leaderboard() {
                                       {playerIsLive && <span className="ml-1.5 text-[9px] font-bold text-green-400 animate-pulse not-italic">● LIVE</span>}
                                     </div>
                                     <div className="text-gray-500 text-[10px] mt-0.5">
-                                      {player.team} <span style={{ fontSize: 12 }}>{teamEmoji(player.team)}</span>{player.position ? ` · ${player.position}` : ''}
+                                      <span style={{ color: teamColor(player.team) || '#6b7280' }}>{player.team}</span>{' '}
+                                      <span style={{ fontSize: 12 }}>{teamEmoji(player.team)}</span>{player.position ? ` · ${player.position}` : ''}
                                     </div>
                                   </div>
 
