@@ -368,14 +368,14 @@ export default function BossMode() {
           title="Boss is coming… (B = Excel, G = Gmail)"
           style={{
             position: 'fixed',
-            bottom: 14,
+            bottom: 84,
             right: 14,
             zIndex: 9998,
             background: 'rgba(30,30,40,0.75)',
             color: 'rgba(255,255,255,0.80)',
             border: '1px solid rgba(255,255,255,0.22)',
             borderRadius: 10,
-            padding: '7px 13px',
+            padding: '6px 11px',
             fontSize: 14,
             cursor: 'pointer',
             backdropFilter: 'blur(6px)',
