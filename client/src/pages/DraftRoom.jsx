@@ -256,13 +256,14 @@ function DraftBoardGrid({ league, members, picks, currentPick, currentPicker, nu
       <table className="border-collapse text-[10px]" style={{ minWidth: `${members.length * 116 + 48}px` }}>
         <thead>
           <tr>
-            <th className="sticky left-0 bg-gray-950 z-10 w-12 pb-2 text-left">
+            <th className="sticky left-0 top-0 bg-gray-950 z-20 w-12 pb-2 text-left">
               <span className="text-gray-600 uppercase tracking-wider text-[9px]">Rd</span>
             </th>
             {members.map(m => {
               const accent = ownerAccentColor(m.username);
               return (
-                <th key={m.id} className="text-left w-[114px]" style={{ borderTop: `2px solid ${accent}`, padding: '8px 10px' }}>
+                <th key={m.id} className="sticky top-0 z-10 text-left w-[114px]"
+                  style={{ borderTop: `2px solid ${accent}`, padding: '8px 10px', background: '#030712' }}>
                   <div className="font-bold truncate text-white" style={{ fontSize: 12 }}>
                     {m.team_name}
                   </div>
@@ -1391,28 +1392,34 @@ export default function DraftRoom() {
       <div className="px-3 mt-3 pb-20 lg:pb-0 lg:overflow-visible lg:px-3 lg:mt-3">
 
       {/* ── Three-panel layout (desktop) + mobile single-panel view ── */}
-      <div className="lg:h-auto lg:grid lg:grid-cols-12 lg:gap-3">
+      <div className="lg:h-auto lg:flex lg:gap-3 lg:min-w-[1100px]">
 
         {/* ── LEFT: Draft Board Grid ── */}
-        <div className={`lg:col-span-5 flex flex-col min-h-0 ${mobilePanel !== 'board' ? 'hidden lg:flex' : 'min-h-[65vh]'}`}>
+        <div className={`lg:[flex:1.2] flex flex-col min-h-0 ${mobilePanel !== 'board' ? 'hidden lg:flex' : 'min-h-[65vh]'}`}>
           <div className="card overflow-hidden flex flex-col flex-1 min-h-0">
             <div className="px-3 py-2.5 border-b border-gray-800 flex items-center justify-between shrink-0">
               <h2 className="font-bold text-white text-sm">Draft Board</h2>
               <span className="text-xs text-gray-500">{picks.length} / {totalPicks} picks</span>
             </div>
-            <div className="p-2 overflow-x-auto overflow-y-auto flex-1 min-h-0 overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* Relative wrapper for scroll + right-fade overlay */}
+            <div className="relative flex-1 min-h-0">
+              <div className="p-2 overflow-x-auto overflow-y-auto h-full overscroll-contain" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'thin', scrollbarColor: '#374151 #111827' }}>
               <DraftBoardGrid
                 league={league} members={members} picks={picks}
                 currentPick={currentPick} currentPicker={currentPicker}
                 numTeams={numTeams} userId={user?.id}
                 etpByPlayerId={etpByPlayerId}
               />
+              </div>
+              {/* Right-fade gradient — hints at off-screen columns */}
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-8 hidden lg:block"
+                style={{ background: 'linear-gradient(to right, transparent, rgba(17,24,39,0.92))' }} />
             </div>
           </div>
         </div>
 
         {/* ── CENTER: Player Pool ── */}
-        <div className={`lg:col-span-4 flex flex-col min-h-0 ${mobilePanel !== 'players' && mobilePanel !== 'queue' ? 'hidden lg:flex' : 'min-h-[65vh]'}`}>
+        <div className={`lg:[flex:1.2] flex flex-col min-h-0 ${mobilePanel !== 'players' && mobilePanel !== 'queue' ? 'hidden lg:flex' : 'min-h-[65vh]'}`}>
           <div className="card overflow-hidden flex flex-col h-full lg:max-h-[calc(100vh-240px)]">
             {/* Player pool tabs — desktop only (mobile uses bottom nav) */}
             <div className="px-3 pt-3 pb-2 border-b border-gray-800 shrink-0">
@@ -1705,7 +1712,7 @@ export default function DraftRoom() {
         </div>
 
         {/* ── RIGHT: Ticker + Manager Cards + Chat ── */}
-        <div className={`lg:col-span-3 flex flex-col min-h-0 lg:h-auto lg:space-y-3 ${mobilePanel !== 'chat' ? 'hidden lg:flex' : 'min-h-[65vh]'}`}>
+        <div className={`lg:[flex:0.8] flex flex-col min-h-0 lg:h-auto lg:space-y-3 ${mobilePanel !== 'chat' ? 'hidden lg:flex' : 'min-h-[65vh]'}`}>
           {/* Live ticker — desktop only */}
           <div className="hidden lg:block card p-3 shrink-0">
             <h3 className="font-bold text-white text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
