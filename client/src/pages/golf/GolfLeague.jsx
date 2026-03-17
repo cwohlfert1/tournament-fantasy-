@@ -1055,20 +1055,23 @@ export default function GolfLeague() {
       </div>
 
       {/* ── Tab bar ── */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 mb-6 overflow-x-auto">
-        {getTabs(league).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 min-w-0 px-3 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
-              tab === t.key
-                ? 'bg-green-500 text-white shadow-sm'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="relative mb-6">
+        <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {getTabs(league).map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`shrink-0 px-3 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+                tab === t.key
+                  ? 'bg-green-500 text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-900 to-transparent rounded-r-xl pointer-events-none" />
       </div>
 
       {/* ── Tab content ── */}

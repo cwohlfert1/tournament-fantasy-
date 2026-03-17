@@ -44,6 +44,7 @@ export default function Navbar() {
   };
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+  const isGolf = location.pathname.startsWith('/golf');
 
   // Pill link style helper
   const navLink = (path) => {
@@ -78,13 +79,27 @@ export default function Navbar() {
 
         {/* ── LEFT: Logo ── */}
         <Link to="/" className="flex items-center gap-2.5 select-none" style={{ textDecoration: 'none' }}>
-          <span style={{ fontSize: 22, lineHeight: 1 }}>🏀</span>
+          {isGolf ? (
+            <svg viewBox="0 0 32 32" fill="none" style={{ width: 26, height: 26, lineHeight: 1, flexShrink: 0 }}>
+              <circle cx="16" cy="16" r="15" fill="white" stroke="#d1d5db" strokeWidth="0.8"/>
+              <circle cx="12" cy="11" r="1.1" fill="#9ca3af"/>
+              <circle cx="17" cy="9" r="1.1" fill="#9ca3af"/>
+              <circle cx="21" cy="13" r="1.1" fill="#9ca3af"/>
+              <circle cx="10" cy="16" r="1.1" fill="#9ca3af"/>
+              <circle cx="15" cy="15" r="1.1" fill="#9ca3af"/>
+              <circle cx="20" cy="18" r="1.1" fill="#9ca3af"/>
+              <circle cx="13" cy="20" r="1.1" fill="#9ca3af"/>
+              <circle cx="19" cy="22" r="1.1" fill="#9ca3af"/>
+            </svg>
+          ) : (
+            <span style={{ fontSize: 22, lineHeight: 1 }}>🏀</span>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
             <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
               <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span><span style={{ color: '#f97316', fontWeight: 500 }}>run</span>
             </div>
-            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#888780', marginTop: 2 }}>
-              Player Pool Fantasy
+            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: isGolf ? '#22c55e' : '#888780', marginTop: 2 }}>
+              {isGolf ? 'Golf Fantasy' : 'Player Pool Fantasy'}
             </div>
           </div>
         </Link>
