@@ -1,11 +1,41 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../api';
+
+// Derive 1–2 initials from display_name or username
+function userInitials(user) {
+  const src = user?.display_name || user?.username || '';
+  const words = src.trim().split(/\s+/);
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [hasLiveGames, setHasLiveGames] = useState(false);
+
+  // Poll for live games every 60s (only when logged in)
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await api.get('/games/schedule');
+        if (!cancelled) {
+          setHasLiveGames((res.data.games || []).some(g => g.is_live));
+        }
+      } catch {}
+    };
+    check();
+    const id = setInterval(check, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -13,166 +43,233 @@ export default function Navbar() {
     setMenuOpen(false);
   };
 
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+
+  // Pill link style helper
+  const navLink = (path) => {
+    const active = isActive(path);
+    return {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '6px 12px',
+      borderRadius: 8,
+      fontSize: 14,
+      fontWeight: active ? 500 : 400,
+      color: active ? '#ffffff' : '#6b7280',
+      background: active ? '#1f2937' : 'transparent',
+      transition: 'color 0.15s, background 0.15s',
+      textDecoration: 'none',
+      cursor: 'pointer',
+    };
+  };
+
+  const initials = userInitials(user);
+
   return (
-    <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 select-none">
-            <span className="text-2xl flex items-center justify-center w-9 h-9 shrink-0">🏀</span>
-            <div className="flex flex-col leading-none">
-              <div style={{ fontSize: '22px', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                <span style={{ color: '#B5D4F4', fontWeight: 300 }}>tourney</span><span style={{ color: '#378ADD', fontWeight: 800 }}>run</span>
-              </div>
-              <div className="text-[10px] tracking-[0.18em] uppercase mt-0.5" style={{ color: '#888780', fontVariant: 'small-caps' }}>
-                Player Pool Fantasy
-              </div>
+    <nav style={{
+      background: '#111827',
+      borderBottom: '0.5px solid #1f2937',
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
+    }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+        {/* ── LEFT: Logo ── */}
+        <Link to="/" className="flex items-center gap-2.5 select-none" style={{ textDecoration: 'none' }}>
+          <span style={{ fontSize: 22, lineHeight: 1 }}>🏀</span>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
+              <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span><span style={{ color: '#f97316', fontWeight: 500 }}>run</span>
             </div>
-          </Link>
-
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-6">
-            {user ? (
-              <>
-                <Link to="/dashboard" className="text-gray-300 hover:text-brand-400 transition-colors font-medium">
-                  Dashboard
-                </Link>
-                <Link to="/games" className="text-gray-300 hover:text-brand-400 transition-colors font-medium">
-                  🏀 Games
-                </Link>
-                <Link to="/strategy" className="text-gray-300 hover:text-brand-400 transition-colors font-medium">
-                  Strategy
-                </Link>
-                <Link to="/faq" className="text-gray-300 hover:text-brand-400 transition-colors font-medium">
-                  FAQ
-                </Link>
-                {user?.role === 'superadmin' && (
-                  <Link to="/admin" className="text-yellow-400 hover:text-yellow-300 transition-colors font-medium">
-                    Admin
-                  </Link>
-                )}
-                <div className="flex items-center gap-3">
-                  <Link to="/profile" className="text-gray-400 text-sm hover:text-brand-300 transition-colors">
-                    <span className="text-brand-400 font-semibold hover:text-brand-300">{user.username}</span>
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-3">
-                <Link
-                  to="/login"
-                  className="text-gray-300 hover:text-white font-medium transition-colors"
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  Register
-                </Link>
-              </div>
-            )}
+            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#888780', marginTop: 2 }}>
+              Player Pool Fantasy
+            </div>
           </div>
+        </Link>
 
-          {/* Mobile hamburger */}
-          <button
-            className="md:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {menuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
-        </div>
-
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div className="md:hidden border-t border-gray-800 py-3 space-y-1">
-            {user ? (
-              <>
-                <Link
-                  to="/profile"
-                  className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors text-sm"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Signed in as <span className="text-brand-400 font-semibold">{user.username}</span>
-                </Link>
-                <Link
-                  to="/dashboard"
-                  className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/games"
-                  className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  🏀 Games
-                </Link>
-                <Link
-                  to="/strategy"
-                  className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Strategy
-                </Link>
-                <Link
-                  to="/faq"
-                  className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  FAQ
-                </Link>
-                {user?.role === 'superadmin' && (
-                  <Link
-                    to="/admin"
-                    className="block px-3 py-2 text-yellow-400 hover:text-yellow-300 hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Admin
-                  </Link>
+        {/* ── CENTER: Nav links (desktop) ── */}
+        {user && (
+          <div className="hidden md:flex items-center" style={{ gap: 2 }}>
+            {[
+              { to: '/dashboard', label: 'Dashboard' },
+              { to: '/games',     label: 'Games',     live: true },
+              { to: '/strategy',  label: 'Strategy'  },
+              { to: '/faq',       label: 'FAQ'        },
+            ].map(({ to, label, live }) => (
+              <Link
+                key={to}
+                to={to}
+                style={navLink(to)}
+                onMouseEnter={e => {
+                  if (!isActive(to)) {
+                    e.currentTarget.style.color = '#e5e7eb';
+                    e.currentTarget.style.background = '#1f2937';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isActive(to)) {
+                    e.currentTarget.style.color = '#6b7280';
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                {live && hasLiveGames && (
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: '#f97316', flexShrink: 0,
+                    animation: 'pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite',
+                  }} />
                 )}
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  className="block px-3 py-2 text-brand-400 hover:text-brand-300 hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Register
-                </Link>
-              </>
-            )}
+                {label}
+              </Link>
+            ))}
           </div>
         )}
+
+        {/* ── RIGHT: Actions (desktop) ── */}
+        <div className="hidden md:flex items-center" style={{ gap: 10 }}>
+          {user ? (
+            <>
+              {user.role === 'superadmin' && (
+                <Link
+                  to="/admin"
+                  style={{ ...navLink('/admin'), color: isActive('/admin') ? '#fff' : '#f59e0b', fontWeight: 500 }}
+                  onMouseEnter={e => {
+                    if (!isActive('/admin')) {
+                      e.currentTarget.style.color = '#fcd34d';
+                      e.currentTarget.style.background = '#1f2937';
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive('/admin')) {
+                      e.currentTarget.style.color = '#f59e0b';
+                      e.currentTarget.style.background = isActive('/admin') ? '#1f2937' : 'transparent';
+                    }
+                  }}
+                >
+                  Admin
+                </Link>
+              )}
+
+              {/* Divider */}
+              <div style={{ width: '0.5px', height: 18, background: '#374151', flexShrink: 0 }} />
+
+              {/* Avatar */}
+              <Link
+                to="/profile"
+                title={user.display_name || user.username}
+                style={{
+                  width: 30, height: 30, borderRadius: '50%',
+                  background: '#7c3aed22',
+                  border: '1px solid #7c3aed55',
+                  color: '#a78bfa',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  textDecoration: 'none',
+                  flexShrink: 0,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {initials}
+              </Link>
+
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  color: '#6b7280',
+                  border: '0.5px solid #374151',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  transition: 'color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#e5e7eb';
+                  e.currentTarget.style.borderColor = '#6b7280';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = '#6b7280';
+                  e.currentTarget.style.borderColor = '#374151';
+                }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center" style={{ gap: 10 }}>
+              <Link to="/login" className="text-gray-300 hover:text-white font-medium transition-colors" style={{ fontSize: 14 }}>
+                Login
+              </Link>
+              <Link to="/register" className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg font-medium transition-colors" style={{ fontSize: 14 }}>
+                Register
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* ── Mobile hamburger ── */}
+        <button
+          className="md:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {menuOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            )}
+          </svg>
+        </button>
       </div>
+
+      {/* ── Mobile menu ── */}
+      {menuOpen && (
+        <div className="md:hidden border-t border-gray-800 py-3 space-y-1" style={{ padding: '12px 24px' }}>
+          {user ? (
+            <>
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors text-sm"
+                onClick={() => setMenuOpen(false)}
+              >
+                <span style={{
+                  width: 24, height: 24, borderRadius: '50%',
+                  background: '#7c3aed22', border: '1px solid #7c3aed55',
+                  color: '#a78bfa', fontSize: 10, fontWeight: 600,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {initials}
+                </span>
+                <span>{user.display_name || user.username}</span>
+              </Link>
+              <Link to="/dashboard" className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+              <Link to="/games" className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" onClick={() => setMenuOpen(false)}>
+                {hasLiveGames && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f97316', flexShrink: 0, animation: 'pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite' }} />}
+                Games
+              </Link>
+              <Link to="/strategy" className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" onClick={() => setMenuOpen(false)}>Strategy</Link>
+              <Link to="/faq" className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" onClick={() => setMenuOpen(false)}>FAQ</Link>
+              {user.role === 'superadmin' && (
+                <Link to="/admin" className="block px-3 py-2 text-yellow-400 hover:text-yellow-300 hover:bg-gray-800 rounded-lg transition-colors font-medium" onClick={() => setMenuOpen(false)}>Admin</Link>
+              )}
+              <button onClick={handleLogout} className="block w-full text-left px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors text-sm">
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" onClick={() => setMenuOpen(false)}>Login</Link>
+              <Link to="/register" className="block px-3 py-2 text-brand-400 hover:text-brand-300 hover:bg-gray-800 rounded-lg transition-colors font-medium" onClick={() => setMenuOpen(false)}>Register</Link>
+            </>
+          )}
+        </div>
+      )}
     </nav>
   );
 }
