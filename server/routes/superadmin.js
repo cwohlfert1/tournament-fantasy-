@@ -98,22 +98,26 @@ router.post('/leagues/:id/pause-draft', superadmin, (req, res) => {
 router.put('/leagues/:id', superadmin, (req, res) => {
   try {
     const { name, max_teams, total_rounds, pick_time_limit, buy_in_amount,
-            payout_first, payout_second, payout_third, status } = req.body;
+            payout_first, payout_second, payout_third, status,
+            payout_pool_override } = req.body;
 
     db.prepare(`
       UPDATE leagues SET
-        name             = COALESCE(?, name),
-        max_teams        = COALESCE(?, max_teams),
-        total_rounds     = COALESCE(?, total_rounds),
-        pick_time_limit  = COALESCE(?, pick_time_limit),
-        buy_in_amount    = COALESCE(?, buy_in_amount),
-        payout_first     = COALESCE(?, payout_first),
-        payout_second    = COALESCE(?, payout_second),
-        payout_third     = COALESCE(?, payout_third),
-        status           = COALESCE(?, status)
+        name                 = COALESCE(?, name),
+        max_teams            = COALESCE(?, max_teams),
+        total_rounds         = COALESCE(?, total_rounds),
+        pick_time_limit      = COALESCE(?, pick_time_limit),
+        buy_in_amount        = COALESCE(?, buy_in_amount),
+        payout_first         = COALESCE(?, payout_first),
+        payout_second        = COALESCE(?, payout_second),
+        payout_third         = COALESCE(?, payout_third),
+        status               = COALESCE(?, status),
+        payout_pool_override = ?
       WHERE id = ?
     `).run(name, max_teams, total_rounds, pick_time_limit, buy_in_amount,
-           payout_first, payout_second, payout_third, status, req.params.id);
+           payout_first, payout_second, payout_third, status,
+           payout_pool_override != null ? parseFloat(payout_pool_override) || null : null,
+           req.params.id);
 
     const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
     res.json({ league });

@@ -181,6 +181,13 @@ try { db.exec('ALTER TABLE leagues ADD COLUMN payout_first INTEGER DEFAULT 70');
 try { db.exec('ALTER TABLE leagues ADD COLUMN payout_second INTEGER DEFAULT 20'); } catch (e) {}
 try { db.exec('ALTER TABLE leagues ADD COLUMN payout_third INTEGER DEFAULT 10'); } catch (e) {}
 try { db.exec('ALTER TABLE leagues ADD COLUMN payout_bonus REAL DEFAULT 0'); } catch (e) {}
+// Explicit prize pool override — superadmin sets this to override buy_in × teams math
+try { db.exec('ALTER TABLE leagues ADD COLUMN payout_pool_override REAL DEFAULT NULL'); } catch (e) {}
+// Seed payout_pool_override for known leagues
+try {
+  db.prepare("UPDATE leagues SET payout_pool_override = 1100 WHERE id = '6ce9da4a-89b1-4d13-ad70-f21e9c0bfe93' AND (payout_pool_override IS NULL OR payout_pool_override = 0)")
+    .run();
+} catch (e) {}
 // ESPN bracket integration
 try { db.exec('ALTER TABLE players ADD COLUMN espn_team_id TEXT'); } catch (e) {}
 try { db.exec("ALTER TABLE players ADD COLUMN espn_athlete_id TEXT DEFAULT ''"); } catch (e) {}

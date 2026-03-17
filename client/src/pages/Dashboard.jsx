@@ -302,7 +302,9 @@ export default function Dashboard() {
 
                   {/* ── Standings / payout card (active + draft complete) ── */}
                   {league.status === 'active' && league.draft_status === 'completed' && (() => {
-                    const pool = buyIn * league.member_count;
+                    const pool = league.payout_pool_override > 0
+                      ? league.payout_pool_override
+                      : buyIn * league.member_count;
                     const pay1 = pool * ((league.payout_first  || 0) / 100);
                     const pay2 = pool * ((league.payout_second || 0) / 100);
                     const pay3 = pool * ((league.payout_third  || 0) / 100);

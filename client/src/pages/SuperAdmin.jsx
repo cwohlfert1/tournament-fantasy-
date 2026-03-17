@@ -115,6 +115,7 @@ function LeaguesTab() {
       payout_first: league.payout_first,
       payout_second: league.payout_second,
       payout_third: league.payout_third,
+      payout_pool_override: league.payout_pool_override ?? '',
       status: league.status,
     });
     setEditOpen(true);
@@ -247,6 +248,7 @@ function LeaguesTab() {
                 ['payout_first', '1st Place %', 'number'],
                 ['payout_second', '2nd Place %', 'number'],
                 ['payout_third', '3rd Place %', 'number'],
+                ['payout_pool_override', 'Prize Pool Override ($, blank = auto)', 'number'],
               ].map(([key, label, type]) => (
                 <div key={key}>
                   <label className="block text-xs text-gray-400 mb-1">{label}</label>
