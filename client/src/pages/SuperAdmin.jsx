@@ -483,6 +483,19 @@ function UsersTab() {
 
   useEffect(() => { load(); }, [load]);
 
+  const deleteUser = async (user) => {
+    if (!confirm(`Are you sure you want to delete @${user.username}? This cannot be undone.`)) return;
+    setBusy(user.id);
+    try {
+      await api.delete(`/superadmin/users/${user.id}`);
+      setUsers(prev => prev.filter(u => u.id !== user.id));
+    } catch (e) {
+      alert(e.response?.data?.error || 'Failed to delete user');
+    } finally {
+      setBusy('');
+    }
+  };
+
   const toggleBan = async (user) => {
     const banning = user.role !== 'banned';
     if (!confirm(`${banning ? 'Ban' : 'Unban'} ${user.username}?`)) return;
@@ -561,11 +574,19 @@ function UsersTab() {
                       className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded"
                     >Reset PW</button>
                     {u.role !== 'superadmin' && (
-                      <button
-                        onClick={() => toggleBan(u)}
-                        disabled={busy === u.id}
-                        className={`text-xs px-2 py-1 rounded text-white disabled:opacity-50 ${u.role === 'banned' ? 'bg-green-800 hover:bg-green-700' : 'bg-red-800 hover:bg-red-700'}`}
-                      >{u.role === 'banned' ? 'Unban' : 'Ban'}</button>
+                      <>
+                        <button
+                          onClick={() => toggleBan(u)}
+                          disabled={busy === u.id}
+                          className={`text-xs px-2 py-1 rounded text-white disabled:opacity-50 ${u.role === 'banned' ? 'bg-green-800 hover:bg-green-700' : 'bg-red-800 hover:bg-red-700'}`}
+                        >{u.role === 'banned' ? 'Unban' : 'Ban'}</button>
+                        <button
+                          onClick={() => deleteUser(u)}
+                          disabled={busy === u.id}
+                          className="text-xs px-2 py-1 rounded text-white disabled:opacity-50 bg-red-700 hover:bg-red-600 border border-red-500"
+                          style={{ background: '#DC2626' }}
+                        >Delete</button>
+                      </>
                     )}
                   </div>
                 </td>

@@ -197,6 +197,32 @@ router.put('/users/:id/reset-password', superadmin, async (req, res) => {
   }
 });
 
+// DELETE /api/superadmin/users/:id — hard-delete a user and all their records
+router.delete('/users/:id', superadmin, (req, res) => {
+  try {
+    const target = db.prepare('SELECT id, role FROM users WHERE id = ?').get(req.params.id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.role === 'admin' || target.role === 'superadmin') {
+      return res.status(403).json({ error: 'Cannot delete admin accounts' });
+    }
+
+    // Delete in FK-safe order (children before parent)
+    db.prepare('DELETE FROM wall_replies    WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM wall_reactions  WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM wall_posts      WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM smart_draft_purchases WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM member_payments WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM draft_picks     WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM league_members  WHERE user_id = ?').run(target.id);
+    db.prepare('DELETE FROM users           WHERE id = ?').run(target.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── Players ───────────────────────────────────────────────────────────────────
 
 // GET /api/superadmin/players — all players
