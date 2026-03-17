@@ -44,6 +44,15 @@ function fmt(n) {
   return n % 1 === 0 ? `$${n}` : `$${n.toFixed(2)}`;
 }
 
+function rankSuffix(n) {
+  if (n >= 11 && n <= 13) return 'th';
+  const r = n % 10;
+  if (r === 1) return 'st';
+  if (r === 2) return 'nd';
+  if (r === 3) return 'rd';
+  return 'th';
+}
+
 function StatusBadge({ status }) {
   const s = STATUS[status] || STATUS.lobby;
   return (
@@ -63,6 +72,7 @@ export default function Dashboard() {
   const [leagues, setLeagues]                 = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [paymentDue, setPaymentDue]           = useState({});
+  const [rankings, setRankings]               = useState({}); // { [leagueId]: { rank, total } }
   const [creatingTestLeague, setCreatingTestLeague] = useState(false);
 
   const handleCreateTestLeague = async () => {
@@ -92,10 +102,31 @@ export default function Dashboard() {
             .catch(() => ({ id: l.id, due: false }))
         );
 
-      const results = await Promise.all(checks);
+      const standingsChecks = leaguesData
+        .filter(l => l.status === 'active' && l.draft_status === 'completed')
+        .map(l =>
+          api.get(`/scores/league/${l.id}/standings`)
+            .then(res => {
+              const arr = res.data.standings || [];
+              const idx = arr.findIndex(s => s.user_id === user?.id);
+              return { id: l.id, rank: idx >= 0 ? idx + 1 : null, total: arr.length };
+            })
+            .catch(() => ({ id: l.id, rank: null, total: 0 }))
+        );
+
+      const [results, rankResults] = await Promise.all([
+        Promise.all(checks),
+        Promise.all(standingsChecks),
+      ]);
+
       const map = {};
       for (const r of results) map[r.id] = r.due;
       setPaymentDue(map);
+
+      const rankMap = {};
+      for (const r of rankResults) rankMap[r.id] = { rank: r.rank, total: r.total };
+      setRankings(rankMap);
+
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [user?.id]);
@@ -254,7 +285,14 @@ export default function Dashboard() {
                   </div>
 
                   {/* Stats grid */}
-                  <div className="grid grid-cols-2 gap-2 mb-4">
+                  {(() => {
+                    const rd = rankings[league.id];
+                    const showPlace = league.status === 'active' && league.draft_status === 'completed' && rd?.rank != null;
+                    const rank = rd?.rank;
+                    const rankColor = rank === 1 ? '#f59e0b' : rank <= 3 ? '#22c55e' : '#fff';
+                    const allZero = league.total_points === 0;
+                    return (
+                  <div className={`grid gap-2 mb-4 ${showPlace ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
                       <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Your Team</div>
                       <div className="text-white text-sm font-semibold truncate">{league.team_name}</div>
@@ -263,6 +301,17 @@ export default function Dashboard() {
                       <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Teams</div>
                       <div className="text-white text-sm font-semibold">{league.member_count}/{league.max_teams}</div>
                     </div>
+                    {showPlace && (
+                      <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
+                        <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Place</div>
+                        {allZero
+                          ? <div className="text-gray-600 text-sm font-semibold">—</div>
+                          : <div className="text-sm font-bold" style={{ color: rankColor }}>
+                              {rank}{rankSuffix(rank)}<span className="text-gray-500 font-normal"> / {rd.total}</span>
+                            </div>
+                        }
+                      </div>
+                    )}
                     {buyIn > 0 && (
                       <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
                         <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Buy-in</div>
@@ -282,6 +331,8 @@ export default function Dashboard() {
                       </div>
                     )}
                   </div>
+                    );
+                  })()}
 
                   {/* Managers fill bar */}
                   <div className="mb-4">
