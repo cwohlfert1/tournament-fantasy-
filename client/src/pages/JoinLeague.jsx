@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Disclaimer from '../components/Disclaimer';
 
@@ -11,9 +11,7 @@ const STRIPE_ENABLED = import.meta.env.VITE_STRIPE_ENABLED === 'true';
 
 export default function JoinLeague() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const urlCode = (searchParams.get('code') || searchParams.get('league') || '').toUpperCase().slice(0, 8);
-  const [form, setForm] = useState({ invite_code: urlCode, team_name: '', venmo_handle: '', zelle_handle: '' });
+  const [form, setForm] = useState({ invite_code: '', team_name: '', venmo_handle: '', zelle_handle: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -162,41 +160,6 @@ export default function JoinLeague() {
           )}
 
           <Disclaimer className="text-center mt-1" />
-        </div>
-      </div>
-    );
-  }
-
-  // ── Empty state (no URL code, no code typed yet) ──────────────────────────
-  if (!urlCode && !form.invite_code) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <div className="text-6xl mb-4">🏀</div>
-        <h1 className="text-2xl font-bold text-white mb-2">Got an invite link?</h1>
-        <p className="text-gray-400 text-sm mb-8 leading-relaxed">
-          Ask your commissioner to share the league invite link or code — it'll bring you right here.
-        </p>
-        <div className="card p-6">
-          <label className="label text-left block mb-1">Invite Code</label>
-          <input
-            type="text"
-            className="input font-mono uppercase tracking-widest text-lg text-center mb-4"
-            placeholder="XXXX0000"
-            autoFocus
-            maxLength={8}
-            onChange={e => {
-              const val = e.target.value.toUpperCase();
-              setForm(f => ({ ...f, invite_code: val }));
-            }}
-          />
-          <button
-            className="btn-primary w-full py-3"
-            disabled={true}
-            style={{ opacity: 0.35 }}
-          >
-            Join →
-          </button>
-          <p className="text-gray-600 text-xs mt-3">Start typing your code above to look up your league</p>
         </div>
       </div>
     );
