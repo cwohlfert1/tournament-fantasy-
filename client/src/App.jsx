@@ -49,6 +49,12 @@ import SuperAdmin from './pages/SuperAdmin';
 import Games from './pages/Games';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import GolfLanding from './pages/golf/GolfLanding';
+import GolfDashboard from './pages/golf/GolfDashboard';
+import CreateGolfLeague from './pages/golf/CreateGolfLeague';
+import JoinGolfLeague from './pages/golf/JoinGolfLeague';
+import GolfLeague from './pages/golf/GolfLeague';
+import GolfDraft from './pages/golf/GolfDraft';
 
 export default function App() {
   return (
@@ -83,6 +89,12 @@ export default function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><SuperAdmin /></ProtectedRoute>} />
+            <Route path="/golf" element={<GolfLanding />} />
+            <Route path="/golf/dashboard" element={<ProtectedRoute><GolfDashboard /></ProtectedRoute>} />
+            <Route path="/golf/create" element={<ProtectedRoute><CreateGolfLeague /></ProtectedRoute>} />
+            <Route path="/golf/join" element={<ProtectedRoute><JoinGolfLeague /></ProtectedRoute>} />
+            <Route path="/golf/league/:id" element={<ProtectedRoute><GolfLeague /></ProtectedRoute>} />
+            <Route path="/golf/league/:id/draft" element={<ProtectedRoute><GolfDraft /></ProtectedRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
