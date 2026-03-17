@@ -1485,16 +1485,11 @@ export default function DraftRoom() {
                 </button>
                 <button
                   onClick={() => setRightTab('queue')}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors relative ${
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                     rightTab === 'queue' ? 'bg-brand-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
                   }`}
                 >
-                  Queue
-                  {queuedPlayers.length > 0 && (
-                    <span className="ml-1 bg-yellow-500 text-black text-[9px] font-bold px-1 rounded-full">
-                      {queuedPlayers.length}
-                    </span>
-                  )}
+                  Queue{queuedPlayers.length > 0 ? ` (${queuedPlayers.length})` : ''}
                 </button>
                 <button
                   onClick={() => setRightTab('live')}
@@ -1519,7 +1514,7 @@ export default function DraftRoom() {
               )}
 
               {/* Search + filters: show when Available is active */}
-              {(rightTab === 'available' || (mobilePanel === 'players' && effectivePlayerTab !== 'queue')) && (
+              {(rightTab === 'available' || (mobilePanel === 'players' && effectivePlayerTab !== 'queue' && rightTab !== 'queue' && rightTab !== 'live')) && (
                 <>
                   <input
                     type="text" className="input text-xs mb-2 py-1.5"
@@ -1581,7 +1576,7 @@ export default function DraftRoom() {
             </div>
 
             {/* Injury disclaimer */}
-            {(rightTab === 'available' || (mobilePanel === 'players' && effectivePlayerTab !== 'queue')) && availablePlayers.some(p => p.injury_flagged) && (
+            {(rightTab === 'available' || (mobilePanel === 'players' && effectivePlayerTab !== 'queue' && rightTab !== 'queue' && rightTab !== 'live')) && availablePlayers.some(p => p.injury_flagged) && (
               <div className="px-3 py-1.5 bg-yellow-500/5 border-b border-yellow-500/20 text-yellow-600/80 text-[10px] leading-snug shrink-0">
                 ⚠️ Injury alerts sourced from news — always verify before drafting.
               </div>
@@ -1594,9 +1589,9 @@ export default function DraftRoom() {
               {(rightTab === 'queue' || effectivePlayerTab === 'queue') && (
                 queuedPlayers.length === 0 ? (
                   <div className="text-center py-10 text-gray-600 text-sm">
-                    <div className="text-2xl mb-2">📋</div>
-                    <p>Your queue is empty.</p>
-                    <p className="text-xs mt-1">Star (☆) players in the Available tab to queue them.</p>
+                    <div className="text-2xl mb-2">⭐</div>
+                    <p className="font-medium">Your queue is empty</p>
+                    <p className="text-xs mt-1 text-gray-700">Hit ☆ on any player to add them here</p>
                   </div>
                 ) : (
                   queuedPlayers.map((player, i) => {
@@ -1677,8 +1672,8 @@ export default function DraftRoom() {
                 )
               )}
 
-              {/* ── AVAILABLE view ── desktop Available tab OR mobile players panel (not queue) */}
-              {(rightTab === 'available' || (mobilePanel === 'players' && effectivePlayerTab !== 'queue')) && (
+              {/* ── AVAILABLE view ── desktop Available tab OR mobile players panel (not queue/live) */}
+              {(rightTab === 'available' || (mobilePanel === 'players' && effectivePlayerTab !== 'queue' && rightTab !== 'queue' && rightTab !== 'live')) && (
                 filteredSorted.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 text-sm">No players found</div>
                 ) : (
