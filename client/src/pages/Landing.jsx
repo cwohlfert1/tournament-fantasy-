@@ -429,7 +429,7 @@ export default function Landing() {
       <section className="py-8 px-4 bg-gray-900/60 border-y border-gray-800">
         <div className="max-w-3xl mx-auto grid grid-cols-3 gap-4">
           {[
-            { num: '8',    label: 'years running'          },
+            { num: 'Since 2016', label: 'and counting'           },
             { num: '100%', label: 'prize pool to winners'  },
             { num: '$0',   label: 'platform cut'           },
           ].map(stat => (
