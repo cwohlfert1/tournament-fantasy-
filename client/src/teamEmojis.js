@@ -156,6 +156,13 @@ function blendWithWhite(hex, amount) {
   return `rgb(${lr},${lg},${lb})`;
 }
 
+function playerInitials(name) {
+  if (!name) return '?';
+  const words = name.trim().split(/\s+/);
+  if (words.length === 1) return words[0][0].toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
 export function teamEmoji(teamName) {
   if (!teamName) return '';
   return TEAM_EMOJI[teamName] || '';
@@ -170,4 +177,25 @@ export function teamColor(teamName) {
   const brightness = perceivedBrightness(raw);
   if (brightness < 85) return blendWithWhite(raw, 0.55);
   return raw;
+}
+
+// Returns avatar style for a player: initials, background (13% opacity),
+// and text color (brightened for dark-mode readability).
+// Dark colors (luminance < 30%) get text blended 70% toward white.
+export function playerAvatarStyle(playerName, teamName) {
+  const initials = playerInitials(playerName);
+  const raw = TEAM_COLOR_RAW[teamName];
+  if (!raw) {
+    return { initials, bg: 'rgba(75,85,99,0.2)', textColor: '#9ca3af' };
+  }
+  const r = parseInt(raw.slice(1, 3), 16);
+  const g = parseInt(raw.slice(3, 5), 16);
+  const b = parseInt(raw.slice(5, 7), 16);
+  const brightness = perceivedBrightness(raw);
+  const textColor = brightness < 77 ? blendWithWhite(raw, 0.70) : raw;
+  return {
+    initials,
+    bg: `rgba(${r},${g},${b},0.13)`,
+    textColor,
+  };
 }

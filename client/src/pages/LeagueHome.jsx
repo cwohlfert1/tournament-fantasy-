@@ -6,7 +6,7 @@ import api from '../api';
 import Disclaimer from '../components/Disclaimer';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
-import { teamEmoji } from '../teamEmojis';
+import { teamEmoji, playerAvatarStyle } from '../teamEmojis';
 import TrashTalkTab from './TrashTalkTab';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -980,22 +980,34 @@ export default function LeagueHome() {
                   const fantasyPts = scored?.fantasy_points ?? null;
                   const etp = calcETP(pick.season_ppg, pick.seed, !!pick.is_first_four);
 
+                  const av = playerAvatarStyle(pick.player_name, pick.team);
                   return (
                     <div key={pick.id} className="card px-4 py-3"
                       style={{ opacity: isElim ? 0.45 : 1 }}>
                       <div className="flex items-center gap-3">
 
-                        {/* Round badge */}
-                        <div className="text-gray-600 text-xs font-bold w-6 shrink-0 text-center">
-                          R{pick.round}
-                        </div>
-
-                        {/* Seed badge */}
-                        {pick.seed && (
-                          <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
-                            <span className="text-gray-300 text-xs font-bold">#{pick.seed}</span>
+                        {/* Player avatar */}
+                        <div className="relative flex-shrink-0">
+                          <div style={{
+                            width: 32, height: 32, borderRadius: '50%',
+                            background: av.bg,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 700, fontSize: 11, color: av.textColor,
+                          }}>
+                            {av.initials}
                           </div>
-                        )}
+                          {pick.seed ? (
+                            <div style={{
+                              position: 'absolute', bottom: -2, right: -4,
+                              background: '#1f2937', border: '1px solid #374151',
+                              borderRadius: 4, padding: '0 3px',
+                              fontSize: 8, fontWeight: 700, color: '#9ca3af',
+                              lineHeight: '12px',
+                            }}>
+                              #{pick.seed}
+                            </div>
+                          ) : null}
+                        </div>
 
                         {/* Name + school */}
                         <div className="flex-1 min-w-0">

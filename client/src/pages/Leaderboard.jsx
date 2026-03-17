@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
-import { teamEmoji, teamColor } from '../teamEmojis';
+import { teamEmoji, teamColor, playerAvatarStyle } from '../teamEmojis';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -632,6 +632,7 @@ export default function Leaderboard() {
                             };
                             const hasPlayed = player.fantasy_points > 0 || playerIsLive || !!player.is_eliminated;
                             const dotColor = !hasPlayed ? null : player.is_eliminated ? '#ef4444' : '#34d399';
+                            const av = playerAvatarStyle(player.name, player.team);
 
                             return (
                               <div key={player.player_id}>
@@ -642,9 +643,26 @@ export default function Leaderboard() {
                                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-white/[0.02] transition-colors"
                                   style={{ opacity: player.is_eliminated ? 0.7 : 1 }}
                                 >
-                                  {/* Status dot */}
-                                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                    style={{ backgroundColor: dotColor || 'transparent' }} />
+                                  {/* Player avatar */}
+                                  <div className="relative flex-shrink-0">
+                                    <div style={{
+                                      width: 28, height: 28, borderRadius: '50%',
+                                      background: av.bg,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontWeight: 700, fontSize: 10, color: av.textColor,
+                                      flexShrink: 0,
+                                    }}>
+                                      {av.initials}
+                                    </div>
+                                    {dotColor && (
+                                      <div style={{
+                                        position: 'absolute', bottom: 0, right: 0,
+                                        width: 7, height: 7, borderRadius: '50%',
+                                        backgroundColor: dotColor,
+                                        border: '1.5px solid #111827',
+                                      }} />
+                                    )}
+                                  </div>
 
                                   {/* Name + team */}
                                   <div className="flex-1 min-w-0">
