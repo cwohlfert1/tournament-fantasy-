@@ -359,7 +359,7 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* Stats grid */}
+                  {/* Stats grid — fixed 2×2 */}
                   {(() => {
                     const rd = rankings[league.id];
                     const showPlace = league.status === 'active' && league.draft_status === 'completed' && rd?.rank != null;
@@ -367,7 +367,8 @@ export default function Dashboard() {
                     const rankColor = rank === 1 ? '#FFD700' : rank === 2 ? '#C0C0C0' : rank === 3 ? '#CD7F32' : '#fff';
                     const allZero = league.total_points === 0;
                     return (
-                  <div className={`grid gap-2 mb-4 ${showPlace ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {/* Row 1 */}
                     <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
                       <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Your Team</div>
                       <div className="text-white text-sm font-semibold truncate">{league.team_name}</div>
@@ -376,7 +377,19 @@ export default function Dashboard() {
                       <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Teams</div>
                       <div className="text-white text-sm font-semibold">{league.member_count}/{league.max_teams}</div>
                     </div>
-                    {showPlace && (
+                    {/* Row 2 */}
+                    {buyIn > 0 ? (
+                      <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
+                        <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Buy-in</div>
+                        <div className="text-amber-400 text-sm font-bold">{fmt(buyIn)}</div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
+                        <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Rounds</div>
+                        <div className="text-white text-sm font-semibold">{league.total_rounds}</div>
+                      </div>
+                    )}
+                    {showPlace ? (
                       <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
                         <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Place</div>
                         {allZero
@@ -386,25 +399,12 @@ export default function Dashboard() {
                             </div>
                         }
                       </div>
-                    )}
-                    {buyIn > 0 && (
-                      <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
-                        <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Buy-in</div>
-                        <div className="text-amber-400 text-sm font-bold">{fmt(buyIn)}</div>
-                      </div>
-                    )}
-                    {league.total_points > 0 && (
+                    ) : league.total_points > 0 ? (
                       <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
                         <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Your Points</div>
                         <div className="text-brand-400 text-sm font-bold">{league.total_points} pts</div>
                       </div>
-                    )}
-                    {league.total_points === 0 && buyIn === 0 && (
-                      <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
-                        <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Rounds</div>
-                        <div className="text-white text-sm font-semibold">{league.total_rounds}</div>
-                      </div>
-                    )}
+                    ) : null}
                   </div>
                     );
                   })()}
