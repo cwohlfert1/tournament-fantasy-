@@ -25,6 +25,15 @@ function calcETP(ppg, seed, isFirstFour = false) {
   return Math.round(ppg * games * 10) / 10;
 }
 
+// ── Venmo icon ────────────────────────────────────────────────────────────────
+function VenmoIcon() {
+  return (
+    <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.5 2.25H4.5A2.25 2.25 0 002.25 4.5v15a2.25 2.25 0 002.25 2.25h15a2.25 2.25 0 002.25-2.25v-15A2.25 2.25 0 0019.5 2.25zm-3.47 3.5c.41.67.6 1.38.6 2.3 0 2.88-2.46 6.62-4.46 9.25H8.1L6.5 5.8l3.86-.37 1 7.27c.92-1.53 2.07-3.94 2.07-5.58 0-.9-.15-1.51-.4-2.01l2.98-.36z" />
+    </svg>
+  );
+}
+
 // ── Status badge ──────────────────────────────────────────────────────────────
 const STATUS = {
   pending_payment: { label: 'Awaiting Payment', dot: 'bg-yellow-400', badge: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' },
@@ -179,6 +188,9 @@ export default function LeagueHome() {
   const [myPicks, setMyPicks]     = useState([]);
   const [myStandingsPlayers, setMyStandingsPlayers] = useState([]);
   const [allStandings, setAllStandings] = useState([]);
+  const [sgLeader, setSgLeader] = useState(null);
+  const [sgBoard, setSgBoard]   = useState([]);
+  const [sgExpanded, setSgExpanded] = useState(false);
   const [standingsSort, setStandingsSort] = useState('points');
   const [standingsSortDir, setStandingsSortDir] = useState('desc');
   const [tab, setTab]             = useState('overview');
@@ -256,6 +268,8 @@ export default function LeagueHome() {
           const myTeam = allRows.find(t => t.user_id === user.id);
           setMyStandingsPlayers(myTeam?.players || []);
           setAllStandings(allRows);
+          setSgLeader(standingsRes.data.sgLeader || null);
+          setSgBoard(standingsRes.data.sgBoard || []);
         }
       }
     } catch (err) {
@@ -1097,8 +1111,101 @@ export default function LeagueHome() {
           );
         };
 
+        const bonus = parseFloat(league?.payout_bonus) || 0;
+
         return (
           <div>
+            {/* ── Single Game Bonus card ── */}
+            {bonus > 0 && (
+              <div
+                className="rounded-xl border border-amber-500/40 bg-gradient-to-br from-amber-900/15 via-gray-900 to-gray-900 mb-4 overflow-hidden cursor-pointer"
+                onClick={() => setSgExpanded(v => !v)}
+              >
+                {/* Header row */}
+                <div className="flex items-center gap-2 px-5 pt-4 pb-1">
+                  <span className="text-base">🎯</span>
+                  <span className="text-amber-400 font-bold text-sm">Single Game Bonus</span>
+                  <span className="text-amber-300 font-black text-sm">{fmt(bonus)}</span>
+                  <span className="ml-auto text-gray-600 text-xs">{sgExpanded ? '▲ collapse' : '▼ expand'}</span>
+                </div>
+
+                {/* Body */}
+                {!sgLeader ? (
+                  <div className="px-5 pb-4 pt-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                    <span className="text-gray-400 text-sm">Tournament tips off March 20 — check back Thursday!</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Leader hero */}
+                    <div className="px-5 pb-4 pt-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-3 flex-wrap">
+                            <span className="text-white font-black text-xl leading-tight">{sgLeader.player_name}</span>
+                            <span className="text-amber-400 font-black text-xl">{sgLeader.points} pts</span>
+                          </div>
+                          <div className="text-gray-400 text-xs mt-0.5 flex flex-wrap items-center gap-1">
+                            {sgLeader.player_team && <span className="text-gray-300 font-medium">{sgLeader.player_team}</span>}
+                            {sgLeader.player_team && <span className="text-gray-600">·</span>}
+                            {sgLeader.round_name && <span>{sgLeader.round_name}</span>}
+                            {sgLeader.round_name && sgLeader.opponent && <span className="text-gray-600">·</span>}
+                            {sgLeader.opponent && <span>vs {sgLeader.opponent}</span>}
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                            {sgLeader.owner_user_id ? (
+                              <>
+                                <span className="text-gray-500 text-xs">Owner:</span>
+                                <span className="text-green-400 font-semibold text-xs">{sgLeader.owner_team_name}</span>
+                                <span className="text-gray-600 text-xs">@{sgLeader.owner_username}</span>
+                                {sgLeader.owner_venmo && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-blue-900/30 border border-blue-700/30 text-blue-400 px-1.5 py-0.5 rounded-full">
+                                    <VenmoIcon />{sgLeader.owner_venmo}
+                                  </span>
+                                )}
+                                <span className="text-gray-700 text-[10px]">← send {fmt(bonus)} here</span>
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-600">Not drafted — no bonus awarded yet</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-3xl select-none shrink-0">👑</span>
+                      </div>
+                    </div>
+
+                    {/* Expanded full board */}
+                    {sgExpanded && sgBoard.length > 1 && (
+                      <div className="border-t border-amber-500/15 divide-y divide-gray-800/60">
+                        {sgBoard.map((row, i) => (
+                          <div key={`${row.player_id}-${i}`} className="flex items-center gap-3 px-5 py-2.5">
+                            <span className="text-gray-600 text-xs font-bold w-5 shrink-0 text-right">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className={`font-bold text-sm ${i === 0 ? 'text-white' : 'text-gray-300'}`}>{row.player_name}</span>
+                                <span className="text-gray-500 text-xs">{row.player_team}</span>
+                                {row.round_name && <span className="text-gray-600 text-xs">· {row.round_name}</span>}
+                              </div>
+                              {row.owner_user_id ? (
+                                <div className="text-gray-500 text-xs mt-0.5">
+                                  {row.owner_team_name} <span className="text-gray-700">@{row.owner_username}</span>
+                                </div>
+                              ) : (
+                                <div className="text-gray-700 text-xs mt-0.5">Undrafted</div>
+                              )}
+                            </div>
+                            <span className={`font-black text-sm shrink-0 ${i === 0 ? 'text-amber-400' : 'text-gray-400'}`}>
+                              {row.points} pts
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end mb-3">
               <Link to={`/league/${id}/leaderboard`} className="text-brand-400 hover:text-brand-300 text-sm font-medium">
                 Full Leaderboard →
