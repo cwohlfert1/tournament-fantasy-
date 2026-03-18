@@ -121,13 +121,13 @@ const POOL_TIERS = [
   { tier: 'standard', maxTeams: 20,  label: '20 teams',   price: null,  priceLabel: null,         included: true  },
   { tier: 'standard', maxTeams: 40,  label: '40 teams',   price: null,  priceLabel: null,         included: true  },
   { tier: 'standard', maxTeams: 60,  label: '60 teams',   price: null,  priceLabel: null,         included: true  },
-  { tier: 'large_100',maxTeams: 100, label: '100 teams',  price: 29.99, priceLabel: '$29.99/season', included: false },
-  { tier: 'enterprise',maxTeams:999, label: 'Enterprise', price: 39.99, priceLabel: '$39.99/season', included: false },
+  { tier: 'large_100',maxTeams: 100, label: '100 teams',  price: 29.99, priceLabel: '$29.99/tournament', included: false },
+  { tier: 'enterprise',maxTeams:999, label: 'Enterprise', price: 39.99, priceLabel: '$39.99/tournament', included: false },
 ];
 
 const POOL_TIER_CALLOUTS = {
-  large_100:  '⚡ Large Pool — Up to 100 teams for $29.99/season. Standard pools (up to 60 teams) are always included.',
-  enterprise: '⚡ Enterprise Pool — Unlimited teams, priority support, $39.99/season. Perfect for company-wide tournaments and large charity events.',
+  large_100:  '⚡ Large Pool — Up to 100 teams for $29.99/tournament. Standard pools (up to 60 teams) are always included.',
+  enterprise: '⚡ Enterprise Pool — Unlimited teams, priority support, $39.99/tournament. Perfect for company-wide tournaments and large charity events.',
 };
 
 function PoolTierSelector({ maxTeams, poolTier, onChange }) {
