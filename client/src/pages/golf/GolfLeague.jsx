@@ -128,7 +128,7 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
         {/* Text to join — visible to all members */}
         <a
           href={`sms:?body=${encodeURIComponent(
-            `Join my golf fantasy league "${league.name}" on TourneyRun! ` +
+            `Join my fantasy golf league "${league.name}" on TourneyRun! ` +
             `One draft, all season, majors count 1.5x. ` +
             `Use invite code ${league.invite_code} or join here: ` +
             `https://www.tourneyrun.app/golf/join?code=${league.invite_code}`

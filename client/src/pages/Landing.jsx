@@ -463,7 +463,7 @@ export default function Landing() {
         <div className="relative z-10 max-w-xl mx-auto w-full text-center">
           {/* Badge */}
           <div className="inline-flex items-center bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-bold px-4 py-1.5 rounded-full mb-5 uppercase tracking-wider">
-            2026 College Basketball Fantasy
+            2026 Fantasy Basketball
           </div>
 
           {/* Pre-headline hook */}

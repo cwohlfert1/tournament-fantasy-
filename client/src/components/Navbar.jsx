@@ -103,7 +103,7 @@ export default function Navbar() {
               <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span><span style={{ color: '#f97316', fontWeight: 500 }}>run</span>
             </div>
             <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: isGolf ? '#22c55e' : '#888780', marginTop: 2 }}>
-              {isGolf ? 'Golf Fantasy' : 'Player Pool Fantasy'}
+              {isGolf ? 'Fantasy Golf' : 'Player Pool Fantasy'}
             </div>
           </div>
         </Link>

@@ -191,7 +191,7 @@ function TournamentBadge({ status, isMajor }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function GolfLanding() {
-  useDocTitle('Golf Fantasy | TourneyRun');
+  useDocTitle('Fantasy Golf | TourneyRun');
   const { user } = useAuth();
   const howItWorksRef = useRef(null);
   const [tournaments, setTournaments] = useState([]);
@@ -240,7 +240,7 @@ export default function GolfLanding() {
             2026 PGA Tour Season
           </div>
           <h1 className="text-4xl sm:text-6xl font-black text-white leading-tight mb-4">
-            Golf Fantasy<br />
+            Fantasy Golf<br />
             <span className="text-green-400">Done Right</span>
           </h1>
           <p className="text-gray-400 text-base sm:text-xl max-w-xl mx-auto mb-10 leading-relaxed">
@@ -323,7 +323,7 @@ export default function GolfLanding() {
           Tired of losing your entry on hole 1?
         </h2>
         <p className="text-gray-400 text-center text-base sm:text-lg max-w-2xl mx-auto mb-12 leading-relaxed">
-          TourneyRun is season-long golf fantasy — draft once, earn points every weekend all 13 events.
+          TourneyRun is season-long fantasy golf — draft once, earn points every weekend all 13 events.
         </p>
 
         <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
@@ -830,7 +830,7 @@ export default function GolfLanding() {
               <circle cx="13" cy="20" r="1.1" fill="#9ca3af"/>
               <circle cx="19" cy="22" r="1.1" fill="#9ca3af"/>
             </svg>
-            <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 500 }}>TourneyRun Golf Fantasy</span>
+            <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 500 }}>TourneyRun Fantasy Golf</span>
           </div>
           {/* Center links */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>

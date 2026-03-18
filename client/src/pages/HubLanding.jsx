@@ -378,7 +378,7 @@ export default function HubLanding() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 24 }}>⛳</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', color: '#fff' }}>GOLF FANTASY</span>
+                      <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.06em', color: '#fff' }}>FANTASY GOLF</span>
                     </div>
                     <span style={{
                       fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -506,7 +506,7 @@ export default function HubLanding() {
                     padding: '4px 12px', borderRadius: 100, marginBottom: 16,
                   }}>FEATURED · 2026 PGA Season Live</span>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>⛳</div>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Golf Fantasy</h3>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Fantasy Golf</h3>
                   <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
                     PGA Tour season-long fantasy, office pools, and DFS. One platform, every format.
                   </p>
@@ -550,7 +550,7 @@ export default function HubLanding() {
                     padding: '4px 12px', borderRadius: 100, marginBottom: 16,
                   }}>2026 Tournament · Starting Soon</span>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>🏀</div>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>College Basketball Fantasy</h3>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Fantasy Basketball</h3>
                   <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
                     Draft college players. Score points as they win tournament games. 3 weeks, one champion.
                   </p>
@@ -682,7 +682,7 @@ export default function HubLanding() {
           </div>
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {[
-              { to: '/golf', label: '⛳ Golf Fantasy' },
+              { to: '/golf', label: '⛳ Fantasy Golf' },
               { to: '/basketball', label: '🏀 College Basketball' },
               { to: '/golf/faq', label: 'FAQ' },
               { to: '/golf/strategy', label: 'Strategy' },

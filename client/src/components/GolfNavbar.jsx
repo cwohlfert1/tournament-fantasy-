@@ -79,7 +79,7 @@ export default function GolfNavbar() {
               <span style={{ color: '#22c55e', fontWeight: 500 }}>run</span>
             </div>
             <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#16a34a', marginTop: 2 }}>
-              Golf Fantasy
+              Fantasy Golf
             </div>
           </div>
         </Link>

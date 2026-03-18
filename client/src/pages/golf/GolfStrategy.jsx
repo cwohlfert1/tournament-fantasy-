@@ -136,7 +136,7 @@ export default function GolfStrategy() {
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Win your golf league</h1>
         <p className="text-gray-400 text-base max-w-2xl leading-relaxed">
-          Season-long golf fantasy rewards patience and smart roster management. These tips apply to the TourneyRun format — one draft, all season, majors at 1.5×.
+          Season-long fantasy golf rewards patience and smart roster management. These tips apply to the TourneyRun format — one draft, all season, majors at 1.5×.
         </p>
       </div>
 
