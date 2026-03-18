@@ -165,7 +165,7 @@ function buildStandings(leagueId) {
     LEFT JOIN draft_picks dp   ON dp.player_id = ps.player_id AND dp.league_id = ?
     LEFT JOIN league_members lm2 ON lm2.user_id = dp.user_id AND lm2.league_id = ?
     LEFT JOIN users u2 ON u2.id = dp.user_id
-    WHERE g.is_completed = 1 AND ps.points > 0
+    WHERE g.is_completed = 1 AND ps.points > 0 AND dp.player_id IS NOT NULL
     ORDER BY ps.points DESC
     LIMIT 10
   `).all(leagueId, leagueId);

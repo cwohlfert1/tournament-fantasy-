@@ -425,7 +425,7 @@ export default function Leaderboard() {
               <div className="flex items-center justify-between pt-1 border-t border-gray-800">
                 <span className="text-gray-400">🎯 Single Game Bonus</span>
                 <span className="text-purple-400 font-bold">{fmt(bonus)}</span>
-                <span className="text-gray-600 text-xs">paid to owner of highest single-game scorer</span>
+                <span className="text-gray-600 text-xs hidden sm:inline">highest single-game scorer</span>
               </div>
             )}
           </div>

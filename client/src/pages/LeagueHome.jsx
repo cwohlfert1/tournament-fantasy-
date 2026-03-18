@@ -193,6 +193,7 @@ export default function LeagueHome() {
   const [sgLeader, setSgLeader] = useState(null);
   const [sgBoard, setSgBoard]   = useState([]);
   const [sgExpanded, setSgExpanded] = useState(false);
+  const [expandedPlayerId, setExpandedPlayerId] = useState(null);
   const [standingsSort, setStandingsSort] = useState('points');
   const [standingsSortDir, setStandingsSortDir] = useState('desc');
   const [tab, setTab]             = useState(() => {
@@ -1024,14 +1025,19 @@ export default function LeagueHome() {
                   const isElim = !!pick.is_eliminated;
                   const isLive = !!scored?.is_live;
                   const fantasyPts = scored?.fantasy_points ?? null;
-                  const etp = calcETP(pick.season_ppg, pick.seed, !!pick.is_first_four);
+                  const gameLog = scored?.game_log || [];
+                  const isExpanded = expandedPlayerId === pick.player_id;
 
                   const av = playerAvatarStyle(pick.player_name, pick.team);
                   return (
-                    <div key={pick.id} className="card px-4 py-3"
-                      style={{ opacity: isElim ? 0.45 : 1 }}>
-                      <div className="flex items-center gap-3">
-
+                    <div key={pick.id} className="card overflow-hidden"
+                      style={{ opacity: isElim ? 0.55 : 1 }}>
+                      {/* Main row — clickable */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPlayerId(isExpanded ? null : pick.player_id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800/40 transition-colors"
+                      >
                         {/* Player avatar */}
                         <div className="relative flex-shrink-0">
                           <div style={{
@@ -1102,7 +1108,48 @@ export default function LeagueHome() {
                             </span>
                           )}
                         </div>
-                      </div>
+
+                        {/* Chevron */}
+                        <svg
+                          className="w-3.5 h-3.5 text-gray-600 shrink-0 transition-transform duration-200"
+                          style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {/* Game log dropdown */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-800 bg-gray-900/60 px-4 py-3">
+                          {gameLog.length === 0 ? (
+                            <p className="text-gray-500 text-xs text-center py-1">No games played yet.</p>
+                          ) : (
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-gray-600 uppercase tracking-wider text-[10px]">
+                                  <th className="text-left pb-1.5 font-semibold">Date</th>
+                                  <th className="text-left pb-1.5 font-semibold">Opponent</th>
+                                  <th className="text-left pb-1.5 font-semibold">Round</th>
+                                  <th className="text-right pb-1.5 font-semibold">PTS</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-800/60">
+                                {gameLog.map((g, i) => (
+                                  <tr key={i}>
+                                    <td className="py-1 text-gray-400">{g.game_date}</td>
+                                    <td className="py-1 text-gray-300">{g.opponent || '—'}</td>
+                                    <td className="py-1 text-gray-500">{g.round_code || '—'}</td>
+                                    <td className="py-1 text-right font-bold" style={{ color: g.points > 0 ? '#60a5fa' : '#6b7280' }}>
+                                      {g.points ?? '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
