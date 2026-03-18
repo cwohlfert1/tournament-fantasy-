@@ -528,4 +528,18 @@ try {
   console.error('[golf-db] Payment tables migration error:', e.message);
 }
 
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS golf_waitlist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      format TEXT NOT NULL DEFAULT 'golf_pool',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_golf_waitlist_email_format ON golf_waitlist(email, format);
+  `);
+} catch (e) {
+  console.error('[golf-db] Waitlist table migration error:', e.message);
+}
+
 module.exports = db;

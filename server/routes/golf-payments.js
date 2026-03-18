@@ -406,5 +406,22 @@ async function applyReferralCredits(newUserId, refCode) {
   console.log(`[golf-payments] Referral credit applied: referrer=${referrerId} newUser=${newUserId}`);
 }
 
+// ── Waitlist ───────────────────────────────────────────────────────────────────
+router.post('/waitlist', async (req, res) => {
+  const { email, format = 'golf_pool' } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Valid email required.' });
+  }
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO golf_waitlist (email, format) VALUES (?, ?)
+    `).run(email.toLowerCase().trim(), format);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[golf-payments] waitlist error:', e.message);
+    res.status(500).json({ error: 'Could not save. Try again.' });
+  }
+});
+
 module.exports = router;
 module.exports.handleGolfWebhook = handleGolfWebhook;

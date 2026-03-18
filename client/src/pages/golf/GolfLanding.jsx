@@ -134,6 +134,27 @@ const TESTIMONIALS = [
   },
 ];
 
+// ── Date formatter ────────────────────────────────────────────────────────────
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatDateRange(start, end) {
+  if (!start) return '';
+  const s = new Date(start + 'T12:00:00');
+  const e = end && end !== start ? new Date(end + 'T12:00:00') : null;
+  if (!e) return `${MONTHS_SHORT[s.getMonth()]} ${s.getDate()}, ${s.getFullYear()}`;
+  if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
+    return `${MONTHS_SHORT[s.getMonth()]} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`;
+  }
+  return `${MONTHS_SHORT[s.getMonth()]} ${s.getDate()} – ${MONTHS_SHORT[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
+}
+
+function daysUntil(dateStr) {
+  const target = new Date(dateStr + 'T00:00:00');
+  const today  = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target - today) / 86400000);
+}
+
 // ── Tournament status badge ───────────────────────────────────────────────────
 function TournamentBadge({ status, isMajor }) {
   if (status === 'active') {
@@ -175,6 +196,8 @@ export default function GolfLanding() {
   const howItWorksRef = useRef(null);
   const [tournaments, setTournaments] = useState([]);
   const [searchParams] = useSearchParams();
+  const [poolEmail, setPoolEmail]         = useState('');
+  const [poolNotifyStatus, setPoolStatus] = useState('idle'); // idle | loading | done | err
 
   // Capture referral code from ?ref=CODE and store for checkout
   useEffect(() => {
@@ -256,9 +279,13 @@ export default function GolfLanding() {
               </>
             )}
           </div>
+          <p style={{ marginTop: 16, fontSize: 13, color: '#6b7280', textAlign: 'center' }}>
+            Want something simpler?{' '}
+            <a href="#formats" style={{ color: '#22c55e', textDecoration: 'none' }}>Start an Office Pool →</a>
+          </p>
           <button
             onClick={() => howItWorksRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            className="mt-6 text-gray-600 hover:text-gray-400 text-sm transition-colors"
+            className="mt-4 text-gray-600 hover:text-gray-400 text-sm transition-colors"
           >
             How it works ↓
           </button>
@@ -337,7 +364,7 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* S4: Pick your format                                                 */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <Section className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
+      <Section id="formats" className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-3">Pick your format</h2>
           <p className="text-gray-500 text-center text-sm mb-10">All formats, one platform.</p>
@@ -400,7 +427,36 @@ export default function GolfLanding() {
                   ))}
                 </ul>
                 <div className="mt-4 pt-3 border-t border-yellow-900/30">
-                  <span className="text-[10px] font-bold text-yellow-600 uppercase tracking-widest">Coming Soon</span>
+                  {poolNotifyStatus === 'done' ? (
+                    <p style={{ color: '#4ade80', fontSize: 12, fontWeight: 600 }}>✓ You're on the list!</p>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input
+                        type="email"
+                        placeholder="your@email.com"
+                        value={poolEmail}
+                        onChange={e => setPoolEmail(e.target.value)}
+                        style={{ flex: 1, background: '#111', border: '1px solid #374151', borderRadius: 8, color: '#d1d5db', fontSize: 12, padding: '7px 10px', outline: 'none', minWidth: 0 }}
+                      />
+                      <button
+                        disabled={poolNotifyStatus === 'loading'}
+                        onClick={async () => {
+                          if (!poolEmail) return;
+                          setPoolStatus('loading');
+                          try {
+                            await api.post('/golf/waitlist', { email: poolEmail, format: 'golf_pool' });
+                            setPoolStatus('done');
+                          } catch {
+                            setPoolStatus('err');
+                            setTimeout(() => setPoolStatus('idle'), 3000);
+                          }
+                        }}
+                        style={{ background: '#f59e0b', color: '#451a03', fontWeight: 700, fontSize: 12, border: 'none', borderRadius: 8, padding: '7px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >
+                        {poolNotifyStatus === 'loading' ? '…' : poolNotifyStatus === 'err' ? 'Try again' : 'Notify Me'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -469,7 +525,7 @@ export default function GolfLanding() {
             to="/golf/create"
             className="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-7 py-3.5 rounded-full transition-all shadow-lg shadow-green-500/25"
           >
-            Create a Golf Pool <ArrowRight className="w-4 h-4" />
+            Create a Golf League <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </Section>
@@ -632,36 +688,68 @@ export default function GolfLanding() {
                 <div key={i} className="h-14 rounded-xl bg-gray-900 border border-gray-800 animate-pulse" />
               ))}
             </div>
-          ) : (
-            <div className="space-y-2">
-              {tournaments.map(t => (
-                <div
-                  key={t.id}
-                  className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-colors ${
-                    t.status === 'active'
-                      ? 'bg-green-950/20 border-green-800/40'
-                      : t.status === 'completed'
-                      ? 'border-gray-800 opacity-60'
-                      : t.is_major
-                      ? 'bg-yellow-950/10 border-yellow-900/30'
-                      : 'bg-gray-900 border-gray-800 hover:border-gray-700'
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className={`font-semibold text-sm truncate block ${t.status === 'completed' ? 'text-gray-500' : 'text-white'}`}>
-                      {t.name}
-                    </span>
-                    {(t.start_date || t.end_date) && (
-                      <span className="text-gray-600 text-xs">
-                        {t.start_date}{t.end_date && t.end_date !== t.start_date ? ` – ${t.end_date}` : ''}
-                      </span>
-                    )}
-                  </div>
-                  <TournamentBadge status={t.status} isMajor={!!t.is_major} />
-                </div>
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const nextUpIdx = tournaments.findIndex(
+              t => t.status !== 'completed' && t.status !== 'active'
+            );
+            return (
+              <div className="space-y-2">
+                {tournaments.map((t, idx) => {
+                  const isNextUp = idx === nextUpIdx;
+                  const countdown = isNextUp && t.start_date ? daysUntil(t.start_date) : null;
+                  return (
+                    <div
+                      key={t.id}
+                      className={!isNextUp ? `flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-colors ${
+                        t.status === 'active'
+                          ? 'bg-green-950/20 border-green-800/40'
+                          : t.status === 'completed'
+                          ? 'border-gray-800 opacity-60'
+                          : t.is_major
+                          ? 'bg-yellow-950/10 border-yellow-900/30'
+                          : 'bg-gray-900 border-gray-800 hover:border-gray-700'
+                      }` : undefined}
+                      style={isNextUp ? {
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '14px 16px',
+                        borderLeft: '3px solid #22c55e',
+                        borderTop: '1px solid rgba(34,197,94,0.25)',
+                        borderRight: '1px solid rgba(34,197,94,0.25)',
+                        borderBottom: '1px solid rgba(34,197,94,0.25)',
+                        borderRadius: 12,
+                        background: 'rgba(34,197,94,0.05)',
+                        boxShadow: '0 0 16px rgba(34,197,94,0.07)',
+                      } : undefined}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className={`font-semibold text-sm truncate block ${t.status === 'completed' ? 'text-gray-500' : 'text-white'}`}>
+                          {t.name}
+                        </span>
+                        {(t.start_date || t.end_date) && (
+                          <span className="text-gray-600 text-xs">
+                            {formatDateRange(t.start_date, t.end_date)}
+                          </span>
+                        )}
+                        {isNextUp && countdown !== null && countdown >= 0 && (
+                          <span style={{ display: 'block', color: '#4ade80', fontSize: 11, fontWeight: 600, marginTop: 2 }}>
+                            {countdown === 0 ? 'Today!' : `${countdown} day${countdown === 1 ? '' : 's'} away`}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        {isNextUp && (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.35)', color: '#22c55e', letterSpacing: '0.08em' }}>
+                            NEXT UP
+                          </span>
+                        )}
+                        <TournamentBadge status={t.status} isMajor={!!t.is_major} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </Section>
 
@@ -719,6 +807,50 @@ export default function GolfLanding() {
       </div>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* Footer                                                               */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      <footer style={{ background: '#0d1117', borderTop: '1px solid #1e293b', padding: '32px 24px' }}>
+        <div style={{ maxWidth: 1080, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+          {/* Logo + wordmark */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <svg viewBox="0 0 32 32" fill="none" style={{ width: 24, height: 24, flexShrink: 0 }}>
+              <circle cx="16" cy="16" r="15" fill="white" stroke="#d1d5db" strokeWidth="0.8"/>
+              <circle cx="12" cy="11" r="1.1" fill="#9ca3af"/>
+              <circle cx="17" cy="9"  r="1.1" fill="#9ca3af"/>
+              <circle cx="21" cy="13" r="1.1" fill="#9ca3af"/>
+              <circle cx="10" cy="16" r="1.1" fill="#9ca3af"/>
+              <circle cx="15" cy="15" r="1.1" fill="#9ca3af"/>
+              <circle cx="20" cy="18" r="1.1" fill="#9ca3af"/>
+              <circle cx="13" cy="20" r="1.1" fill="#9ca3af"/>
+              <circle cx="19" cy="22" r="1.1" fill="#9ca3af"/>
+            </svg>
+            <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 500 }}>TourneyRun Golf Fantasy</span>
+          </div>
+          {/* Center links */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {[
+              { label: 'FAQ',         to: '/golf/faq' },
+              { label: 'Strategy',    to: '/golf/strategy' },
+              { label: 'How to Play', to: '/golf#how-it-works' },
+            ].map(({ label, to }) => (
+              <Link key={label} to={to}
+                style={{ color: '#4b5563', fontSize: 13, textDecoration: 'none' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#22c55e'}
+                onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}
+              >{label}</Link>
+            ))}
+            <a href="https://instagram.com/tourneyrungolf" target="_blank" rel="noopener noreferrer"
+              style={{ color: '#4b5563', fontSize: 13, textDecoration: 'none' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#22c55e'}
+              onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}
+            >@tourneyrungolf</a>
+          </div>
+          {/* Copyright */}
+          <span style={{ color: '#374151', fontSize: 12 }}>© 2026 TourneyRun. All rights reserved.</span>
+        </div>
+      </footer>
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
       {/* S11: Final CTA                                                       */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <div className="border-t border-gray-800 py-16 sm:py-20 px-4 text-center">
@@ -740,6 +872,35 @@ export default function GolfLanding() {
           </Link>
         )}
       </div>
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* Sticky mobile CTA bar (Masters countdown)                            */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      {(() => {
+        const days = daysUntil('2026-04-06');
+        if (days < 0) return null;
+        return (
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+            background: '#0a0f1a', borderTop: '1px solid #1e293b',
+            padding: '12px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }} className="md:hidden">
+            <span style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>
+              ⛳ Masters in {days} day{days === 1 ? '' : 's'}
+            </span>
+            <Link
+              to="/golf/create"
+              style={{
+                background: '#22c55e', color: '#fff', fontWeight: 700, fontSize: 13,
+                padding: '9px 16px', borderRadius: 999, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              Create Your League →
+            </Link>
+          </div>
+        );
+      })()}
     </div>
   );
 }
