@@ -208,9 +208,13 @@ router.get('/leagues', authMiddleware, (req, res) => {
   try {
     const leagues = db.prepare(`
       SELECT gl.*, glm.team_name, glm.season_points, glm.season_budget, glm.id as member_id,
-             (SELECT COUNT(*) FROM golf_league_members WHERE golf_league_id = gl.id) as member_count
+             (SELECT COUNT(*) FROM golf_league_members WHERE golf_league_id = gl.id) as member_count,
+             gt.name as pool_tournament_name,
+             gt.start_date as pool_tournament_start,
+             gt.end_date as pool_tournament_end
       FROM golf_leagues gl
       JOIN golf_league_members glm ON glm.golf_league_id = gl.id AND glm.user_id = ?
+      LEFT JOIN golf_tournaments gt ON gt.id = gl.pool_tournament_id
       WHERE (gl.is_sandbox = 0 OR gl.is_sandbox IS NULL)
       ORDER BY gl.created_at DESC
     `).all(req.user.id);

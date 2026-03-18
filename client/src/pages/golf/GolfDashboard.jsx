@@ -1,45 +1,110 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, Plus, Flag, ChevronRight, Users, Calendar, Trophy, Star } from 'lucide-react';
+import { Ticket, Plus, Flag, ChevronRight, Users, Calendar, Trophy, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import BallLoader from '../../components/BallLoader';
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmtDateRange(start, end) {
+  if (!start) return '';
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const s = new Date(start + 'T12:00:00');
+  const e = end ? new Date(end + 'T12:00:00') : null;
+  if (!e || start === end) return `${MONTHS[s.getMonth()]} ${s.getDate()}`;
+  if (s.getMonth() === e.getMonth()) return `${MONTHS[s.getMonth()]} ${s.getDate()}–${e.getDate()}`;
+  return `${MONTHS[s.getMonth()]} ${s.getDate()} – ${MONTHS[e.getMonth()]} ${e.getDate()}`;
+}
+
+const ACTIVE_STATUSES = new Set(['active', 'lobby', 'draft', 'draft_pending']);
+
+// ── Format pills config ────────────────────────────────────────────────────────
+
+const FORMAT_META = {
+  pool:       { label: '⛳ Pool',       pill: 'bg-green-500/15 border-green-500/30 text-green-400',  duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400',  bar: 'bg-green-500'  },
+  dk:         { label: '💰 DFS',        pill: 'bg-blue-500/15 border-blue-500/30 text-blue-400',    duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400',  bar: 'bg-blue-500'   },
+  tourneyrun: { label: '🏆 TourneyRun', pill: 'bg-teal-500/15 border-teal-500/30 text-teal-400',   duration: 'Season Long',    dPill: 'bg-gray-700/60 border-gray-700 text-gray-400',         bar: 'bg-teal-500'   },
+};
+function getMeta(fmt) { return FORMAT_META[fmt] || FORMAT_META.tourneyrun; }
+
+// ── Prize breakdown helper ─────────────────────────────────────────────────────
+
+function parsePayout(league) {
+  let places = [];
+  try { places = JSON.parse(league.payout_places || '[]'); } catch (_) {}
+  if (!places.length && league.payout_first) {
+    places = [
+      { place: 1, pct: parseFloat(league.payout_first)  || 0 },
+      { place: 2, pct: parseFloat(league.payout_second) || 0 },
+      { place: 3, pct: parseFloat(league.payout_third)  || 0 },
+    ].filter(p => p.pct > 0);
+  }
+  return places;
+}
+
+const PLACE_ICONS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+
+function PrizeBreakdown({ league }) {
+  const buyIn = parseFloat(league.buy_in_amount) || 0;
+  if (buyIn <= 0) return null;
+
+  const places  = parsePayout(league);
+  if (!places.length) return null;
+
+  const teams    = parseInt(league.member_count) || 0;
+  const prizePool = buyIn * teams;
+  const shown    = places.slice(0, 3);
+  const extra    = places.length - shown.length;
+
+  return (
+    <div className="mt-2 bg-gray-800/50 rounded-xl px-3 py-2.5 space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-gray-500 font-semibold">Prize Pool</span>
+        <span className="text-white font-black">${prizePool.toLocaleString()}</span>
+      </div>
+      {shown.map((p, i) => (
+        <div key={p.place} className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">{PLACE_ICONS[i]} {p.place === 1 ? '1st' : p.place === 2 ? '2nd' : '3rd'}</span>
+          <span className="text-gray-300 font-semibold">
+            ${Math.round(prizePool * (p.pct / 100)).toLocaleString()}
+            <span className="text-gray-600 font-normal ml-1">({p.pct}%)</span>
+          </span>
+        </div>
+      ))}
+      {extra > 0 && (
+        <p className="text-gray-600 text-[10px]">+ {extra} more place{extra !== 1 ? 's' : ''}</p>
+      )}
+    </div>
+  );
+}
+
+// ── Next Tournament Banner ─────────────────────────────────────────────────────
+
 function NextTournamentBanner({ tournament }) {
   if (!tournament) return null;
-  const isLive = tournament.status === 'active';
-  const start = new Date(tournament.start_date);
-  const end = new Date(tournament.end_date);
-  const now = new Date();
-  const daysUntil = Math.ceil((start - now) / (1000 * 60 * 60 * 24));
-
-  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const isLive    = tournament.status === 'active';
+  const start     = new Date(tournament.start_date);
+  const end       = new Date(tournament.end_date);
+  const now       = new Date();
+  const daysUntil = Math.ceil((start - now) / 86400000);
+  const fmt       = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const dateRange = `${fmt(start)} – ${fmt(end)}, 2026`;
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 mb-6 ${
-      isLive
-        ? 'bg-green-500/8 border-green-500/30'
-        : tournament.is_major
-        ? 'bg-yellow-500/5 border-yellow-500/25'
-        : 'bg-gray-900 border-gray-800'
+      isLive ? 'bg-green-500/8 border-green-500/30' : tournament.is_major ? 'bg-yellow-500/5 border-yellow-500/25' : 'bg-gray-900 border-gray-800'
     }`}>
-      {/* Subtle glow */}
       {isLive && (
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(34,197,94,0.08)_0%,_transparent_60%)] pointer-events-none" />
       )}
       <div className="relative flex flex-wrap items-center gap-3 sm:gap-4">
-        {/* Icon */}
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
           isLive ? 'bg-green-500/20' : tournament.is_major ? 'bg-yellow-500/10' : 'bg-gray-800'
         }`}>
-          {tournament.is_major
-            ? <Trophy className="w-5 h-5 text-yellow-400" />
-            : <Flag className="w-5 h-5 text-green-400" />}
+          {tournament.is_major ? <Trophy className="w-5 h-5 text-yellow-400" /> : <Flag className="w-5 h-5 text-green-400" />}
         </div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-0.5">
             <span className="text-white font-black text-sm sm:text-base truncate">{tournament.name}</span>
@@ -51,42 +116,135 @@ function NextTournamentBanner({ tournament }) {
             {!isLive && tournament.is_major && (
               <span className="inline-block bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full">MAJOR</span>
             )}
-            {!isLive && tournament.is_signature === 1 && !tournament.is_major && (
-              <span className="inline-block bg-green-500/15 border border-green-500/30 text-green-400 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full">SIGNATURE</span>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {dateRange}</span>
-            <span className="text-gray-600">·</span>
-            <span className="truncate">{tournament.course}</span>
+            {tournament.course && <><span className="text-gray-600">·</span><span className="truncate">{tournament.course}</span></>}
           </div>
         </div>
-
-        {/* Countdown */}
         {!isLive && daysUntil > 0 && (
           <div className="text-right shrink-0">
-            <div className={`font-black text-lg tabular-nums ${tournament.is_major ? 'text-yellow-400' : 'text-green-400'}`}>
-              {daysUntil}d
-            </div>
+            <div className={`font-black text-lg tabular-nums ${tournament.is_major ? 'text-yellow-400' : 'text-green-400'}`}>{daysUntil}d</div>
             <div className="text-gray-500 text-[10px] uppercase tracking-wide">until start</div>
           </div>
         )}
-        {isLive && (
-          <div className="text-right shrink-0">
-            <div className="text-green-400 font-black text-sm">In Progress</div>
-          </div>
-        )}
+        {isLive && <div className="text-right shrink-0"><div className="text-green-400 font-black text-sm">In Progress</div></div>}
       </div>
     </div>
   );
 }
 
+// ── League Card ────────────────────────────────────────────────────────────────
+
+function LeagueCard({ league, userId, past = false }) {
+  const isComm = league.commissioner_id === userId;
+  const meta   = getMeta(league.format_type);
+
+  const statusLabel = past ? 'Completed'
+    : league.draft_status === 'completed' ? 'Season Active' : 'Draft Pending';
+  const statusColor = past ? 'text-gray-500'
+    : league.draft_status === 'completed' ? 'text-green-400' : 'text-blue-400';
+  const statusDot   = past ? 'bg-gray-600'
+    : league.draft_status === 'completed' ? 'bg-green-400' : 'bg-blue-400';
+
+  // Pool tournament line
+  const hasTourn    = !!league.pool_tournament_name;
+  const tournLine   = hasTourn
+    ? `${league.pool_tournament_name}${league.pool_tournament_start ? ' · ' + fmtDateRange(league.pool_tournament_start, league.pool_tournament_end) : ''}`
+    : 'No tournament set yet';
+
+  return (
+    <Link
+      to={`/golf/league/${league.id}`}
+      className="group relative flex flex-col rounded-2xl border border-gray-800 bg-gray-900 overflow-hidden transition-all hover:-translate-y-1 hover:border-green-500/40 hover:shadow-xl hover:shadow-green-500/10"
+    >
+      {/* Top accent bar */}
+      <div className={`h-1 w-full ${meta.bar}`} />
+
+      <div className="p-5 flex flex-col flex-1 gap-3">
+        {/* Name + status */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-black text-white leading-tight truncate">{league.name}</div>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${statusDot} shrink-0 ${!past && league.draft_status === 'completed' ? 'animate-pulse' : ''}`} />
+              <span className={`text-xs font-bold ${statusColor}`}>{statusLabel}</span>
+              {isComm && (
+                <span className="text-[10px] font-bold text-green-400 bg-green-500/15 border border-green-500/25 px-1.5 py-0.5 rounded-full ml-1">COMM</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Format + duration pills */}
+        <div className="flex flex-wrap gap-1.5">
+          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.pill}`}>
+            {meta.label}
+          </span>
+          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${meta.dPill}`}>
+            {meta.duration}
+          </span>
+        </div>
+
+        {/* Pool tournament line */}
+        {league.format_type === 'pool' && (
+          <p className={`text-xs -mt-1 ${hasTourn ? 'text-gray-400' : 'text-gray-600'}`}>
+            {tournLine}
+          </p>
+        )}
+
+        {/* Team + Members */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Your Team</div>
+            <div className="text-white text-sm font-semibold truncate">{league.team_name || '—'}</div>
+          </div>
+          <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-1 text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">
+              <Users className="w-3 h-3" /> Members
+            </div>
+            <div className="text-white text-sm font-semibold">{league.member_count}/{league.max_teams}</div>
+          </div>
+        </div>
+
+        {/* Prize breakdown (active leagues with buy-in) */}
+        {!past && <PrizeBreakdown league={league} />}
+
+        {/* CTA row */}
+        <div className="mt-auto pt-1">
+          <div className="flex items-center justify-center gap-1.5 bg-gray-800/60 hover:bg-gray-800 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white text-sm font-medium py-2 rounded-xl transition-all">
+            {past ? 'View Results' : 'Enter League'} <ChevronRight className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// ── Section header ─────────────────────────────────────────────────────────────
+
+function SectionHeader({ label, count }) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <h2 className="text-lg font-black text-white">{label}</h2>
+      {count !== undefined && (
+        <span className="text-xs font-bold text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
+
 export default function GolfDashboard() {
   useDocTitle('Golf Dashboard | TourneyRun');
   const { user } = useAuth();
-  const [leagues, setLeagues] = useState([]);
+  const [leagues, setLeagues]           = useState([]);
   const [nextTournament, setNextTournament] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]           = useState(true);
+  const [pastOpen, setPastOpen]         = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -95,7 +253,6 @@ export default function GolfDashboard() {
     ]).then(([lr, tr]) => {
       setLeagues(lr.data.leagues || []);
       const tournaments = tr.data.tournaments || [];
-      // Prefer active tournament, then nearest upcoming
       const live = tournaments.find(t => t.status === 'active');
       if (live) { setNextTournament(live); return; }
       const upcoming = tournaments
@@ -107,18 +264,19 @@ export default function GolfDashboard() {
 
   if (loading) return <BallLoader />;
 
+  const activeLeagues = leagues.filter(l => ACTIVE_STATUSES.has(l.status));
+  const pastLeagues   = leagues.filter(l => !ACTIVE_STATUSES.has(l.status));
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-10">
 
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8 sm:mb-10">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-8 sm:mb-10">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">
-            Golf Leagues
-          </h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">Golf Leagues</h1>
           <p className="text-gray-400 mt-1">Welcome back, {user?.username}</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex flex-wrap gap-2">
           <Link
             to="/golf/join"
             className="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-200 font-semibold px-4 py-2.5 rounded-full transition-all text-sm"
@@ -129,7 +287,13 @@ export default function GolfDashboard() {
             to="/golf/create"
             className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-semibold px-4 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/25 text-sm"
           >
-            <Plus className="w-4 h-4" /> Create League
+            <Plus className="w-4 h-4" /> Create Fantasy League
+          </Link>
+          <Link
+            to="/golf/create?format=pool"
+            className="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-amber-500/50 text-gray-200 font-semibold px-4 py-2.5 rounded-full transition-all text-sm"
+          >
+            🏆 Run an Office Pool
           </Link>
         </div>
       </div>
@@ -149,7 +313,7 @@ export default function GolfDashboard() {
             <p className="text-gray-400 max-w-md mx-auto mb-8">
               Create a golf league or join one with an invite code to start competing.
             </p>
-            <div className="grid sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+            <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
               <Link
                 to="/golf/create"
                 className="group flex flex-col items-center gap-3 bg-gray-800 hover:bg-gray-800/80 border border-gray-700 hover:border-green-500/50 rounded-2xl p-6 transition-all hover:-translate-y-1"
@@ -158,8 +322,20 @@ export default function GolfDashboard() {
                   <Plus className="w-6 h-6 text-green-400" />
                 </div>
                 <div>
-                  <div className="text-white font-black">Create a League</div>
-                  <div className="text-gray-500 text-sm mt-0.5">Set the rules, invite your crew</div>
+                  <div className="text-white font-black text-sm">Create Fantasy League</div>
+                  <div className="text-gray-500 text-xs mt-0.5">Draft, salary cap, or daily</div>
+                </div>
+              </Link>
+              <Link
+                to="/golf/create?format=pool"
+                className="group flex flex-col items-center gap-3 bg-gray-800 hover:bg-gray-800/80 border border-gray-700 hover:border-amber-500/40 rounded-2xl p-6 transition-all hover:-translate-y-1"
+              >
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:scale-110 transition-transform text-2xl">
+                  🏆
+                </div>
+                <div>
+                  <div className="text-white font-black text-sm">Run an Office Pool</div>
+                  <div className="text-gray-500 text-xs mt-0.5">Pick sheet, per tournament</div>
                 </div>
               </Link>
               <Link
@@ -170,8 +346,8 @@ export default function GolfDashboard() {
                   <Ticket className="w-6 h-6 text-green-400" />
                 </div>
                 <div>
-                  <div className="text-white font-black">Join a League</div>
-                  <div className="text-gray-500 text-sm mt-0.5">Enter your invite code</div>
+                  <div className="text-white font-black text-sm">Join a League</div>
+                  <div className="text-gray-500 text-xs mt-0.5">Enter your invite code</div>
                 </div>
               </Link>
             </div>
@@ -179,60 +355,42 @@ export default function GolfDashboard() {
         </div>
       )}
 
-      {/* ── League cards ── */}
-      {leagues.length > 0 && (
-        <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {leagues.map(league => {
-            const isComm = league.commissioner_id === user?.id;
-            const statusLabel = league.draft_status === 'completed' ? 'Season Active' : 'Draft Pending';
-            const statusColor = league.draft_status === 'completed' ? 'text-green-400' : 'text-blue-400';
-            const statusDot   = league.draft_status === 'completed' ? 'bg-green-400' : 'bg-blue-400';
-
-            return (
-              <Link
-                key={league.id}
-                to={`/golf/league/${league.id}`}
-                className="group relative flex flex-col rounded-2xl border border-gray-800 bg-gray-900 overflow-hidden transition-all hover:-translate-y-1 hover:border-green-500/40 hover:shadow-xl hover:shadow-green-500/10"
-              >
-                <div className="h-1 w-full bg-green-500" />
-                <div className="p-5 flex flex-col flex-1 gap-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-lg font-black text-white leading-tight truncate">{league.name}</div>
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusDot} animate-pulse shrink-0`} />
-                        <span className={`text-xs font-bold ${statusColor}`}>{statusLabel}</span>
-                        {isComm && (
-                          <span className="text-[10px] font-bold text-green-400 bg-green-500/15 border border-green-500/25 px-1.5 py-0.5 rounded-full ml-1">COMM</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
-                      <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Your Team</div>
-                      <div className="text-white text-sm font-semibold truncate">{league.team_name || '—'}</div>
-                    </div>
-                    <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
-                      <div className="flex items-center gap-1 text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">
-                        <Users className="w-3 h-3" /> Members
-                      </div>
-                      <div className="text-white text-sm font-semibold">{league.member_count}/{league.max_teams}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto pt-1">
-                    <div className="flex items-center justify-center gap-1.5 bg-gray-800/60 hover:bg-gray-800 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white text-sm font-medium py-2 rounded-xl transition-all">
-                      Enter League <ChevronRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+      {/* ── Active Leagues ── */}
+      {activeLeagues.length > 0 && (
+        <div className="mb-10">
+          <SectionHeader label="Active Leagues" count={activeLeagues.length} />
+          <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {activeLeagues.map(l => (
+              <LeagueCard key={l.id} league={l} userId={user?.id} />
+            ))}
+          </div>
         </div>
       )}
+
+      {/* ── Past Leagues ── */}
+      {pastLeagues.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setPastOpen(o => !o)}
+            className="flex items-center gap-2 mb-4 group"
+          >
+            <h2 className="text-lg font-black text-gray-400 group-hover:text-gray-200 transition-colors">Past Leagues</h2>
+            <span className="text-xs font-bold text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
+              {pastLeagues.length}
+            </span>
+            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${pastOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {pastOpen && (
+            <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {pastLeagues.map(l => (
+                <LeagueCard key={l.id} league={l} userId={user?.id} past />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }
