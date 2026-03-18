@@ -1455,7 +1455,7 @@ export default function GolfLeague() {
   const [league, setLeague] = useState(null);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useDocTitle(league ? `${league.name} | Golf` : 'Golf League | TourneyRun');
 
@@ -1466,20 +1466,27 @@ export default function GolfLeague() {
         setMembers(r.data.members || []);
       })
       .catch(err => {
-        if (err.response?.status === 404) setNotFound(true);
+        const status = err.response?.status;
+        if (status === 404) {
+          setLoadError('League not found.');
+        } else if (status === 403) {
+          setLoadError("You don't have access to this league.");
+        } else {
+          setLoadError('Failed to load league. Check your connection and try again.');
+        }
       })
       .finally(() => setLoading(false));
   }, [id]);
 
   if (loading) return <BallLoader />;
 
-  if (notFound) {
+  if (loadError) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
         <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
           <Flag className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">League not found</h2>
+        <h2 className="text-2xl font-black text-white mb-2">{loadError}</h2>
         <Link to="/golf/dashboard" className="inline-flex items-center gap-1.5 text-green-400 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Back to dashboard
         </Link>

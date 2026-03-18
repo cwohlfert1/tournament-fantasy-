@@ -53,6 +53,7 @@ app.set('io', io);
 // and ONLY for the webhook path.
 // ---------------------------------------------------------------------------
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/golf/webhooks/stripe', express.raw({ type: 'application/json' }));
 
 // Global middleware
 app.use(cors(corsOptions));

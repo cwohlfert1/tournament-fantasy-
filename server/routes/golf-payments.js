@@ -406,6 +406,79 @@ async function applyReferralCredits(newUserId, refCode) {
   console.log(`[golf-payments] Referral credit applied: referrer=${referrerId} newUser=${newUserId}`);
 }
 
+// ── Season Pass checkout (simple direct route) ────────────────────────────────
+router.post('/checkout/season-pass', authMiddleware, async (req, res) => {
+  const { leagueId } = req.body;
+  if (!leagueId) return res.status(400).json({ error: 'leagueId required' });
+
+  const base = 'https://www.tourneyrun.app';
+  const successUrl = `${base}/golf/league/${leagueId}?paid=true`;
+  const cancelUrl  = `${base}/golf/league/${leagueId}`;
+
+  try {
+    const stripe = getStripe();
+
+    // Build line item: prefer env price ID, fall back to inline price_data
+    const lineItem = process.env.GOLF_SEASON_PASS_PRICE_ID
+      ? { price: process.env.GOLF_SEASON_PASS_PRICE_ID, quantity: 1 }
+      : {
+          price_data: {
+            currency: 'usd',
+            unit_amount: 499,
+            product_data: { name: 'TourneyRun Golf Season Pass' },
+          },
+          quantity: 1,
+        };
+
+    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(req.user.id);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [lineItem],
+      success_url: successUrl,
+      cancel_url:  cancelUrl,
+      customer_email: user?.email || undefined,
+      metadata: {
+        leagueId,
+        userId: req.user.id,
+        product: 'golf_season_pass',
+        type:    'golf_season_pass',
+      },
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('[golf] season-pass checkout error:', err.message);
+    res.status(500).json({ error: 'Failed to create checkout session.' });
+  }
+});
+
+// ── Golf Stripe webhook ────────────────────────────────────────────────────────
+router.post('/webhooks/stripe', async (req, res) => {
+  const sig     = req.headers['stripe-signature'];
+  const secret  = process.env.GOLF_STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+  let event;
+
+  try {
+    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+  } catch (err) {
+    console.error('[golf-webhook] signature error:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    try {
+      await handleGolfWebhook(session);
+    } catch (err) {
+      console.error('[golf-webhook] handler error:', err.message);
+    }
+  }
+
+  res.json({ received: true });
+});
+
 // ── Waitlist ───────────────────────────────────────────────────────────────────
 router.post('/waitlist', async (req, res) => {
   const { email, format = 'golf_pool' } = req.body;
