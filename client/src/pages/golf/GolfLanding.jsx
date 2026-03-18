@@ -244,7 +244,7 @@ export default function GolfLanding() {
             <span className="text-green-400">Done Right</span>
           </h1>
           <p className="text-gray-400 text-base sm:text-xl max-w-xl mx-auto mb-10 leading-relaxed">
-            One draft. All season. Majors count 1.5×.
+            Season-long fantasy. Office pools. Daily fantasy.<br className="hidden sm:block" /> Play one — or play them all.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             {user ? (
@@ -279,10 +279,14 @@ export default function GolfLanding() {
               </>
             )}
           </div>
-          <p style={{ marginTop: 16, fontSize: 13, color: '#6b7280', textAlign: 'center' }}>
-            Want something simpler?{' '}
-            <a href="#formats" style={{ color: '#22c55e', textDecoration: 'none' }}>Start an Office Pool →</a>
-          </p>
+          <div className="mt-3 flex justify-center">
+            <Link
+              to="/golf/create?format=pool"
+              className="inline-flex items-center justify-center gap-2 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-semibold px-7 py-3.5 rounded-full transition-all bg-transparent hover:bg-gray-800/50"
+            >
+              🏆 Run an Office Pool →
+            </Link>
+          </div>
           <button
             onClick={() => howItWorksRef.current?.scrollIntoView({ behavior: 'smooth' })}
             className="mt-4 text-gray-600 hover:text-gray-400 text-sm transition-colors"
@@ -462,11 +466,11 @@ export default function GolfLanding() {
             </div>
 
             {/* Card 3: Pick'em */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-6 opacity-50">
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-6 hover:border-gray-700 transition-colors">
               <div className="text-2xl mb-2">🎯</div>
-              <h3 className="text-gray-400 font-black text-base">Pick'em Pool</h3>
-              <p className="text-gray-600 text-xs mt-0.5 mb-4">Pick tournament winners weekly</p>
-              <ul className="space-y-2 text-sm text-gray-600">
+              <h3 className="text-white font-black text-base">Pick'em Pool</h3>
+              <p className="text-gray-400 text-xs mt-0.5 mb-4">Pick tournament winners weekly</p>
+              <ul className="space-y-2 text-sm text-gray-400">
                 {[
                   'Simple weekly winner picks',
                   'Points for correct predictions',
@@ -479,7 +483,9 @@ export default function GolfLanding() {
                 ))}
               </ul>
               <div className="mt-4 pt-3 border-t border-gray-800">
-                <span className="text-[10px] font-bold text-gray-700 uppercase tracking-widest">Coming Soon</span>
+                <Link to="/golf/create?format=pool" className="text-[11px] font-bold text-green-400 hover:text-green-300 transition-colors uppercase tracking-widest">
+                  Start a Pool →
+                </Link>
               </div>
             </div>
 

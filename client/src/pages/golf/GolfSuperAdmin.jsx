@@ -113,9 +113,17 @@ function LeaguesTab() {
     return 'yellow';
   }
   function formatLabel(f) {
+    if (f === 'pool')        return 'Pool';
+    if (f === 'dk')          return 'DFS';
+    if (f === 'tourneyrun')  return 'TourneyRun';
     if (f === 'office_pool') return 'Office Pool';
     if (f === 'pickem')      return 'Pick\'em';
-    return 'TourneyRun';
+    return f || 'TourneyRun';
+  }
+  function formatColor(f) {
+    if (f === 'pool') return 'green';
+    if (f === 'dk')   return 'purple';
+    return 'blue';
   }
 
   if (loading) return <EmptyState icon="⏳" text="Loading leagues…" />;
@@ -147,7 +155,7 @@ function LeaguesTab() {
                 >
                   <TD><span style={{ color: '#fff', fontWeight: 600 }}>{l.name}</span></TD>
                   <TD muted>{l.commissioner_name}</TD>
-                  <TD><Badge color="blue">{formatLabel(l.format_type)}</Badge></TD>
+                  <TD><Badge color={formatColor(l.format_type)}>{formatLabel(l.format_type)}</Badge></TD>
                   <TD><Badge color={statusColor(l.status)}>{l.status || 'lobby'}</Badge></TD>
                   <TD right>{l.member_count}</TD>
                   <TD right muted>{l.buy_in_amount > 0 ? fmtMoney(l.buy_in_amount) : 'Free'}</TD>

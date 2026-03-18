@@ -341,7 +341,8 @@ const rowNum = {
 export default function BossMode() {
   const [mode, setMode] = useState(null); // null | 'excel' | 'gmail'
   const { pathname } = useLocation();
-  const isDraft = pathname.includes('/draft');
+  const isDraft  = pathname.includes('/draft');
+  const isGolf   = pathname.startsWith('/golf');
 
   const dismiss = useCallback(() => setMode(null), []);
 
@@ -361,8 +362,8 @@ export default function BossMode() {
 
   return (
     <>
-      {/* The button — subtle, fixed bottom-right — hidden in draft room */}
-      {mode === null && !isDraft && (
+      {/* The button — subtle, fixed bottom-right — hidden in draft room + all golf pages */}
+      {mode === null && !isDraft && !isGolf && (
         <button
           onClick={() => setMode('excel')}
           title="Boss is coming… (B = Excel, G = Gmail)"

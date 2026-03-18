@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Flag, DollarSign, Trophy, Settings, Check, Zap } from 'lucide-react';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
@@ -474,9 +474,18 @@ const DEFAULT_FORM = {
 export default function CreateGolfLeague() {
   useDocTitle('Create Golf League | TourneyRun');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [format, setFormat] = useState('tourneyrun');
-  const [form, setForm] = useState(DEFAULT_FORM);
+  const initialFormat = (() => {
+    const f = searchParams.get('format');
+    return ['pool', 'dk', 'tourneyrun'].includes(f) ? f : 'tourneyrun';
+  })();
+
+  const [format, setFormat] = useState(initialFormat);
+  const [form, setForm] = useState(() => ({
+    ...DEFAULT_FORM,
+    ...(initialFormat === 'pool' ? { max_teams: 20, pool_tier: 'standard', comm_pro_price: 19.99 } : {}),
+  }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
