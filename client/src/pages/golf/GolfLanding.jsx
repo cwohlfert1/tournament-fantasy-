@@ -475,6 +475,63 @@ export default function GolfLanding() {
       </Section>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* S5b: Competitor comparison                                           */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      <Section className="max-w-4xl mx-auto px-4 py-16 sm:py-20">
+        <div className="text-center mb-10">
+          <div className="inline-block text-green-400 text-xs font-black uppercase tracking-widest mb-3">
+            Why TourneyRun?
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white mb-3">
+            Why TourneyRun over the other guys?
+          </h2>
+          <p className="text-gray-400 text-base">
+            We built what they should have built years ago.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-gray-800">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#0d1f0f', borderBottom: '1px solid #1f2937' }}>
+                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', width: '46%' }}>Feature</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: '#4ade80', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', width: '27%' }}>TourneyRun</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', width: '27%' }}>Others</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { feature: 'Live scoring',                      us: '✅ Included free',      them: '❌ Paid upgrade only',   highlight: true  },
+                { feature: 'Auto standings email after every round', us: '✅ Automatic',     them: '❌ Manual',              highlight: false },
+                { feature: 'Commissioner price',                us: '✅ $19.99 total',        them: '❌ $30–$110 per league', highlight: true  },
+                { feature: 'Mobile-first design',               us: '✅ Modern & fast',       them: '❌ Desktop only, dated', highlight: false },
+                { feature: 'ESPN auto-sync',                    us: '✅ Built in',            them: '⚠️ Varies',             highlight: true  },
+                { feature: 'FAAB waiver wire',                  us: '✅ Full support',        them: '⚠️ Some do',            highlight: false },
+                { feature: 'Free to create a league',           us: '✅ Always free',         them: '✅ Some do',             highlight: false },
+                { feature: 'No credit card for trial',          us: '✅ Browse free',         them: '⚠️ Varies',             highlight: false },
+              ].map(({ feature, us, them, highlight }, i) => (
+                <tr
+                  key={feature}
+                  style={{
+                    background: highlight ? '#0a1a0f' : '#080f09',
+                    borderBottom: i < 7 ? '1px solid #111827' : 'none',
+                  }}
+                >
+                  <td style={{ padding: '13px 20px', color: '#d1d5db', fontSize: 13, fontWeight: 500 }}>{feature}</td>
+                  <td style={{ padding: '13px 16px', textAlign: 'center', color: '#4ade80', fontSize: 13, fontWeight: 600 }}>{us}</td>
+                  <td style={{ padding: '13px 16px', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>{them}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p style={{ textAlign: 'center', color: '#374151', fontSize: 12, marginTop: 14, fontStyle: 'italic' }}>
+          We won't name names. You know who they are.
+        </p>
+      </Section>
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
       {/* S6: How it works                                                     */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
