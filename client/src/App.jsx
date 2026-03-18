@@ -59,6 +59,7 @@ import GolfAuctionDraft from './pages/golf/GolfAuctionDraft';
 import GolfScoreEntry from './pages/golf/GolfScoreEntry';
 import GolfStrategy from './pages/golf/GolfStrategy';
 import GolfFaq from './pages/golf/GolfFaq';
+import GolfLayout from './components/GolfLayout';
 
 const GOLF_FAVICON = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='white' stroke='%23d1d5db' stroke-width='2'/><circle cx='38' cy='34' r='5' fill='%239ca3af'/><circle cx='55' cy='28' r='5' fill='%239ca3af'/><circle cx='68' cy='42' r='5' fill='%239ca3af'/><circle cx='32' cy='50' r='5' fill='%239ca3af'/><circle cx='50' cy='47' r='5' fill='%239ca3af'/><circle cx='65' cy='58' r='5' fill='%239ca3af'/><circle cx='40' cy='63' r='5' fill='%239ca3af'/><circle cx='60' cy='70' r='5' fill='%239ca3af'/></svg>`;
 const BASKETBALL_FAVICON = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23f97316' stroke='%23ea6900' stroke-width='1.5'/><path d='M50 2 Q65 25 65 50 Q65 75 50 98' fill='none' stroke='%23c2410c' stroke-width='3.5'/><path d='M50 2 Q35 25 35 50 Q35 75 50 98' fill='none' stroke='%23c2410c' stroke-width='3.5'/><path d='M2 50 Q25 38 50 38 Q75 38 98 50' fill='none' stroke='%23c2410c' stroke-width='3.5'/><path d='M2 50 Q25 62 50 62 Q75 62 98 50' fill='none' stroke='%23c2410c' stroke-width='3.5'/></svg>`;
@@ -110,16 +111,18 @@ export default function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><SuperAdmin /></ProtectedRoute>} />
-            <Route path="/golf" element={<GolfLanding />} />
-            <Route path="/golf/dashboard" element={<ProtectedRoute><GolfDashboard /></ProtectedRoute>} />
-            <Route path="/golf/create" element={<ProtectedRoute><CreateGolfLeague /></ProtectedRoute>} />
-            <Route path="/golf/join" element={<ProtectedRoute><JoinGolfLeague /></ProtectedRoute>} />
-            <Route path="/golf/league/:id" element={<ProtectedRoute><GolfLeague /></ProtectedRoute>} />
-            <Route path="/golf/league/:id/draft" element={<ProtectedRoute><GolfDraft /></ProtectedRoute>} />
-            <Route path="/golf/league/:id/auction" element={<ProtectedRoute><GolfAuctionDraft /></ProtectedRoute>} />
-            <Route path="/golf/league/:id/scores" element={<ProtectedRoute><GolfScoreEntry /></ProtectedRoute>} />
-            <Route path="/golf/strategy" element={<GolfStrategy />} />
-            <Route path="/golf/faq" element={<GolfFaq />} />
+            <Route element={<GolfLayout />}>
+              <Route path="/golf" element={<GolfLanding />} />
+              <Route path="/golf/dashboard" element={<ProtectedRoute><GolfDashboard /></ProtectedRoute>} />
+              <Route path="/golf/create" element={<ProtectedRoute><CreateGolfLeague /></ProtectedRoute>} />
+              <Route path="/golf/join" element={<ProtectedRoute><JoinGolfLeague /></ProtectedRoute>} />
+              <Route path="/golf/league/:id" element={<ProtectedRoute><GolfLeague /></ProtectedRoute>} />
+              <Route path="/golf/league/:id/draft" element={<ProtectedRoute><GolfDraft /></ProtectedRoute>} />
+              <Route path="/golf/league/:id/auction" element={<ProtectedRoute><GolfAuctionDraft /></ProtectedRoute>} />
+              <Route path="/golf/league/:id/scores" element={<ProtectedRoute><GolfScoreEntry /></ProtectedRoute>} />
+              <Route path="/golf/strategy" element={<GolfStrategy />} />
+              <Route path="/golf/faq" element={<GolfFaq />} />
+            </Route>
           </Routes>
         </div>
       </BrowserRouter>

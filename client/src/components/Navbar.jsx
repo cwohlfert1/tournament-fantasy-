@@ -46,6 +46,9 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isGolf = location.pathname.startsWith('/golf');
 
+  // Golf routes render their own GolfNavbar via GolfLayout
+  if (isGolf) return null;
+
   // Pill link style helper
   const navLink = (path) => {
     const active = isActive(path);
