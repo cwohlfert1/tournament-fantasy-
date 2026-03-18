@@ -135,49 +135,56 @@ function PoolTierSelector({ maxTeams, poolTier, onChange }) {
   const sel = selectedIdx >= 0 ? POOL_TIERS[selectedIdx] : POOL_TIERS[0];
   const callout = POOL_TIER_CALLOUTS[sel.tier];
 
+  const includedTiers = POOL_TIERS.filter(t => t.included);
+  const paidTiers     = POOL_TIERS.filter(t => !t.included);
+
+  function TierBtn({ t }) {
+    const isSelected = t.maxTeams === maxTeams && t.tier === poolTier;
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(t.maxTeams, t.tier, t.price ?? 19.99)}
+        className={`relative flex flex-col items-center rounded-xl border-2 px-1 py-3 text-center transition-all ${
+          isSelected
+            ? t.included
+              ? 'border-green-500/60 bg-green-500/8'
+              : 'border-amber-500/60 bg-amber-500/8'
+            : 'border-gray-700 bg-gray-800/30 hover:border-gray-600'
+        }`}
+      >
+        {!t.included && (
+          <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-400 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+            ⚡ Large
+          </span>
+        )}
+        <span className={`font-black text-sm leading-tight mt-1 ${isSelected ? (t.included ? 'text-white' : 'text-amber-300') : 'text-gray-300'}`}>
+          {t.label}
+        </span>
+        {t.included ? (
+          <span className="text-[10px] font-semibold text-green-500/80 mt-1">✓ Included</span>
+        ) : (
+          <span className="text-[10px] font-semibold text-amber-400/80 mt-1">{t.priceLabel}</span>
+        )}
+      </button>
+    );
+  }
+
   return (
-    <div>
-      <div className="grid grid-cols-5 gap-2">
-        {POOL_TIERS.map((t, i) => {
-          const isSelected = t.maxTeams === maxTeams && t.tier === poolTier;
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onChange(t.maxTeams, t.tier, t.price ?? 19.99)}
-              className={`relative flex flex-col items-center rounded-xl border-2 px-1 py-3 text-center transition-all ${
-                isSelected
-                  ? t.included
-                    ? 'border-green-500/60 bg-green-500/8'
-                    : 'border-amber-500/60 bg-amber-500/8'
-                  : 'border-gray-700 bg-gray-800/30 hover:border-gray-600'
-              }`}
-            >
-              {/* Amber badge for paid tiers */}
-              {!t.included && (
-                <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-400 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                  ⚡ Large
-                </span>
-              )}
+    <div className="space-y-2">
+      {/* Included tiers (20 / 40 / 60) */}
+      <div className="grid grid-cols-3 gap-2">
+        {includedTiers.map((t, i) => <TierBtn key={i} t={t} />)}
+      </div>
+      <p className="text-gray-600 text-xs">Commissioner Pro included — up to 60 teams · $19.99/tournament</p>
 
-              <span className={`font-black text-sm leading-tight mt-1 ${isSelected ? (t.included ? 'text-white' : 'text-amber-300') : 'text-gray-300'}`}>
-                {t.label}
-              </span>
-
-              {/* Subtitle */}
-              {t.included ? (
-                <span className="text-[10px] font-semibold text-green-500/80 mt-1">✓ Included</span>
-              ) : (
-                <span className="text-[10px] font-semibold text-amber-400/80 mt-1">{t.priceLabel}</span>
-              )}
-            </button>
-          );
-        })}
+      {/* Paid tiers (100 / Enterprise) */}
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        {paidTiers.map((t, i) => <TierBtn key={i} t={t} />)}
       </div>
 
       {/* Callout for paid tiers */}
       {callout && (
-        <div className="mt-3 flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-xl px-4 py-3">
+        <div className="mt-1 flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-xl px-4 py-3">
           <p className="text-amber-300/80 text-xs leading-relaxed">{callout}</p>
         </div>
       )}
