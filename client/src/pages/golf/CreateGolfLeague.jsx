@@ -712,6 +712,42 @@ export default function CreateGolfLeague() {
 
             {parseFloat(form.buy_in_amount) > 0 && (
               <>
+                {/* Prize Pool Breakdown */}
+                {(() => {
+                  const buyIn = parseFloat(form.buy_in_amount) || 0;
+                  const teams = parseInt(form.max_teams) || 0;
+                  const pool  = buyIn * teams;
+                  return (
+                    <div className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-4">
+                      <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-3">Prize Pool Estimate</p>
+                      <p className="text-white text-sm font-bold mb-3">
+                        ${buyIn.toLocaleString()} × {teams} teams
+                        <span className="text-gray-400 font-normal"> = </span>
+                        <span className="text-green-400">${pool.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </p>
+                      <div className="space-y-1.5">
+                        {form.payout_places.map((row, i) => {
+                          const pct = parseInt(row.pct) || 0;
+                          const amt = pool * pct / 100;
+                          return (
+                            <div key={i} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-400">{ordinal(row.place)}</span>
+                              <span className="text-gray-500">{pct}%</span>
+                              <span className={`font-semibold tabular-nums ${pct > 0 ? 'text-gray-200' : 'text-gray-600'}`}>
+                                ${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className={`mt-3 pt-3 border-t border-gray-700/60 text-xs font-semibold flex justify-between ${payoutTotal === 100 ? 'text-green-400' : 'text-amber-400'}`}>
+                        <span>Total</span>
+                        <span>{payoutTotal === 100 ? '100% ✓' : `${payoutTotal}% — must be 100%`}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Payment Instructions */}
                 <div>
                   <label className="label">Payment Instructions (optional)</label>
@@ -802,9 +838,7 @@ export default function CreateGolfLeague() {
                   </button>
 
                   <div className={`mt-2 text-xs font-semibold ${payoutTotal === 100 ? 'text-green-400' : 'text-amber-400'}`}>
-                    {payoutTotal === 100
-                      ? '✓ 100% — looks good'
-                      : `Total: ${payoutTotal}% — percentages must add up to 100%`}
+                    {payoutTotal !== 100 && `Total: ${payoutTotal}% — must equal 100%`}
                   </div>
                 </div>
               </>
