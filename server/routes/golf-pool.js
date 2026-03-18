@@ -205,7 +205,9 @@ router.get('/leagues/:id/tier-players', authMiddleware, (req, res) => {
   try {
     const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
-    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    // Allow commissioner or any league member to read tier players
+    const isMember = db.prepare('SELECT 1 FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (league.commissioner_id !== req.user.id && !isMember) return res.status(403).json({ error: 'Not a member' });
 
     const tid = req.query.tournament_id || league.pool_tournament_id;
     if (!tid) return res.json({ tiers: [], tournament_id: null });

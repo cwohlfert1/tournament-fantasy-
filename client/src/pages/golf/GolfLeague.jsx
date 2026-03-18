@@ -183,7 +183,20 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
               ⚙ Pick Sheet Settings →
             </button>
           )}
-          {league.format_type !== 'dk' && league.draft_status !== 'completed' && (
+          {league.format_type === 'pool' && league.pool_tournament_id && (
+            <button
+              onClick={() => navigate(`/golf/league/${league.id}/picks`)}
+              className={`w-full py-3 font-bold rounded-xl transition-all mb-2 ${
+                league.picks_locked
+                  ? 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-400 text-white'
+              }`}
+              disabled={league.picks_locked}
+            >
+              {league.picks_locked ? 'Picks Locked' : 'Make Your Picks →'}
+            </button>
+          )}
+          {league.format_type === 'tourneyrun' && league.draft_status !== 'completed' && (
             <>
               <button
                 onClick={() => navigate(`/golf/league/${league.id}/draft`)}
@@ -192,9 +205,7 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
                 Go to Draft Room →
               </button>
               <p className="text-gray-600 text-xs mb-3 text-center">
-                {league.format_type === 'pool'
-                  ? 'Snake draft — each pick is a golfer for the season.'
-                  : 'Draft core players. Flex spots fill via waiver wire.'}
+                Draft core players. Flex spots fill via waiver wire.
               </p>
             </>
           )}
