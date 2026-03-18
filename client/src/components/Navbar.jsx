@@ -104,6 +104,20 @@ export default function Navbar() {
           </div>
         </Link>
 
+        {/* ── Golf: How to Play link (desktop, always visible on /golf) ── */}
+        {isGolf && (
+          <div className="hidden md:flex items-center" style={{ gap: 2 }}>
+            <a
+              href="/golf#how-it-works"
+              style={navLink('/golf#how-it-works')}
+              onMouseEnter={e => { e.currentTarget.style.color = '#e5e7eb'; e.currentTarget.style.background = '#1f2937'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}
+            >
+              How to Play
+            </a>
+          </div>
+        )}
+
         {/* ── CENTER: Nav links (desktop) ── */}
         {user && (
           <div className="hidden md:flex items-center" style={{ gap: 2 }}>
@@ -246,6 +260,15 @@ export default function Navbar() {
       {/* ── Mobile menu ── */}
       {menuOpen && (
         <div className="md:hidden border-t border-gray-800 py-3 space-y-1" style={{ padding: '12px 24px' }}>
+          {isGolf && (
+            <a
+              href="/golf#how-it-works"
+              className="block px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors text-sm"
+              onClick={() => setMenuOpen(false)}
+            >
+              How to Play
+            </a>
+          )}
           {user ? (
             <>
               <Link
