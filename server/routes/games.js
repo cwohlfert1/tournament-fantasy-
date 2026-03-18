@@ -4,9 +4,38 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
+// ── ESPN odds cache ────────────────────────────────────────────────────────────
+// Map<espn_event_id, { spread, overUnder, fetchedAt }>
+const oddsCache = new Map();
+const ODDS_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+async function fetchOdds(espnEventId) {
+  const cached = oddsCache.get(espnEventId);
+  if (cached && Date.now() - cached.fetchedAt < ODDS_TTL_MS) {
+    return { spread: cached.spread, overUnder: cached.overUnder };
+  }
+
+  try {
+    const url = `https://sports.core.api.espn.com/v2/sports/basketball/leagues/mens-college-basketball/events/${espnEventId}/competitions/${espnEventId}/odds`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const item = Array.isArray(data.items) ? data.items[0] : null;
+    if (!item) return null;
+
+    const spread = item.details || null;
+    const overUnder = item.overUnder != null ? item.overUnder : null;
+
+    oddsCache.set(espnEventId, { spread, overUnder, fetchedAt: Date.now() });
+    return { spread, overUnder };
+  } catch {
+    return null;
+  }
+}
+
 // GET /api/games/schedule
 // Returns all games with scores + user's drafted players per game
-router.get('/schedule', authMiddleware, (req, res) => {
+router.get('/schedule', authMiddleware, async (req, res) => {
   try {
     const games = db.prepare(`
       SELECT g.*,
@@ -44,13 +73,17 @@ router.get('/schedule', authMiddleware, (req, res) => {
     `).all(req.user.id);
 
     const myPlayerIdSet = new Set(myDrafted.map(p => p.player_id));
-    const myPlayerMap = {};
-    for (const p of myDrafted) myPlayerMap[p.player_id] = p;
+
+    // Fetch odds for upcoming games in parallel
+    const upcomingWithEspnId = games.filter(g => !g.is_completed && !g.is_live && g.espn_event_id);
+    const oddsResults = await Promise.all(
+      upcomingWithEspnId.map(g => fetchOdds(g.espn_event_id).then(o => [g.id, o]))
+    );
+    const oddsMap = Object.fromEntries(oddsResults.filter(([, o]) => o !== null));
 
     const result = games.map(g => {
       const gameStats = statsByGame[g.id] || [];
 
-      // My players on either team in this game (whether or not they have stats yet)
       const myPlayersInGame = myDrafted
         .filter(p => p.player_team === g.team1 || p.player_team === g.team2)
         .map(p => {
@@ -58,10 +91,14 @@ router.get('/schedule', authMiddleware, (req, res) => {
           return { ...p, points: stat?.points ?? null };
         });
 
+      const odds = oddsMap[g.id] || null;
+
       return {
         ...g,
         player_stats: gameStats,
         my_players: myPlayersInGame,
+        spread: odds?.spread ?? null,
+        overUnder: odds?.overUnder ?? null,
       };
     });
 

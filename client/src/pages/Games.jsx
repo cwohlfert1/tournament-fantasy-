@@ -171,6 +171,16 @@ function GameCard({ game, myDraftedPlayerIds }) {
           </div>
         </div>
 
+        {/* Odds row — upcoming games only */}
+        {isUpcoming && (game.spread || game.overUnder != null) && (
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+            <span>📊</span>
+            {game.spread && <span>{game.spread}</span>}
+            {game.spread && game.overUnder != null && <span className="text-gray-700">|</span>}
+            {game.overUnder != null && <span>O/U {game.overUnder}</span>}
+          </div>
+        )}
+
         {/* Bottom row: tip-off + location */}
         {isUpcoming && (
           <div className="flex items-center gap-3 flex-wrap text-xs text-gray-500 pt-1 border-t border-gray-800/60">
