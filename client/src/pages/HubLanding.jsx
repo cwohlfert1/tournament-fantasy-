@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 // ── Favicon: TR monogram ──────────────────────────────────────────────────────
@@ -12,6 +12,41 @@ function useHubFavicon() {
     setIcon(document.querySelector("link[rel*='icon']"));
     setIcon(document.querySelector("link[rel*='apple-touch-icon']"));
   }, []);
+}
+
+// ── My Leagues dropdown ───────────────────────────────────────────────────────
+
+function MyLeaguesDropdown() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: '#f59e0b', color: '#000', fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+        className="hover:brightness-110 transition-all"
+      >
+        My Leagues {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#1a1a2e', border: '0.5px solid #2a2a4e', borderRadius: 12, padding: '8px 0', minWidth: 200, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+          <Link to="/golf/dashboard" onClick={() => setOpen(false)} style={{ display: 'block', padding: '10px 16px', color: '#e5e7eb', fontSize: 14, textDecoration: 'none', fontWeight: 500 }} className="hover:bg-white/5 transition-colors">
+            ⛳ Golf Leagues
+          </Link>
+          <Link to="/basketball/dashboard" onClick={() => setOpen(false)} style={{ display: 'block', padding: '10px 16px', color: '#e5e7eb', fontSize: 14, textDecoration: 'none', fontWeight: 500 }} className="hover:bg-white/5 transition-colors">
+            🏀 College Basketball
+          </Link>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Product card ──────────────────────────────────────────────────────────────
@@ -102,12 +137,6 @@ function FormatCard({ icon, title, desc, tag }) {
 export default function HubLanding() {
   useHubFavicon();
   const { user } = useAuth();
-  const navigate = useNavigate();
-
-  // Logged-in users: redirect to their last-used product, defaulting to golf
-  useEffect(() => {
-    if (user) navigate('/golf/dashboard', { replace: true });
-  }, [user]);
 
   return (
     <div style={{ background: '#08080f', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
@@ -121,14 +150,20 @@ export default function HubLanding() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <Link to="/login" style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}
-            className="hover:text-white transition-colors">
-            Sign in
-          </Link>
-          <Link to="/register" style={{ background: '#f59e0b', color: '#000', fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 20, textDecoration: 'none' }}
-            className="hover:brightness-110 transition-all">
-            Get Started
-          </Link>
+          {user ? (
+            <MyLeaguesDropdown />
+          ) : (
+            <>
+              <Link to="/login" style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}
+                className="hover:text-white transition-colors">
+                Sign in
+              </Link>
+              <Link to="/register" style={{ background: '#f59e0b', color: '#000', fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 20, textDecoration: 'none' }}
+                className="hover:brightness-110 transition-all">
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
@@ -157,8 +192,8 @@ export default function HubLanding() {
               'Majors score 1.5×',
             ]}
             badge="FEATURED · 2026 PGA Season Live"
-            ctaLabel="Play Golf Fantasy"
-            ctaTo="/golf"
+            ctaLabel={user ? 'My Golf Leagues →' : 'Get Started →'}
+            ctaTo={user ? '/golf/dashboard' : '/golf'}
             accent="#22c55e"
             featured
           />
@@ -173,8 +208,8 @@ export default function HubLanding() {
               'Up to 12 teams',
             ]}
             badge="2026 Tournament · Starting Soon"
-            ctaLabel="Play College Basketball"
-            ctaTo="/basketball"
+            ctaLabel={user ? 'My Leagues →' : 'Get Started →'}
+            ctaTo={user ? '/basketball/dashboard' : '/basketball'}
             accent="#f97316"
             featured={false}
           />
