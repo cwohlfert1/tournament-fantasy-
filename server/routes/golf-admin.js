@@ -678,6 +678,199 @@ router.post('/admin/dev/sandbox', superadmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Dev: Create Valspar Test Pool ─────────────────────────────────────────────
+
+const VALSPAR_LEAGUE_ID = '68b1e250-6afc-4e80-ad7b-d8a22ae3ad7d';
+
+const VALSPAR_TIERS = [
+  { tier: 1, odds_min: '8:1',   odds_max: '33:1',   picks: 2 },
+  { tier: 2, odds_min: '35:1',  odds_max: '125:1',  picks: 3 },
+  { tier: 3, odds_min: '150:1', odds_max: '400:1',  picks: 2 },
+  { tier: 4, odds_min: '500:1', odds_max: '2000:1', picks: 2 },
+];
+
+const VALSPAR_BOT_NAMES = [
+  'FairwayFred',    'BogeySlayer',       'HoleInWon',        'EaglesAndAles',
+  'GolfDegens',     'AceMakers',         'BirdieBunch',       'TigerWoodshed',
+  'ThreeWoodTheo',  'IronMaidens',       'ChipAndDip',        'AlbatrossAl',
+  'TurfNurfers',    'MulliganMike',      'DriveThruDave',     'ShankMaster',
+  'WedgeWizard',    'PuttPuttPro',       'GreenJacketJim',    'FlopShotFrank',
+  'DoubleBogeyDave','BunkerBuster',      'RoughRider',        'FairwayFelicia',
+  'PinSeekerPete',  'SandTrapStan',      'OverParOliver',     'BogeyBrigade',
+  'CondorHunter',   'ClubheadSpeed',     'BackswingBob',      'DownswingDave',
+  'FollowThroughFred','GripItAndRip',    'SliceMaster3000',   'HookLineAndSinker',
+  'TopshotTommy',   'LayUpLarry',        'GoForGreenGary',    'PinHighPaul',
+  'ChipyMcChipface','PuttingForBirdie',  'EagleEyeEd',        'BirdieOrBust',
+  'PartyAtPar',     'WaterHazardWally',  'OBOutOfBounds',     'DropZoneDan',
+  'CartsOnlyCarla', 'ClubhouseKevin',
+];
+
+// Inlined tier-assignment helpers (mirrors golf-pool.js, avoids circular require)
+function _oddsToDecimal(str) {
+  if (!str) return 999;
+  const [a, b] = String(str).split(':').map(parseFloat);
+  if (isNaN(a) || isNaN(b) || b === 0) return 999;
+  return a / b + 1;
+}
+function _rankToOdds(rank) {
+  const r = rank || 9999;
+  const bands = [
+    { minRank:1,   maxRank:5,    minOdds:8,   maxOdds:15   },
+    { minRank:6,   maxRank:15,   minOdds:18,  maxOdds:33   },
+    { minRank:16,  maxRank:30,   minOdds:35,  maxOdds:80   },
+    { minRank:31,  maxRank:60,   minOdds:90,  maxOdds:150  },
+    { minRank:61,  maxRank:100,  minOdds:175, maxOdds:400  },
+    { minRank:101, maxRank:9999, minOdds:500, maxOdds:2000 },
+  ];
+  const band = bands.find(b => r >= b.minRank && r <= b.maxRank) || bands[bands.length - 1];
+  const pos = Math.min(1, (r - band.minRank) / Math.max(1, band.maxRank - band.minRank));
+  const raw = Math.round(band.minOdds + pos * (band.maxOdds - band.minOdds));
+  const nice = raw < 20 ? Math.round(raw/2)*2 : raw < 100 ? Math.round(raw/5)*5 : Math.round(raw/25)*25;
+  return { odds_display: `${nice}:1`, odds_decimal: nice + 1 };
+}
+function _pickTier(odds_decimal) {
+  const dec = odds_decimal || 999;
+  for (const t of VALSPAR_TIERS) {
+    if (dec >= _oddsToDecimal(t.odds_min) && dec <= _oddsToDecimal(t.odds_max)) return t.tier;
+  }
+  return VALSPAR_TIERS[VALSPAR_TIERS.length - 1].tier;
+}
+
+router.post('/admin/dev/create-valspar-test-pool', superadmin, (req, res) => {
+  try {
+    // ── STEP 1: Find or create Valspar tournament ──────────────────────────────
+    let tourn = db.prepare("SELECT * FROM golf_tournaments WHERE name LIKE '%Valspar%'").get();
+    if (!tourn) {
+      const tid = uuidv4();
+      db.prepare(`
+        INSERT INTO golf_tournaments (id, name, course, start_date, end_date, season_year, is_major, status)
+        VALUES (?, 'Valspar Championship', 'Innisbrook Resort (Copperhead), FL',
+                '2026-03-19', '2026-03-23', 2026, 0, 'upcoming')
+      `).run(tid);
+      tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
+    }
+    const tournId = tourn.id;
+
+    // ── STEP 2: Update Beta Group 1.0 ─────────────────────────────────────────
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(VALSPAR_LEAGUE_ID);
+    if (!league) return res.status(404).json({ error: `League ${VALSPAR_LEAGUE_ID} not found` });
+
+    db.prepare(`
+      UPDATE golf_leagues SET
+        format_type       = 'pool',
+        pick_sheet_format = 'tiered',
+        status            = 'lobby',
+        max_teams         = 60,
+        pool_tournament_id = ?,
+        pool_tiers         = ?
+      WHERE id = ?
+    `).run(tournId, JSON.stringify(VALSPAR_TIERS), VALSPAR_LEAGUE_ID);
+
+    // ── STEP 3: Save tier config to pool_tiers table ───────────────────────────
+    db.prepare('DELETE FROM pool_tiers WHERE league_id = ?').run(VALSPAR_LEAGUE_ID);
+    const insTier = db.prepare(
+      'INSERT INTO pool_tiers (id, league_id, tier_number, odds_min, odds_max, picks_allowed) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    for (const t of VALSPAR_TIERS) {
+      insTier.run(uuidv4(), VALSPAR_LEAGUE_ID, t.tier, t.odds_min, t.odds_max, t.picks);
+    }
+
+    // ── STEP 4: Assign players to tiers ───────────────────────────────────────
+    db.prepare(
+      'DELETE FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 0'
+    ).run(VALSPAR_LEAGUE_ID, tournId);
+
+    const insPlayer = db.prepare(`
+      INSERT OR REPLACE INTO pool_tier_players
+        (id, league_id, tournament_id, player_id, player_name, tier_number,
+         odds_display, odds_decimal, world_ranking, salary, manually_overridden)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `);
+
+    const tierMap = {}; // tier_number → [{player_id, player_name, world_ranking}]
+    const players = db.prepare('SELECT * FROM golf_players WHERE is_active = 1 ORDER BY world_ranking ASC').all();
+
+    db.transaction(() => {
+      for (const p of players) {
+        const gen = (!p.odds_display || !p.odds_decimal) ? _rankToOdds(p.world_ranking) : null;
+        const odds_display = p.odds_display || gen.odds_display;
+        const odds_decimal = p.odds_decimal || gen.odds_decimal;
+        const tierNum = _pickTier(odds_decimal);
+        insPlayer.run(uuidv4(), VALSPAR_LEAGUE_ID, tournId, p.id, p.name, tierNum,
+                      odds_display, odds_decimal, p.world_ranking, 0);
+        if (!tierMap[tierNum]) tierMap[tierNum] = [];
+        tierMap[tierNum].push({ player_id: p.id, player_name: p.name, world_ranking: p.world_ranking || 9999 });
+      }
+    })();
+
+    for (const t of VALSPAR_TIERS) {
+      (tierMap[t.tier] || []).sort((a, b) => a.world_ranking - b.world_ranking);
+    }
+    const totalAssigned = Object.values(tierMap).reduce((s, a) => s + a.length, 0);
+
+    // ── STEP 5: Add 50 bots with auto-picks ───────────────────────────────────
+    const BOT_HASH = bcrypt.hashSync('botpass_pool', 4);
+
+    // Wipe previous bot picks for this tournament (safe — dev tool only)
+    db.prepare('DELETE FROM pool_picks WHERE league_id = ? AND tournament_id = ?').run(VALSPAR_LEAGUE_ID, tournId);
+
+    const insPick = db.prepare(`
+      INSERT OR IGNORE INTO pool_picks
+        (id, league_id, tournament_id, user_id, player_id, player_name, tier_number, submitted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+
+    db.transaction(() => {
+      for (let i = 0; i < VALSPAR_BOT_NAMES.length; i++) {
+        const botName = VALSPAR_BOT_NAMES[i];
+        const botEmail = `${botName.toLowerCase()}@pool.bot`;
+
+        // Find or create bot user
+        let botRow = db.prepare('SELECT id FROM users WHERE username = ?').get(botName);
+        if (!botRow) {
+          const botId = uuidv4();
+          db.prepare(
+            'INSERT OR IGNORE INTO users (id, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)'
+          ).run(botId, botName, botEmail, BOT_HASH, 'user');
+          botRow = { id: botId };
+        }
+
+        // Add as league member (idempotent)
+        db.prepare(
+          'INSERT OR IGNORE INTO golf_league_members (id, golf_league_id, user_id, team_name) VALUES (?, ?, ?, ?)'
+        ).run(uuidv4(), VALSPAR_LEAGUE_ID, botRow.id, botName);
+
+        // Auto-pick: stagger through tier players so bots have varied selections
+        for (const t of VALSPAR_TIERS) {
+          const pool = tierMap[t.tier] || [];
+          if (!pool.length) continue;
+          for (let j = 0; j < t.picks && j < pool.length; j++) {
+            const pick = pool[(i + j) % pool.length];
+            insPick.run(uuidv4(), VALSPAR_LEAGUE_ID, tournId, botRow.id, pick.player_id, pick.player_name, t.tier);
+          }
+        }
+      }
+    })();
+
+    // ── STEP 6: Response ───────────────────────────────────────────────────────
+    const fresh = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(VALSPAR_LEAGUE_ID);
+    res.json({
+      success:          true,
+      leagueId:         VALSPAR_LEAGUE_ID,
+      leagueName:       fresh.name,
+      inviteCode:       fresh.invite_code,
+      tournament:       tourn.name,
+      botsAdded:        VALSPAR_BOT_NAMES.length,
+      tiersConfigured:  VALSPAR_TIERS.length,
+      playersAssigned:  totalAssigned,
+      message:          'Share invite code with friends to join',
+    });
+  } catch (err) {
+    console.error('[golf-admin] create-valspar-test-pool error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Export ────────────────────────────────────────────────────────────────────
 
 router.get('/admin/export/users', superadmin, (req, res) => {

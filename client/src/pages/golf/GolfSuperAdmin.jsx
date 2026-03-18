@@ -634,6 +634,8 @@ function DevToolsTab() {
   const [selectedT, setSelectedT]   = useState('');
   const [results, setResults]       = useState({});
   const [loading, setLoading]       = useState({});
+  const [valsparModal, setValsparModal] = useState(null); // { inviteCode, leagueName, tournament, botsAdded, playersAssigned }
+  const [copied, setCopied]         = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -650,15 +652,24 @@ function DevToolsTab() {
     setResults(r => ({ ...r, [action]: null }));
     try {
       let res;
-      if (action === 'sync')     res = await api.post(`/golf/admin/dev/sync/${selectedT}`);
-      if (action === 'email')    res = await api.post('/golf/admin/dev/test-email');
-      if (action === 'sandbox')  res = await api.post('/golf/admin/sandbox/auction-draft');
+      if (action === 'sync')    res = await api.post(`/golf/admin/dev/sync/${selectedT}`);
+      if (action === 'email')   res = await api.post('/golf/admin/dev/test-email');
+      if (action === 'sandbox') res = await api.post('/golf/admin/sandbox/auction-draft');
+      if (action === 'valspar') res = await api.post('/golf/admin/dev/create-valspar-test-pool');
       setResults(r => ({ ...r, [action]: res?.data }));
       if (action === 'sandbox' && res?.data?.url) navigate(res.data.url);
+      if (action === 'valspar' && res?.data?.success) setValsparModal(res.data);
     } catch (e) {
       setResults(r => ({ ...r, [action]: { error: e.response?.data?.error || 'Failed' } }));
     }
     setLoading(l => ({ ...l, [action]: false }));
+  }
+
+  function copyInviteCode(code) {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }
 
   function Result({ action }) {
@@ -668,8 +679,8 @@ function DevToolsTab() {
     return <div style={{ color: '#4ade80', fontSize: 12, marginTop: 6 }}>✓ {r.message || r.sentTo || 'Done'}</div>;
   }
 
-  const toolCard = (icon, title, desc, action, content) => (
-    <div style={{ background: '#0a1a0f', border: '1px solid #14532d33', borderRadius: 16, padding: 20 }}>
+  const toolCard = (icon, title, desc, action, content, accentColor = '#0a1a0f', borderColor = '#14532d33') => (
+    <div style={{ background: accentColor, border: `1px solid ${borderColor}`, borderRadius: 16, padding: 20 }}>
       <div style={{ fontSize: 28, marginBottom: 10 }}>{icon}</div>
       <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>{title}</h4>
       <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>{desc}</p>
@@ -679,55 +690,137 @@ function DevToolsTab() {
   );
 
   return (
-    <div style={{ display: 'grid', sm: 'grid-cols-2', gap: 16 }} className="sm:grid-cols-2">
-      {toolCard('🏌️', 'Test Auction Draft Sandbox',
-        '8 teams: you + 7 bots (Birdie, Eagle, Par…). $1,000 auction budget, 10s timers. Bots auto-nominate and bid. Redirects straight to the draft room.',
-        'sandbox',
-        <button onClick={() => run('sandbox')} disabled={loading.sandbox}
-          style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          {loading.sandbox ? 'Creating…' : '+ Test Auction Draft'}
-        </button>
-      )}
-      {toolCard('⛳', 'Force ESPN Sync',
-        'Manually trigger score sync for a specific tournament.',
-        'sync',
-        <div>
-          <select value={selectedT} onChange={e => setSelectedT(e.target.value)}
-            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}>
-            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <button onClick={() => run('sync')} disabled={loading.sync || !selectedT}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-            {loading.sync ? 'Syncing…' : 'Sync Now'}
-          </button>
-        </div>
-      )}
-      {toolCard('📧', 'Test Email',
-        'Send a test confirmation email to your account to preview what members receive.',
-        'email',
-        <button onClick={() => run('email')} disabled={loading.email}
-          style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          {loading.email ? 'Sending…' : 'Send Test Email'}
-        </button>
-      )}
-      {toolCard('🗄️', 'DB Health Check',
-        'Current row counts for all golf tables.',
-        'health',
-        health ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {Object.entries(health.counts).map(([table, count]) => (
-              <div key={table} style={{ display: 'flex', justifyContent: 'space-between', background: '#111', borderRadius: 6, padding: '5px 10px' }}>
-                <span style={{ color: '#4b5563', fontSize: 11, truncate: true }}>{table.replace('golf_', '')}</span>
-                <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 700 }}>{count}</span>
+    <>
+      {/* ── Valspar success modal ── */}
+      {valsparModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9000,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }} onClick={() => setValsparModal(null)}>
+          <div style={{
+            background: '#111827', border: '1px solid #f59e0b44',
+            borderRadius: 20, padding: 32, maxWidth: 460, width: '100%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🏌️</div>
+            <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 800, margin: '0 0 4px' }}>
+              Valspar Pool Created!
+            </h3>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 20px' }}>
+              {valsparModal.tournament} · {valsparModal.leagueName}
+            </p>
+
+            <div style={{ background: '#0d1117', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
+                Invite Code
               </div>
-            ))}
-            <div style={{ gridColumn: '1/-1', color: '#4b5563', fontSize: 11, marginTop: 6 }}>
-              Last sync: {health.lastSync ? fmt(health.lastSync) : 'Never'} · Uptime: {Math.round(health.uptime / 60)}m
+              <div style={{ color: '#f59e0b', fontSize: 32, fontWeight: 900, letterSpacing: '0.12em', fontFamily: 'monospace' }}>
+                {valsparModal.inviteCode}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {[
+                { label: 'Bots added', value: valsparModal.botsAdded },
+                { label: 'Players assigned', value: valsparModal.playersAssigned },
+                { label: 'Tiers', value: valsparModal.tiersConfigured },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ flex: 1, background: '#1f2937', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ color: '#f59e0b', fontSize: 20, fontWeight: 900 }}>{value}</div>
+                  <div style={{ color: '#4b5563', fontSize: 11 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => copyInviteCode(valsparModal.inviteCode)}
+                style={{
+                  flex: 1, background: copied ? '#16a34a' : '#f59e0b',
+                  color: copied ? '#fff' : '#000',
+                  border: 'none', borderRadius: 10, padding: '11px 0',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+              >
+                {copied ? '✓ Copied!' : 'Copy Invite Code'}
+              </button>
+              <button
+                onClick={() => setValsparModal(null)}
+                style={{
+                  background: '#1f2937', color: '#9ca3af',
+                  border: 'none', borderRadius: 10, padding: '11px 18px',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
-        ) : <div style={{ color: '#374151', fontSize: 12 }}>Loading…</div>
+        </div>
       )}
-    </div>
+
+      <div style={{ display: 'grid', sm: 'grid-cols-2', gap: 16 }} className="sm:grid-cols-2">
+        {toolCard('⛳🏆', 'Valspar Test Pool',
+          'Sets up Beta Group 1.0 as a Valspar Championship pool with 50 bots and open invite. Idempotent — safe to run multiple times.',
+          'valspar',
+          <button onClick={() => run('valspar')} disabled={loading.valspar}
+            style={{ background: loading.valspar ? '#92400e' : '#f59e0b', color: '#000', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            {loading.valspar ? 'Setting up…' : 'Create Valspar Pool →'}
+          </button>,
+          '#1a1200', '#f59e0b33'
+        )}
+        {toolCard('🏌️', 'Test Auction Draft Sandbox',
+          '8 teams: you + 7 bots (Birdie, Eagle, Par…). $1,000 auction budget, 10s timers. Bots auto-nominate and bid. Redirects straight to the draft room.',
+          'sandbox',
+          <button onClick={() => run('sandbox')} disabled={loading.sandbox}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            {loading.sandbox ? 'Creating…' : '+ Test Auction Draft'}
+          </button>
+        )}
+        {toolCard('⛳', 'Force ESPN Sync',
+          'Manually trigger score sync for a specific tournament.',
+          'sync',
+          <div>
+            <select value={selectedT} onChange={e => setSelectedT(e.target.value)}
+              style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}>
+              {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <button onClick={() => run('sync')} disabled={loading.sync || !selectedT}
+              style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              {loading.sync ? 'Syncing…' : 'Sync Now'}
+            </button>
+          </div>
+        )}
+        {toolCard('📧', 'Test Email',
+          'Send a test confirmation email to your account to preview what members receive.',
+          'email',
+          <button onClick={() => run('email')} disabled={loading.email}
+            style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            {loading.email ? 'Sending…' : 'Send Test Email'}
+          </button>
+        )}
+        {toolCard('🗄️', 'DB Health Check',
+          'Current row counts for all golf tables.',
+          'health',
+          health ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {Object.entries(health.counts).map(([table, count]) => (
+                <div key={table} style={{ display: 'flex', justifyContent: 'space-between', background: '#111', borderRadius: 6, padding: '5px 10px' }}>
+                  <span style={{ color: '#4b5563', fontSize: 11, truncate: true }}>{table.replace('golf_', '')}</span>
+                  <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 700 }}>{count}</span>
+                </div>
+              ))}
+              <div style={{ gridColumn: '1/-1', color: '#4b5563', fontSize: 11, marginTop: 6 }}>
+                Last sync: {health.lastSync ? fmt(health.lastSync) : 'Never'} · Uptime: {Math.round(health.uptime / 60)}m
+              </div>
+            </div>
+          ) : <div style={{ color: '#374151', fontSize: 12 }}>Loading…</div>
+        )}
+      </div>
+    </>
   );
 }
 
