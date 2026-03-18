@@ -96,63 +96,53 @@ function MyLeaguesDropdown() {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
+  const Chevron = ({ up }) => (
+    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0 }}>
+      <path d={up ? 'M1 5L5 1L9 5' : 'M1 1L5 5L9 1'} stroke="#00e87a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="hub-btn-hover"
         style={{
-          background: 'linear-gradient(135deg, #00cc6a, #0d9488)',
-          color: '#fff', fontSize: 13, fontWeight: 700,
-          padding: '9px 20px', borderRadius: 100, border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 6,
-          boxShadow: '0 0 24px rgba(0,204,106,0.35)',
+          background: 'rgba(0,232,122,0.1)',
+          border: '0.5px solid rgba(0,232,122,0.3)',
+          color: '#00e87a', fontSize: 13, fontWeight: 600,
+          padding: '8px 18px', borderRadius: 7, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 7,
+          transition: 'background 0.15s',
         }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,232,122,0.16)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,232,122,0.1)'}
       >
-        My Leagues {open ? '▲' : '▼'}
+        My Leagues <Chevron up={open} />
       </button>
       {open && (
         <div style={{
-          position: 'absolute', right: 0, top: 'calc(100% + 10px)',
-          background: 'rgba(10,10,20,0.97)',
-          backdropFilter: 'blur(24px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 16, padding: '8px 0', minWidth: 220, zIndex: 200,
-          boxShadow: '0 24px 48px rgba(0,0,0,0.6)',
+          position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+          background: '#13131f',
+          border: '0.5px solid rgba(255,255,255,0.12)',
+          borderRadius: 10, padding: 6, minWidth: 180, zIndex: 200,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         }}>
           {[
-            { to: '/golf/dashboard', icon: '⛳', label: 'Golf Leagues' },
-            { to: '/basketball/dashboard', icon: '🏀', label: 'College Basketball' },
-          ].map(({ to, icon, label }) => (
+            { to: '/golf/dashboard', dot: '#00e87a', label: 'Golf Leagues' },
+            { to: '/basketball/dashboard', dot: '#ff8c00', label: 'College Basketball' },
+          ].map(({ to, dot, label }) => (
             <Link
               key={to} to={to} onClick={() => setOpen(false)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 18px', color: '#e5e7eb', fontSize: 14, textDecoration: 'none', fontWeight: 500 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', color: '#fff', fontSize: 13, textDecoration: 'none', fontWeight: 500, borderRadius: 6 }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              <span>{icon}</span>{label}
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+              {label}
             </Link>
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Animated stat (fade in on scroll) ────────────────────────────────────────
-
-function AnimatedStat({ value, label, color }) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.5 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, []);
-  return (
-    <div ref={ref} style={{ textAlign: 'center', transition: 'opacity 0.7s, transform 0.7s', opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)' }}>
-      <div style={{ fontSize: 'clamp(2.2rem, 5vw, 3.8rem)', fontWeight: 900, color, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginTop: 8, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</div>
     </div>
   );
 }
@@ -202,29 +192,39 @@ export default function HubLanding() {
       {/* ──────────────────── NAV ──────────────────────────────────────────── */}
       <nav style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(8,8,16,0.82)',
-        backdropFilter: 'blur(20px)',
+        background: '#0a0a14',
+        borderLeft: '3px solid #00e87a',
         borderBottom: '0.5px solid rgba(255,255,255,0.07)',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 62, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', flexShrink: 0 }}>
-            <span style={{ fontSize: 20 }}>🏆</span>
-            <span style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>
-              tourney<span style={{ color: '#f59e0b' }}>run</span>
+          <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: '#fff' }}>
+              tourney<span style={{ color: '#00e87a' }}>run</span>
             </span>
           </Link>
 
-          {/* Center nav — desktop */}
-          <div className="hidden md:flex items-center" style={{ gap: 2 }}>
+          {/* Center nav — pill container, desktop only */}
+          <div className="hidden md:flex" style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '0.5px solid rgba(255,255,255,0.1)',
+            borderRadius: 8,
+            overflow: 'hidden',
+          }}>
             {[
-              { to: '/golf', label: '⛳ Golf' },
-              { to: '/basketball', label: '🏀 Basketball' },
+              { to: '/golf', label: 'Golf' },
+              { to: '/basketball', label: 'Basketball' },
               { to: '/golf/faq', label: 'FAQ' },
-            ].map(({ to, label }) => (
+            ].map(({ to, label }, i, arr) => (
               <Link key={to} to={to}
-                className="hub-link-hover"
-                style={{ padding: '7px 14px', color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: 500, textDecoration: 'none', borderRadius: 10 }}
+                style={{
+                  padding: '8px 18px', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500,
+                  textDecoration: 'none', display: 'block',
+                  borderRight: i < arr.length - 1 ? '0.5px solid rgba(255,255,255,0.1)' : 'none',
+                  transition: 'color 0.15s, background 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 {label}
               </Link>
@@ -238,21 +238,24 @@ export default function HubLanding() {
             ) : (
               <>
                 <Link to="/login"
-                  className="hub-link-hover hidden md:block"
-                  style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: 500, textDecoration: 'none' }}
+                  className="hidden md:block"
+                  style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500, textDecoration: 'none', transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.45)'}
                 >
                   Sign in
                 </Link>
                 <Link to="/register"
-                  className="hub-btn-hover"
                   style={{
-                    background: 'linear-gradient(135deg, #00cc6a, #0d9488)',
-                    color: '#fff', fontSize: 13, fontWeight: 700,
-                    padding: '9px 20px', borderRadius: 100, textDecoration: 'none',
-                    boxShadow: '0 0 24px rgba(0,204,106,0.3)',
+                    background: '#00e87a', color: '#001a0d',
+                    fontSize: 13, fontWeight: 700,
+                    padding: '8px 22px', borderRadius: 7, textDecoration: 'none',
+                    transition: 'opacity 0.15s',
                   }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                 >
-                  Get Started
+                  Get started
                 </Link>
               </>
             )}
@@ -664,20 +667,6 @@ export default function HubLanding() {
 
       {/* ──────────────────── TICKER ───────────────────────────────────────── */}
       <Ticker />
-
-      {/* ──────────────────── STATS ────────────────────────────────────────── */}
-      <section style={{ padding: 'clamp(64px,10vw,96px) 24px', borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 48 }}>
-            Trusted by fantasy players everywhere
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(36px,10vw,110px)', flexWrap: 'wrap' }}>
-            <AnimatedStat value="5,000+" label="Leagues created" color="#f59e0b" />
-            <AnimatedStat value="25,000+" label="Players" color="#00cc6a" />
-            <AnimatedStat value="$250K+" label="Prizes managed" color="#ff6b00" />
-          </div>
-        </div>
-      </section>
 
       {/* ──────────────────── FOOTER ───────────────────────────────────────── */}
       <footer style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)', padding: '32px 24px' }}>
