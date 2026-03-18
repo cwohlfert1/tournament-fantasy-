@@ -431,17 +431,34 @@ async function pollESPN(io) {
     const score1 = parseInt(comp.competitors?.[0]?.score) || 0;
     const score2 = parseInt(comp.competitors?.[1]?.score) || 0;
 
+    // Prefer espn_event_id lookup (exact, no string matching) over name fuzzy matching.
+    // The schedule sync stores espn_event_id once it links an ESPN event to a DB game,
+    // so this covers the majority of cases reliably.
+    const byEspnId = db.prepare('SELECT * FROM games WHERE espn_event_id = ?').get(event.id);
+    const nameMatch = byEspnId ? null : findMatchingGame(espnTeam1, espnTeam2, true);
+    const metaGame = byEspnId || nameMatch?.game || null;
+
     // Always update game metadata (tip-off time, TV, location, period, clock)
-    const metaMatch = findMatchingGame(espnTeam1, espnTeam2, true);
-    if (metaMatch) updateGameMetadata(metaMatch.game.id, event, comp);
+    if (metaGame) updateGameMetadata(metaGame.id, event, comp);
 
     // Skip box score fetch for games not yet active
     if (!isInProgress && !isCompleted) continue;
 
-    const match = findMatchingGame(espnTeam1, espnTeam2);
-    if (!match) continue;
-
-    const { game, flipped } = match;
+    // Resolve game + flipped for scoring
+    let game, flipped;
+    if (byEspnId) {
+      game = byEspnId;
+      // Determine if ESPN's competitor order is reversed relative to our DB
+      flipped = !teamsMatch(game.team1, espnTeam1);
+    } else {
+      const liveMatch = findMatchingGame(espnTeam1, espnTeam2);
+      if (!liveMatch) {
+        console.log(`[ESPN ${ts}] No DB match for "${espnTeam1}" vs "${espnTeam2}" (espn_id=${event.id}) — is_live will NOT be set`);
+        continue;
+      }
+      game = liveMatch.game;
+      flipped = liveMatch.flipped;
+    }
 
     if (isInProgress) {
       nowLiveGameIds.add(game.id);
