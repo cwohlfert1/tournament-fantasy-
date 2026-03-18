@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Users, Zap, Star, Flag, Trophy, Target, Check, Lock, ArrowLeft, ArrowRight, ChevronRight, Award, Copy } from 'lucide-react';
+import { Users, Zap, Star, Flag, Trophy, Target, Check, Lock, ArrowLeft, ArrowRight, ChevronRight, Award, Copy, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
@@ -123,6 +123,20 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
             </button>
           </div>
         </div>
+
+        {/* Text to join — visible to all members */}
+        <a
+          href={`sms:?body=${encodeURIComponent(
+            `Join my golf fantasy league "${league.name}" on TourneyRun! ` +
+            `One draft, all season, majors count 1.5x. ` +
+            `Use invite code ${league.invite_code} or join here: ` +
+            `https://www.tourneyrun.app/golf/join?code=${league.invite_code}`
+          )}`}
+          title="Opens your texts on mobile"
+          className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-semibold text-sm rounded-xl transition-all"
+        >
+          <MessageSquare className="w-4 h-4" /> Text Friends to Join
+        </a>
       </div>
 
       {/* Members list */}

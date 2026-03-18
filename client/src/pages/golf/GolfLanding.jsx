@@ -24,6 +24,12 @@ export default function GolfLanding() {
   useDocTitle('Golf Fantasy | TourneyRun');
   const { user } = useAuth();
 
+  const smsBody = encodeURIComponent(
+    'Forget DraftKings for one week - do this all season. ' +
+    'Golf fantasy on TourneyRun, one draft, majors count 1.5x. ' +
+    'Join here: https://www.tourneyrun.app/golf'
+  );
+
   return (
     <div className="min-h-screen bg-gray-950">
 
@@ -137,7 +143,7 @@ export default function GolfLanding() {
               Create a League <ArrowRight className="w-4 h-4" />
             </Link>
             <a
-              href="sms:?body=Forget%20DraftKings%20for%20one%20week%20-%20do%20this%20all%20season.%20Golf%20fantasy%20on%20TourneyRun%2C%20one%20draft%2C%20majors%20count%201.5x.%20Join%20here%3A%20https%3A%2F%2Fw"
+              href={`sms:?body=${smsBody}`}
               className="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-gray-800 border border-gray-700 text-gray-300 font-semibold px-7 py-3.5 rounded-full transition-all"
             >
               <MessageCircle className="w-4 h-4" /> Text a Friend
