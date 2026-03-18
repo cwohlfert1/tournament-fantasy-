@@ -230,6 +230,8 @@ router.post('/leagues', authMiddleware, (req, res) => {
       // Pool
       picks_per_team = 8,
       scoring_style = 'tourneyrun',
+      pool_tier = 'standard',
+      comm_pro_price = 19.99,
       // DK
       weekly_salary_cap = 50000, starters_count = 6,
     } = req.body;
@@ -264,6 +266,9 @@ router.post('/leagues', authMiddleware, (req, res) => {
 
     const validScoringStyles = ['tourneyrun', 'total_score', 'stroke_play'];
     const scoringStyleFinal = validScoringStyles.includes(scoring_style) ? scoring_style : 'tourneyrun';
+    const validPoolTiers = ['standard', 'large_100', 'enterprise'];
+    const poolTierFinal = validPoolTiers.includes(pool_tier) ? pool_tier : 'standard';
+    const commProPriceFinal = parseFloat(comm_pro_price) || 19.99;
 
     db.prepare(`
       INSERT INTO golf_leagues (
@@ -272,8 +277,9 @@ router.post('/leagues', authMiddleware, (req, res) => {
         roster_size, starters_per_week, pick_time_limit, season_year,
         format_type, salary_cap, weekly_salary_cap, core_spots, flex_spots,
         faab_budget, use_faab, picks_per_team, scoring_style,
+        pool_tier, comm_pro_price,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds
-      ) VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, name, req.user.id, invite_code, parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
@@ -282,6 +288,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
       parseInt(core_spots) || 4, parseInt(flex_spots) || 4,
       parseInt(faab_budget) || 500, use_faab ? 1 : 0,
       parseInt(picks_per_team) || 8, scoringStyleFinal,
+      poolTierFinal, commProPriceFinal,
       parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100,
       dtFinal, parseInt(bid_timer_seconds) || 30
     );

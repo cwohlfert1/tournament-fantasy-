@@ -115,72 +115,72 @@ function CardHeader({ icon: Icon, title }) {
   );
 }
 
-// ── Pool max-teams selector with custom option ────────────────────────────────
+// ── Pool tier selector ────────────────────────────────────────────────────────
 
-function PoolMaxTeams({ value, onChange }) {
-  const PRESETS = [10, 12, 16, 20, 24];
-  const isCustom = !PRESETS.includes(value);
-  const [showCustom, setShowCustom] = useState(isCustom);
-  const [customVal, setCustomVal] = useState(isCustom ? String(value) : '');
+const POOL_TIERS = [
+  { tier: 'standard', maxTeams: 20,  label: '20 teams',   price: null,  priceLabel: null,         included: true  },
+  { tier: 'standard', maxTeams: 40,  label: '40 teams',   price: null,  priceLabel: null,         included: true  },
+  { tier: 'standard', maxTeams: 60,  label: '60 teams',   price: null,  priceLabel: null,         included: true  },
+  { tier: 'large_100',maxTeams: 100, label: '100 teams',  price: 29.99, priceLabel: '$29.99/season', included: false },
+  { tier: 'enterprise',maxTeams:999, label: 'Enterprise', price: 39.99, priceLabel: '$39.99/season', included: false },
+];
 
-  function selectPreset(n) {
-    setShowCustom(false);
-    onChange(n);
-  }
+const POOL_TIER_CALLOUTS = {
+  large_100:  '⚡ Large Pool — Up to 100 teams for $29.99/season. Standard pools (up to 60 teams) are always included.',
+  enterprise: '⚡ Enterprise Pool — Unlimited teams, priority support, $39.99/season. Perfect for company-wide tournaments and large charity events.',
+};
 
-  function activateCustom() {
-    setShowCustom(true);
-    const v = customVal && parseInt(customVal) >= 4 ? parseInt(customVal) : value;
-    setCustomVal(String(v));
-    onChange(v);
-  }
+function PoolTierSelector({ maxTeams, poolTier, onChange }) {
+  const selectedIdx = POOL_TIERS.findIndex(t => t.maxTeams === maxTeams && t.tier === poolTier);
+  const sel = selectedIdx >= 0 ? POOL_TIERS[selectedIdx] : POOL_TIERS[0];
+  const callout = POOL_TIER_CALLOUTS[sel.tier];
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
-        {PRESETS.map(n => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => selectPreset(n)}
-            className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
-              !showCustom && value === n
-                ? 'bg-green-500/20 border-green-500/60 text-green-400'
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
-            }`}
-          >
-            {n}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={activateCustom}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
-            showCustom
-              ? 'bg-green-500/20 border-green-500/60 text-green-400'
-              : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
-          }`}
-        >
-          Custom
-        </button>
+      <div className="grid grid-cols-5 gap-2">
+        {POOL_TIERS.map((t, i) => {
+          const isSelected = t.maxTeams === maxTeams && t.tier === poolTier;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onChange(t.maxTeams, t.tier, t.price ?? 19.99)}
+              className={`relative flex flex-col items-center rounded-xl border-2 px-1 py-3 text-center transition-all ${
+                isSelected
+                  ? t.included
+                    ? 'border-green-500/60 bg-green-500/8'
+                    : 'border-amber-500/60 bg-amber-500/8'
+                  : 'border-gray-700 bg-gray-800/30 hover:border-gray-600'
+              }`}
+            >
+              {/* Amber badge for paid tiers */}
+              {!t.included && (
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-400 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                  ⚡ Large
+                </span>
+              )}
+
+              <span className={`font-black text-sm leading-tight mt-1 ${isSelected ? (t.included ? 'text-white' : 'text-amber-300') : 'text-gray-300'}`}>
+                {t.label}
+              </span>
+
+              {/* Subtitle */}
+              {t.included ? (
+                <span className="text-[10px] font-semibold text-green-500/80 mt-1">✓ Included</span>
+              ) : (
+                <span className="text-[10px] font-semibold text-amber-400/80 mt-1">{t.priceLabel}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
-      {showCustom && (
-        <input
-          type="number"
-          min={4}
-          max={500}
-          className="input mt-3 w-32 text-sm"
-          placeholder="e.g. 32"
-          value={customVal}
-          onChange={e => {
-            setCustomVal(e.target.value);
-            const n = parseInt(e.target.value);
-            if (n >= 4 && n <= 500) onChange(n);
-          }}
-          autoFocus
-        />
+
+      {/* Callout for paid tiers */}
+      {callout && (
+        <div className="mt-3 flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-xl px-4 py-3">
+          <p className="text-amber-300/80 text-xs leading-relaxed">{callout}</p>
+        </div>
       )}
-      <p className="text-gray-600 text-xs mt-2">Most office pools are 10–50. No limit enforced.</p>
     </div>
   );
 }
@@ -247,6 +247,8 @@ const DEFAULT_FORM = {
   // Pool
   picks_per_team: 8,
   scoring_style: 'tourneyrun',
+  pool_tier: 'standard',
+  comm_pro_price: 19.99,
   // DK
   weekly_salary_cap: 50000,
   starters_count: 6,
@@ -275,10 +277,10 @@ export default function CreateGolfLeague() {
 
   function handleFormatChange(f) {
     setFormat(f);
-    // Reset max_teams default per format
     setForm(prev => ({
       ...prev,
-      max_teams: f === 'pool' ? 12 : 8,
+      max_teams: f === 'pool' ? 20 : 8,
+      ...(f === 'pool' ? { pool_tier: 'standard', comm_pro_price: 19.99 } : {}),
     }));
   }
 
@@ -398,7 +400,11 @@ export default function CreateGolfLeague() {
               {/* Max Teams */}
               <div>
                 <label className="label mb-2.5">Max Teams</label>
-                <PoolMaxTeams value={form.max_teams} onChange={v => set('max_teams', v)} />
+                <PoolTierSelector
+                  maxTeams={form.max_teams}
+                  poolTier={form.pool_tier}
+                  onChange={(maxTeams, poolTier, commProPrice) => setForm(f => ({ ...f, max_teams: maxTeams, pool_tier: poolTier, comm_pro_price: commProPrice }))}
+                />
               </div>
 
               {/* Picks Per Tournament */}
