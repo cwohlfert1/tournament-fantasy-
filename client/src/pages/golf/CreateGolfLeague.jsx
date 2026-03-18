@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flag, DollarSign, Trophy, Settings, Check, Award, Target } from 'lucide-react';
+import { Flag, DollarSign, Trophy, Settings, Check, Award, Target, Zap } from 'lucide-react';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 
-// ── Format definitions ──────────────────────────────────────────────────────
+// ── Format definitions ────────────────────────────────────────────────────────
 
 const FORMATS = [
   {
@@ -15,7 +15,7 @@ const FORMATS = [
     title: 'Pool',
     badge: 'Casual',
     badgeColor: 'bg-gray-700/60 text-gray-400 border-gray-600',
-    description: 'Pick 8 golfers per tournament. Combined score vs par wins. No weekly management.',
+    description: 'Pick golfers each tournament. Scores combine. Best for office pools of any size.',
     activeBorder: 'border-green-500/50',
     activeBg: 'bg-green-500/5',
   },
@@ -27,7 +27,7 @@ const FORMATS = [
     title: 'Daily Fantasy',
     badge: 'DFS',
     badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-    description: '$50,000 salary cap resets every tournament. Pick 6 players each week from scratch.',
+    description: 'Salary cap resets every tournament. Pick from scratch each week. No season commitment.',
     activeBorder: 'border-blue-500/50',
     activeBg: 'bg-blue-500/5',
   },
@@ -39,14 +39,43 @@ const FORMATS = [
     title: 'TourneyRun',
     badge: 'Signature',
     badgeColor: 'bg-green-500/15 text-green-400 border-green-500/30',
-    description: 'Draft core players locked for the season. Fill flex spots via waiver wire. Majors score 1.5×.',
+    description: 'Draft core players locked all season. Fill flex spots via waiver wire. Majors score 1.5×.',
     activeBorder: 'border-green-500/50',
     activeBg: 'bg-green-500/5',
     recommended: true,
   },
 ];
 
-// ── Shared UI components ─────────────────────────────────────────────────────
+// ── Scoring Style options for Pool ───────────────────────────────────────────
+
+const SCORING_STYLES = [
+  {
+    value: 'tourneyrun',
+    icon: '⚡',
+    title: 'TourneyRun Style',
+    subtitle: 'Eagle +8 · Birdie +3 · Par +0.5 · Bogey −0.5 · Double+ −2  ·  Majors 1.5×',
+    description: 'Points per shot, every hole matters',
+    recommended: true,
+  },
+  {
+    value: 'total_score',
+    icon: '⛳',
+    title: 'Total Score',
+    subtitle: 'Combined strokes vs par across all picked golfers',
+    description: 'Classic golf — lowest combined score wins',
+    recommended: false,
+  },
+  {
+    value: 'stroke_play',
+    icon: '🏌️',
+    title: 'Stroke Play',
+    subtitle: 'Raw total strokes across all picked golfers — no par adjustment',
+    description: 'Total strokes, no adjustments',
+    recommended: false,
+  },
+];
+
+// ── Shared UI components ──────────────────────────────────────────────────────
 
 function PillSelector({ options, value, onChange }) {
   return (
@@ -86,42 +115,172 @@ function CardHeader({ icon: Icon, title }) {
   );
 }
 
+// ── Pool max-teams selector with custom option ────────────────────────────────
+
+function PoolMaxTeams({ value, onChange }) {
+  const PRESETS = [10, 12, 16, 20, 24];
+  const isCustom = !PRESETS.includes(value);
+  const [showCustom, setShowCustom] = useState(isCustom);
+  const [customVal, setCustomVal] = useState(isCustom ? String(value) : '');
+
+  function selectPreset(n) {
+    setShowCustom(false);
+    onChange(n);
+  }
+
+  function activateCustom() {
+    setShowCustom(true);
+    const v = customVal && parseInt(customVal) >= 4 ? parseInt(customVal) : value;
+    setCustomVal(String(v));
+    onChange(v);
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {PRESETS.map(n => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => selectPreset(n)}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
+              !showCustom && value === n
+                ? 'bg-green-500/20 border-green-500/60 text-green-400'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={activateCustom}
+          className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
+            showCustom
+              ? 'bg-green-500/20 border-green-500/60 text-green-400'
+              : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+          }`}
+        >
+          Custom
+        </button>
+      </div>
+      {showCustom && (
+        <input
+          type="number"
+          min={4}
+          max={500}
+          className="input mt-3 w-32 text-sm"
+          placeholder="e.g. 32"
+          value={customVal}
+          onChange={e => {
+            setCustomVal(e.target.value);
+            const n = parseInt(e.target.value);
+            if (n >= 4 && n <= 500) onChange(n);
+          }}
+          autoFocus
+        />
+      )}
+      <p className="text-gray-600 text-xs mt-2">Most office pools are 10–50. No limit enforced.</p>
+    </div>
+  );
+}
+
+// ── Scoring Style cards for Pool ─────────────────────────────────────────────
+
+function ScoringStyleSelector({ value, onChange }) {
+  return (
+    <div className="space-y-2.5">
+      {SCORING_STYLES.map(s => (
+        <button
+          key={s.value}
+          type="button"
+          onClick={() => onChange(s.value)}
+          className={`w-full text-left rounded-xl border-2 p-4 transition-all relative ${
+            value === s.value
+              ? 'border-green-500/60 bg-green-500/8'
+              : 'border-gray-700 bg-gray-800/30 hover:border-gray-600'
+          }`}
+        >
+          {/* Selected indicator */}
+          {value === s.value && (
+            <div className="absolute top-3.5 right-3.5 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+              <Check className="w-3 h-3 text-white" />
+            </div>
+          )}
+
+          <div className="flex items-start gap-3 pr-6">
+            <span className="text-xl leading-none mt-0.5 shrink-0">{s.icon}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <span className={`font-bold text-sm ${value === s.value ? 'text-white' : 'text-gray-300'}`}>
+                  {s.title}
+                </span>
+                {s.recommended && (
+                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-500/20 border border-green-500/30 text-green-400">
+                    Recommended
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-500 text-xs mb-1 leading-relaxed">{s.subtitle}</p>
+              <p className={`text-xs font-medium ${value === s.value ? 'text-green-400/80' : 'text-gray-600'}`}>
+                {s.description}
+              </p>
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
+
+const DEFAULT_FORM = {
+  name: '',
+  team_name: '',
+  max_teams: 8,
+  buy_in_amount: '',
+  payment_instructions: '',
+  payout_first: 70,
+  payout_second: 20,
+  payout_third: 10,
+  // Pool
+  picks_per_team: 8,
+  scoring_style: 'tourneyrun',
+  // DK
+  weekly_salary_cap: 50000,
+  starters_count: 6,
+  // TourneyRun
+  salary_cap: 2400,
+  core_spots: 4,
+  flex_spots: 4,
+  faab_budget: 500,
+  use_faab: true,
+  draft_type: 'auction',
+  auction_budget: 1000,
+  faab_weekly_budget: 100,
+  bid_timer_seconds: 30,
+};
 
 export default function CreateGolfLeague() {
   useDocTitle('Create Golf League | TourneyRun');
   const navigate = useNavigate();
 
   const [format, setFormat] = useState('tourneyrun');
-  const [form, setForm] = useState({
-    name: '',
-    team_name: '',
-    max_teams: 8,
-    buy_in_amount: '',
-    payment_instructions: '',
-    payout_first: 70,
-    payout_second: 20,
-    payout_third: 10,
-    // Pool
-    picks_per_team: 8,
-    // DK
-    weekly_salary_cap: 50000,
-    starters_count: 6,
-    // TourneyRun
-    salary_cap: 2400,
-    core_spots: 4,
-    flex_spots: 4,
-    faab_budget: 500,
-    use_faab: true,
-    draft_type: 'auction',
-    auction_budget: 1000,
-    faab_weekly_budget: 100,
-    bid_timer_seconds: 30,
-  });
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  function handleFormatChange(f) {
+    setFormat(f);
+    // Reset max_teams default per format
+    setForm(prev => ({
+      ...prev,
+      max_teams: f === 'pool' ? 12 : 8,
+    }));
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -158,7 +317,7 @@ export default function CreateGolfLeague() {
 
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
 
-        {/* ── 1. Choose Your Format ── */}
+        {/* ── 1. Format ── */}
         <Card>
           <CardHeader icon={Trophy} title="Choose Your Format" />
           <div className="grid md:grid-cols-3 gap-3">
@@ -166,26 +325,21 @@ export default function CreateGolfLeague() {
               <button
                 key={f.key}
                 type="button"
-                onClick={() => setFormat(f.key)}
+                onClick={() => handleFormatChange(f.key)}
                 className={`relative text-left rounded-2xl border-2 p-4 transition-all ${
                   format === f.key
                     ? `${f.activeBorder} ${f.activeBg}`
                     : 'border-gray-700 bg-gray-800/20 hover:border-gray-600'
                 }`}
               >
-                {/* Selected checkmark */}
                 {format === f.key && (
                   <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
                     <Check className="w-3 h-3 text-white" />
                   </div>
                 )}
-
-                {/* Icon box */}
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${f.iconBg}`}>
                   <f.Icon className={`w-5 h-5 ${f.iconColor}`} />
                 </div>
-
-                {/* Title + badge */}
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap pr-6">
                   <span className={`font-black text-sm sm:text-base ${format === f.key ? 'text-white' : 'text-gray-300'}`}>
                     {f.title}
@@ -199,8 +353,6 @@ export default function CreateGolfLeague() {
                     </span>
                   )}
                 </div>
-
-                {/* Description */}
                 <p className="text-gray-500 text-xs leading-relaxed">{f.description}</p>
               </button>
             ))}
@@ -236,22 +388,20 @@ export default function CreateGolfLeague() {
           </div>
         </Card>
 
-        {/* ── 3. League Settings (format-specific) ── */}
-        <Card>
-          <CardHeader icon={Settings} title="League Settings" />
-          <div className="space-y-5">
+        {/* ── 3. League Settings — POOL ── */}
+        {format === 'pool' && (
+          <div className="animate-format">
+          <Card>
+            <CardHeader icon={Settings} title="⚙️ Pool Settings" />
+            <div className="space-y-6">
 
-            <div>
-              <label className="label mb-2.5">Max Teams</label>
-              <PillSelector
-                options={[4, 6, 8, 10, 12].map(n => ({ value: n, label: String(n) }))}
-                value={form.max_teams}
-                onChange={v => set('max_teams', v)}
-              />
-            </div>
+              {/* Max Teams */}
+              <div>
+                <label className="label mb-2.5">Max Teams</label>
+                <PoolMaxTeams value={form.max_teams} onChange={v => set('max_teams', v)} />
+              </div>
 
-            {/* Pool settings */}
-            {format === 'pool' && (
+              {/* Picks Per Tournament */}
               <div>
                 <label className="label mb-2.5">Picks Per Tournament</label>
                 <PillSelector
@@ -259,179 +409,243 @@ export default function CreateGolfLeague() {
                   value={form.picks_per_team}
                   onChange={v => set('picks_per_team', v)}
                 />
-                <p className="text-gray-600 text-xs mt-2">
-                  Each manager drafts this many golfers per tournament. Combined score vs par wins.
-                </p>
+                <p className="text-gray-600 text-xs mt-2">Each manager picks this many golfers per tournament.</p>
               </div>
-            )}
 
-            {/* DK settings */}
-            {format === 'dk' && (
+              {/* Scoring Style */}
+              <div>
+                <label className="label mb-3">Scoring Style</label>
+                <ScoringStyleSelector value={form.scoring_style} onChange={v => set('scoring_style', v)} />
+              </div>
+
+            </div>
+          </Card>
+          </div>
+        )}
+
+        {/* ── 3. League Settings — TOURNEYRUN ── */}
+        {format === 'tourneyrun' && (
+          <div className="animate-format">
+          <Card>
+            <CardHeader icon={Settings} title="⚙️ TourneyRun Settings" />
+            <div className="space-y-5">
+
+              {/* Max Teams */}
+              <div>
+                <label className="label mb-2.5">Max Teams</label>
+                <PillSelector
+                  options={[4, 6, 8, 10, 12].map(n => ({ value: n, label: String(n) }))}
+                  value={form.max_teams}
+                  onChange={v => set('max_teams', v)}
+                />
+              </div>
+
+              {/* Draft Type */}
+              <div>
+                <label className="label mb-2.5">Draft Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { val: 'auction', label: 'Auction', desc: 'Nominate & bid — highest wins' },
+                    { val: 'snake',   label: 'Snake',   desc: 'Classic serpentine draft'       },
+                  ].map(opt => (
+                    <button
+                      key={opt.val}
+                      type="button"
+                      onClick={() => set('draft_type', opt.val)}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        form.draft_type === opt.val
+                          ? 'border-green-500/60 bg-green-500/8'
+                          : 'border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className={`font-bold text-sm ${form.draft_type === opt.val ? 'text-green-400' : 'text-gray-300'}`}>
+                        {opt.label}
+                      </div>
+                      <div className="text-gray-500 text-xs mt-0.5">{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Auction Budget */}
+              {form.draft_type === 'auction' && (
+                <div>
+                  <label className="label mb-2.5">Auction Budget Per Team</label>
+                  <PillSelector
+                    options={[
+                      { value: 500,  label: '$500'   },
+                      { value: 1000, label: '$1,000' },
+                      { value: 2000, label: '$2,000' },
+                    ]}
+                    value={form.auction_budget}
+                    onChange={v => set('auction_budget', v)}
+                  />
+                  <p className="text-gray-600 text-xs mt-2">Credits used during the live auction to win players.</p>
+                </div>
+              )}
+
+              {/* Snake Salary Cap */}
+              {form.draft_type === 'snake' && (
+                <div>
+                  <label className="label mb-2.5">Draft Salary Cap</label>
+                  <PillSelector
+                    options={[
+                      { value: 2000, label: '$2,000' },
+                      { value: 2400, label: '$2,400' },
+                      { value: 2800, label: '$2,800' },
+                      { value: 3200, label: '$3,200' },
+                    ]}
+                    value={form.salary_cap}
+                    onChange={v => set('salary_cap', v)}
+                  />
+                  <p className="text-gray-600 text-xs mt-2">Applied during the initial draft of core players.</p>
+                </div>
+              )}
+
+              {/* Core + Flex Spots */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label mb-2.5">Core Spots</label>
+                  <PillSelector
+                    options={[2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
+                    value={form.core_spots}
+                    onChange={v => set('core_spots', v)}
+                  />
+                </div>
+                <div>
+                  <label className="label mb-2.5">Flex Spots</label>
+                  <PillSelector
+                    options={[2, 3, 4, 5, 6].map(n => ({ value: n, label: String(n) }))}
+                    value={form.flex_spots}
+                    onChange={v => set('flex_spots', v)}
+                  />
+                </div>
+              </div>
+              <p className="text-gray-600 text-xs -mt-2">
+                Core players locked for the season. Flex spots via waiver wire.
+                Total roster: {form.core_spots + form.flex_spots} players.
+              </p>
+
+              {/* Bid Timer */}
+              {form.draft_type === 'auction' && (
+                <div>
+                  <label className="label mb-2.5">Bid Timer</label>
+                  <PillSelector
+                    options={[
+                      { value: 20, label: '20s' },
+                      { value: 30, label: '30s' },
+                      { value: 60, label: '60s' },
+                    ]}
+                    value={form.bid_timer_seconds}
+                    onChange={v => set('bid_timer_seconds', v)}
+                  />
+                  <p className="text-gray-600 text-xs mt-2">Countdown resets after each new bid.</p>
+                </div>
+              )}
+
+              {/* FAAB Budget */}
+              <div>
+                <label className="label mb-2.5">Weekly FAAB Budget</label>
+                <PillSelector
+                  options={[
+                    { value: 50,  label: '$50'  },
+                    { value: 100, label: '$100' },
+                    { value: 200, label: '$200' },
+                  ]}
+                  value={form.faab_weekly_budget}
+                  onChange={v => set('faab_weekly_budget', v)}
+                />
+                <p className="text-gray-600 text-xs mt-2">Resets every Monday for waiver wire bidding.</p>
+              </div>
+
+              {/* Waiver Wire Type */}
+              <div>
+                <label className="label mb-2.5">Waiver Wire Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { val: true,  label: 'FAAB Bidding',     desc: 'Blind bids — highest wins' },
+                    { val: false, label: 'Reverse Standings', desc: 'Last place picks first'    },
+                  ].map(opt => (
+                    <button
+                      key={String(opt.val)}
+                      type="button"
+                      onClick={() => set('use_faab', opt.val)}
+                      className={`p-3 rounded-xl border-2 text-left transition-all ${
+                        form.use_faab === opt.val
+                          ? 'border-green-500/60 bg-green-500/8'
+                          : 'border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className={`font-bold text-sm ${form.use_faab === opt.val ? 'text-green-400' : 'text-gray-300'}`}>
+                        {opt.label}
+                      </div>
+                      <div className="text-gray-500 text-xs mt-0.5">{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </Card>
+          </div>
+        )}
+
+        {/* ── 3. League Settings — DAILY FANTASY ── */}
+        {format === 'dk' && (
+          <div className="animate-format">
+          <Card>
+            <CardHeader icon={Settings} title="⚙️ Daily Fantasy Settings" />
+            <div className="space-y-5">
+
+              {/* Max Teams */}
+              <div>
+                <label className="label mb-2.5">Max Teams</label>
+                <PillSelector
+                  options={[4, 6, 8, 10, 12].map(n => ({ value: n, label: String(n) }))}
+                  value={form.max_teams}
+                  onChange={v => set('max_teams', v)}
+                />
+              </div>
+
+              {/* Picks Per Tournament */}
+              <div>
+                <label className="label mb-2.5">Picks Per Tournament</label>
+                <PillSelector
+                  options={[6, 8, 10].map(n => ({ value: n, label: String(n) }))}
+                  value={form.starters_count}
+                  onChange={v => set('starters_count', v)}
+                />
+                <p className="text-gray-600 text-xs mt-2">How many golfers each manager picks per tournament.</p>
+              </div>
+
+              {/* Salary Cap */}
               <div>
                 <label className="label mb-2.5">Weekly Salary Cap</label>
                 <PillSelector
                   options={[
                     { value: 25000,  label: '$25k'  },
                     { value: 50000,  label: '$50k'  },
+                    { value: 75000,  label: '$75k'  },
                     { value: 100000, label: '$100k' },
                   ]}
                   value={form.weekly_salary_cap}
                   onChange={v => set('weekly_salary_cap', v)}
                 />
                 <p className="text-gray-600 text-xs mt-2">
-                  Cap resets every tournament. Pick {form.starters_count} starters within the cap.
+                  Cap resets every tournament. Pick {form.starters_count} golfers within the cap.
                 </p>
               </div>
-            )}
 
-            {/* TourneyRun settings */}
-            {format === 'tourneyrun' && (
-              <>
-                {/* Draft Type */}
-                <div>
-                  <label className="label mb-2.5">Draft Type</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { val: 'auction', label: 'Auction', desc: 'Nominate & bid — highest wins' },
-                      { val: 'snake',   label: 'Snake',   desc: 'Classic serpentine draft'       },
-                    ].map(opt => (
-                      <button
-                        key={opt.val}
-                        type="button"
-                        onClick={() => set('draft_type', opt.val)}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${
-                          form.draft_type === opt.val
-                            ? 'border-green-500/60 bg-green-500/8'
-                            : 'border-gray-700 hover:border-gray-600'
-                        }`}
-                      >
-                        <div className={`font-bold text-sm ${form.draft_type === opt.val ? 'text-green-400' : 'text-gray-300'}`}>
-                          {opt.label}
-                        </div>
-                        <div className="text-gray-500 text-xs mt-0.5">{opt.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {/* Reset note */}
+              <div className="flex items-center gap-2 bg-blue-500/8 border border-blue-500/20 rounded-xl px-4 py-3">
+                <span className="text-blue-400 text-sm">🔄</span>
+                <p className="text-blue-300/80 text-xs">Roster resets every tournament — no waiver wire.</p>
+              </div>
 
-                {/* Auction Budget (only when auction) */}
-                {form.draft_type === 'auction' && (
-                  <div>
-                    <label className="label mb-2.5">Auction Budget Per Team</label>
-                    <PillSelector
-                      options={[
-                        { value: 500,  label: '$500'  },
-                        { value: 1000, label: '$1,000' },
-                        { value: 2000, label: '$2,000' },
-                      ]}
-                      value={form.auction_budget}
-                      onChange={v => set('auction_budget', v)}
-                    />
-                    <p className="text-gray-600 text-xs mt-2">Credits used during the live auction to win players.</p>
-                  </div>
-                )}
-
-                {/* Snake salary cap (only when snake) */}
-                {form.draft_type === 'snake' && (
-                  <div>
-                    <label className="label mb-2.5">Draft Salary Cap</label>
-                    <PillSelector
-                      options={[
-                        { value: 2000, label: '$2,000' },
-                        { value: 2400, label: '$2,400' },
-                        { value: 2800, label: '$2,800' },
-                        { value: 3200, label: '$3,200' },
-                      ]}
-                      value={form.salary_cap}
-                      onChange={v => set('salary_cap', v)}
-                    />
-                    <p className="text-gray-600 text-xs mt-2">Applied during the initial draft of core players.</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="label mb-2.5">Core Spots</label>
-                    <PillSelector
-                      options={[2, 3, 4, 5].map(n => ({ value: n, label: String(n) }))}
-                      value={form.core_spots}
-                      onChange={v => set('core_spots', v)}
-                    />
-                  </div>
-                  <div>
-                    <label className="label mb-2.5">Flex Spots</label>
-                    <PillSelector
-                      options={[2, 3, 4, 5, 6].map(n => ({ value: n, label: String(n) }))}
-                      value={form.flex_spots}
-                      onChange={v => set('flex_spots', v)}
-                    />
-                  </div>
-                </div>
-                <p className="text-gray-600 text-xs -mt-2">
-                  Core players are locked for the season. Flex spots fill via waiver wire.
-                  Total roster: {form.core_spots + form.flex_spots} players.
-                </p>
-
-                {/* Bid Timer (only when auction) */}
-                {form.draft_type === 'auction' && (
-                  <div>
-                    <label className="label mb-2.5">Bid Timer</label>
-                    <PillSelector
-                      options={[
-                        { value: 20, label: '20s' },
-                        { value: 30, label: '30s' },
-                        { value: 60, label: '60s' },
-                      ]}
-                      value={form.bid_timer_seconds}
-                      onChange={v => set('bid_timer_seconds', v)}
-                    />
-                    <p className="text-gray-600 text-xs mt-2">Countdown resets after each new bid.</p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="label mb-2.5">Weekly FAAB Budget</label>
-                  <PillSelector
-                    options={[
-                      { value: 50,  label: '$50'  },
-                      { value: 100, label: '$100' },
-                      { value: 200, label: '$200' },
-                    ]}
-                    value={form.faab_weekly_budget}
-                    onChange={v => set('faab_weekly_budget', v)}
-                  />
-                  <p className="text-gray-600 text-xs mt-2">Resets every Monday for waiver wire bidding.</p>
-                </div>
-
-                <div>
-                  <label className="label mb-2.5">Waiver Wire Type</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { val: true,  label: 'FAAB Bidding',      desc: 'Blind bids — highest wins'   },
-                      { val: false, label: 'Reverse Standings',  desc: 'Last place picks first'      },
-                    ].map(opt => (
-                      <button
-                        key={String(opt.val)}
-                        type="button"
-                        onClick={() => set('use_faab', opt.val)}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${
-                          form.use_faab === opt.val
-                            ? 'border-green-500/60 bg-green-500/8'
-                            : 'border-gray-700 hover:border-gray-600'
-                        }`}
-                      >
-                        <div className={`font-bold text-sm ${form.use_faab === opt.val ? 'text-green-400' : 'text-gray-300'}`}>
-                          {opt.label}
-                        </div>
-                        <div className="text-gray-500 text-xs mt-0.5">{opt.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            </div>
+          </Card>
           </div>
-        </Card>
+        )}
 
         {/* ── 4. Buy-in (optional) ── */}
         <Card>
@@ -457,9 +671,9 @@ export default function CreateGolfLeague() {
                 <label className="label mb-2.5">Payout Split (%)</label>
                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   {[
-                    { label: '1st',  key: 'payout_first',  color: 'text-yellow-400' },
-                    { label: '2nd',  key: 'payout_second', color: 'text-gray-300'   },
-                    { label: '3rd',  key: 'payout_third',  color: 'text-orange-400' },
+                    { label: '1st', key: 'payout_first',  color: 'text-yellow-400' },
+                    { label: '2nd', key: 'payout_second', color: 'text-gray-300'   },
+                    { label: '3rd', key: 'payout_third',  color: 'text-orange-400' },
                   ].map(({ label, key, color }) => (
                     <div key={key} className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-3">
                       <div className={`text-xs font-semibold mb-2 flex items-center gap-1 ${color}`}>
@@ -484,8 +698,8 @@ export default function CreateGolfLeague() {
           </div>
         </Card>
 
-        {/* ── Scoring reference ── */}
-        {format !== 'pool' && (
+        {/* ── Scoring reference strip ── */}
+        {format === 'tourneyrun' && (
           <div className="bg-green-500/5 border border-green-500/20 rounded-2xl p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-3">
               <Trophy className="w-4 h-4 text-green-400" />
@@ -502,15 +716,14 @@ export default function CreateGolfLeague() {
             <p className="text-gray-500 text-xs mt-3">Finish bonuses: Win +30, Top 5 +15, Top 10 +8, Top 25 +3</p>
           </div>
         )}
-        {format === 'pool' && (
+        {format === 'dk' && (
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-2">
-              <Target className="w-4 h-4 text-blue-400" />
-              <span className="text-blue-400 font-bold text-sm">Pool Scoring</span>
+              <Zap className="w-4 h-4 text-blue-400" />
+              <span className="text-blue-400 font-bold text-sm">DFS Scoring</span>
             </div>
             <p className="text-gray-400 text-xs leading-relaxed">
-              Points scored per golfer using eagle/birdie/par/bogey system.
-              Your {form.picks_per_team} golfers' scores combine each tournament. Highest combined points wins each week.
+              Same eagle/birdie/par points system. Salary cap resets each tournament — build a fresh lineup every week within your cap.
             </p>
           </div>
         )}

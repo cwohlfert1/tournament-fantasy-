@@ -229,6 +229,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
       auction_budget = 1000, faab_weekly_budget = 100, draft_type = 'snake', bid_timer_seconds = 30,
       // Pool
       picks_per_team = 8,
+      scoring_style = 'tourneyrun',
       // DK
       weekly_salary_cap = 50000, starters_count = 6,
     } = req.body;
@@ -261,15 +262,18 @@ router.post('/leagues', authMiddleware, (req, res) => {
 
     const dtFinal = ['snake', 'auction'].includes(draft_type) ? draft_type : 'snake';
 
+    const validScoringStyles = ['tourneyrun', 'total_score', 'stroke_play'];
+    const scoringStyleFinal = validScoringStyles.includes(scoring_style) ? scoring_style : 'tourneyrun';
+
     db.prepare(`
       INSERT INTO golf_leagues (
         id, name, commissioner_id, invite_code, status, max_teams,
         buy_in_amount, payment_instructions, payout_first, payout_second, payout_third,
         roster_size, starters_per_week, pick_time_limit, season_year,
         format_type, salary_cap, weekly_salary_cap, core_spots, flex_spots,
-        faab_budget, use_faab, picks_per_team,
+        faab_budget, use_faab, picks_per_team, scoring_style,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds
-      ) VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, name, req.user.id, invite_code, parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
@@ -277,7 +281,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
       fmt, parseInt(salary_cap) || 2400, parseInt(weekly_salary_cap) || 50000,
       parseInt(core_spots) || 4, parseInt(flex_spots) || 4,
       parseInt(faab_budget) || 500, use_faab ? 1 : 0,
-      parseInt(picks_per_team) || 8,
+      parseInt(picks_per_team) || 8, scoringStyleFinal,
       parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100,
       dtFinal, parseInt(bid_timer_seconds) || 30
     );
