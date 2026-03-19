@@ -159,7 +159,8 @@ function buildStandings(leagueId) {
 
   standings.sort((a, b) => b.total_points - a.total_points);
 
-  // Single-game bonus — top 10 for expanded leaderboard
+  // Single-game bonus — top 10 for expanded leaderboard.
+  // Includes live games (is_live=1) so current scores update in real time.
   const sgBoard = db.prepare(`
     SELECT
       ps.player_id,
@@ -167,6 +168,7 @@ function buildStandings(leagueId) {
       p.team  AS player_team,
       ps.points,
       g.team1, g.team2, g.round_name,
+      g.is_live,
       dp.user_id        AS owner_user_id,
       lm2.team_name     AS owner_team_name,
       u2.username       AS owner_username,
@@ -177,13 +179,14 @@ function buildStandings(leagueId) {
     LEFT JOIN draft_picks dp   ON dp.player_id = ps.player_id AND dp.league_id = ?
     LEFT JOIN league_members lm2 ON lm2.user_id = dp.user_id AND lm2.league_id = ?
     LEFT JOIN users u2 ON u2.id = dp.user_id
-    WHERE g.is_completed = 1 AND ps.points > 0 AND dp.player_id IS NOT NULL
+    WHERE (g.is_completed = 1 OR g.is_live = 1) AND ps.points > 0 AND dp.player_id IS NOT NULL
     ORDER BY ps.points DESC
     LIMIT 10
   `).all(leagueId, leagueId);
 
   sgBoard.forEach(row => {
     row.opponent = row.team1 === row.player_team ? row.team2 : row.team1;
+    row.is_live  = !!row.is_live;
   });
 
   const sgLeader = sgBoard[0] || null;

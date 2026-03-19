@@ -1249,6 +1249,13 @@ export default function LeagueHome() {
                           <div className="flex items-baseline gap-3 flex-wrap">
                             <span className="text-white font-black text-xl leading-tight">{sgLeader.player_name}</span>
                             <span className="text-amber-400 font-black text-xl">{sgLeader.points} pts</span>
+                            {sgLeader.is_live && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                                LIVE
+                              </span>
+                            )}
                           </div>
                           <div className="text-gray-400 text-xs mt-0.5 flex flex-wrap items-center gap-1">
                             {sgLeader.player_team && <span className="text-gray-300 font-medium">{sgLeader.player_team}</span>}
@@ -1290,6 +1297,13 @@ export default function LeagueHome() {
                                 <span className={`font-bold text-sm ${i === 0 ? 'text-white' : 'text-gray-300'}`}>{row.player_name}</span>
                                 <span className="text-gray-500 text-xs">{row.player_team}</span>
                                 {row.round_name && <span className="text-gray-600 text-xs">· {row.round_name}</span>}
+                                {row.is_live && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1 py-0.5 rounded"
+                                    style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                    <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse inline-block" />
+                                    LIVE
+                                  </span>
+                                )}
                               </div>
                               {row.owner_user_id ? (
                                 <div className="text-gray-500 text-xs mt-0.5">
