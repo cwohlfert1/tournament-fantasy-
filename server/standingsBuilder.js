@@ -112,6 +112,16 @@ function buildStandings(leagueId) {
         ORDER BY g.game_date ASC
       `).all(player.player_id);
 
+      // Projected ETP = season_ppg × games_remaining
+      // games_remaining: First Four teams can play up to 7 games total;
+      // all others up to 6. Subtract games already played (game_log rows).
+      // Eliminated players always get 0.
+      const totalPossible  = player.is_first_four ? 7 : 6;
+      const gamesRemaining = player.is_eliminated
+        ? 0
+        : Math.max(0, totalPossible - gameLog.length);
+      const projEtp = Math.round(player.season_ppg * gamesRemaining * 10) / 10;
+
       return {
         player_id:     player.player_id,
         name:          player.name,
@@ -127,6 +137,8 @@ function buildStandings(leagueId) {
         is_live:         livePlayerIds.has(player.player_id),
         today_stats:     todayStats || null,
         game_log:        gameLog,
+        proj_etp:        projEtp,
+        games_remaining: gamesRemaining,
       };
     });
 

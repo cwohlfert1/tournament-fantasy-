@@ -974,10 +974,7 @@ export default function LeagueHome() {
         const scoreMap = Object.fromEntries(myStandingsPlayers.map(p => [p.player_id, p]));
         const hasScores = myStandingsPlayers.length > 0;
         const totalPts = myPicks.reduce((sum, p) => sum + (scoreMap[p.player_id]?.fantasy_points ?? 0), 0);
-        const totalETP = myPicks.reduce((sum, p) => {
-          const v = calcETP(p.season_ppg, p.seed, !!p.is_first_four);
-          return sum + (v ?? 0);
-        }, 0);
+        const totalETP = myPicks.reduce((sum, p) => sum + (scoreMap[p.player_id]?.proj_etp ?? 0), 0);
         const aliveCount = myPicks.filter(p => !p.is_eliminated).length;
 
         return (
@@ -1181,8 +1178,8 @@ export default function LeagueHome() {
               if (standingsSort === 'points') {
                 cmp = a.total_points - b.total_points;
               } else if (standingsSort === 'etp') {
-                const etpA = a.players?.filter(p => !p.is_eliminated).reduce((s, p) => s + (calcETP(p.season_ppg, p.seed, p.is_first_four) ?? 0), 0) ?? 0;
-                const etpB = b.players?.filter(p => !p.is_eliminated).reduce((s, p) => s + (calcETP(p.season_ppg, p.seed, p.is_first_four) ?? 0), 0) ?? 0;
+                const etpA = a.players?.reduce((s, p) => s + (p.proj_etp ?? 0), 0) ?? 0;
+                const etpB = b.players?.reduce((s, p) => s + (p.proj_etp ?? 0), 0) ?? 0;
                 cmp = etpA - etpB;
               } else if (standingsSort === 'name') {
                 cmp = a.team_name.localeCompare(b.team_name);
@@ -1337,7 +1334,7 @@ export default function LeagueHome() {
                   const alivePlayers = row.players?.filter(p => !p.is_eliminated) ?? [];
                   const aliveCount = row.players ? alivePlayers.length : null;
                   const projETP = row.players
-                    ? alivePlayers.reduce((s, p) => s + (calcETP(p.season_ppg, p.seed, p.is_first_four) ?? 0), 0)
+                    ? row.players.reduce((s, p) => s + (p.proj_etp ?? 0), 0)
                     : null;
                   return (
                     <div key={row.id || row.user_id} className="flex items-center justify-between px-5 py-4">
