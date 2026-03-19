@@ -140,12 +140,19 @@ function LeagueCard({ league, userId, past = false }) {
   const isComm = league.commissioner_id === userId;
   const meta   = getMeta(league.format_type);
 
+  const isPool = league.format_type === 'pool';
   const statusLabel = past ? 'Completed'
-    : league.draft_status === 'completed' ? 'Season Active' : 'Draft Pending';
+    : isPool
+      ? (league.picks_locked ? 'Picks Locked' : 'Picks Open')
+      : (league.draft_status === 'completed' ? 'Season Active' : 'Draft Pending');
   const statusColor = past ? 'text-gray-500'
-    : league.draft_status === 'completed' ? 'text-green-400' : 'text-blue-400';
+    : isPool
+      ? (league.picks_locked ? 'text-yellow-400' : 'text-green-400')
+      : (league.draft_status === 'completed' ? 'text-green-400' : 'text-blue-400');
   const statusDot   = past ? 'bg-gray-600'
-    : league.draft_status === 'completed' ? 'bg-green-400' : 'bg-blue-400';
+    : isPool
+      ? (league.picks_locked ? 'bg-yellow-400' : 'bg-green-400')
+      : (league.draft_status === 'completed' ? 'bg-green-400' : 'bg-blue-400');
 
   // Pool tournament line
   const hasTourn    = !!league.pool_tournament_name;

@@ -2111,20 +2111,39 @@ export default function GolfLeague() {
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <Chip color="green">Golf</Chip>
               {isComm && <Chip color="blue">Commissioner</Chip>}
-              {league.draft_status === 'completed'
-                ? <Chip color="green">Season Active</Chip>
-                : <Chip color="yellow">Draft Pending</Chip>
+              {league.format_type === 'pool'
+                ? (league.picks_locked
+                    ? <Chip color="yellow">Picks Locked</Chip>
+                    : <Chip color="green">Picks Open</Chip>)
+                : (league.draft_status === 'completed'
+                    ? <Chip color="green">Season Active</Chip>
+                    : <Chip color="yellow">Draft Pending</Chip>)
               }
             </div>
           </div>
-          {league.draft_status !== 'completed' && (
-            <Link
-              to={`/golf/league/${id}/draft`}
-              className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0"
-            >
-              {isComm ? 'Go to Draft' : 'Join Draft'} <ChevronRight className="w-4 h-4" />
-            </Link>
-          )}
+          {league.format_type === 'pool'
+            ? (league.picks_locked
+                ? <Link
+                    to={`/golf/league/${id}?tab=standings`}
+                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0"
+                  >
+                    View Leaderboard <ChevronRight className="w-4 h-4" />
+                  </Link>
+                : <Link
+                    to={`/golf/league/${id}/picks`}
+                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0"
+                  >
+                    Make My Picks <ChevronRight className="w-4 h-4" />
+                  </Link>)
+            : (league.draft_status !== 'completed' && (
+                <Link
+                  to={`/golf/league/${id}/draft`}
+                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0"
+                >
+                  {isComm ? 'Go to Draft' : 'Join Draft'} <ChevronRight className="w-4 h-4" />
+                </Link>
+              ))
+          }
         </div>
       </div>
 
