@@ -656,12 +656,347 @@ function TieredPickSheet({ leagueId, league }) {
   );
 }
 
+// ── Pool Roster Tab ────────────────────────────────────────────────────────────
+
+const TIER_COLORS = {
+  1: { bg: 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'rgba(245,158,11,0.3)', accent: '#f59e0b', label: '#fbbf24' },
+  2: { bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)', border: 'rgba(139,92,246,0.3)', accent: '#8b5cf6', label: '#a78bfa' },
+  3: { bg: 'linear-gradient(135deg,#3b82f6,#2563eb)', border: 'rgba(59,130,246,0.3)', accent: '#3b82f6', label: '#60a5fa' },
+  4: { bg: 'linear-gradient(135deg,#10b981,#059669)', border: 'rgba(16,185,129,0.3)', accent: '#10b981', label: '#34d399' },
+};
+const TIER_NAMES_ROSTER = { 1: 'Tier 1 · Elite', 2: 'Tier 2 · Premium', 3: 'Tier 3 · Mid-Field', 4: 'Tier 4 · Longshots' };
+
+function fmtOdds(raw) {
+  if (!raw) return '';
+  return (raw + '').replace(':', '/');
+}
+
+function getRounds(pick) {
+  const rounds = [pick.round1, pick.round2, pick.round3, pick.round4].filter(r => r != null);
+  return rounds;
+}
+
+function getTodayScore(pick) {
+  const rounds = getRounds(pick);
+  return rounds.length ? rounds[rounds.length - 1] : null;
+}
+
+function fmtScore(val) {
+  if (val == null) return '-';
+  if (val === 0) return 'E';
+  return val > 0 ? `+${val}` : `${val}`;
+}
+
+function scoreColor(val) {
+  if (val == null) return '#9ca3af';
+  if (val < 0) return '#00e87a';
+  if (val > 0) return '#f87171';
+  return '#e5e7eb';
+}
+
+function InitialsAvatar({ name, tier, size = 44 }) {
+  const tc = TIER_COLORS[tier] || TIER_COLORS[4];
+  const initials = (name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: tc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontWeight: 700, fontSize: size * 0.36, flexShrink: 0,
+      boxShadow: `0 2px 8px ${tc.border}`,
+    }}>{initials}</div>
+  );
+}
+
+function CountryFlag({ cc }) {
+  if (!cc) return null;
+  const code = cc.toLowerCase();
+  return (
+    <img
+      src={`https://flagcdn.com/24x18/${code}.png`}
+      alt={cc}
+      style={{ width: 18, height: 13, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
+      onError={e => { e.target.style.display = 'none'; }}
+    />
+  );
+}
+
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId }) {
+  const tc = TIER_COLORS[tier] || TIER_COLORS[4];
+  const rounds = getRounds(pick);
+  const todayRaw = getTodayScore(pick);
+  const totalPar = rounds.reduce((s, r) => s + (r || 0), 0);
+  const pts = pick.fantasy_points;
+  const isWD = pick.made_cut === 0 && pick.finish_position == null;
+  const isCUT = pick.made_cut === 0 && pick.finish_position != null;
+  const hasScores = rounds.length > 0;
+  const isLive = tournStatus === 'active';
+  const isComplete = tournStatus === 'completed';
+
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.03)',
+      border: `1px solid ${tc.border}`,
+      borderRadius: 14,
+      padding: '14px 16px',
+      display: 'flex', alignItems: 'center', gap: 14,
+      position: 'relative', overflow: 'hidden',
+      animation: `fadeSlideUp 0.35s ease both`,
+      animationDelay: `${idx * 60}ms`,
+      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc.border}`; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
+    >
+      {/* WD/CUT overlay */}
+      {(isWD || isCUT) && (
+        <div style={{
+          position: 'absolute', top: 8, right: 10,
+          background: isWD ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.15)',
+          border: `1px solid ${isWD ? 'rgba(239,68,68,0.4)' : 'rgba(107,114,128,0.3)'}`,
+          borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 700,
+          color: isWD ? '#f87171' : '#9ca3af', letterSpacing: '0.05em',
+        }}>{isWD ? 'WD' : 'CUT'}</div>
+      )}
+
+      <InitialsAvatar name={pick.player_name} tier={tier} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {pick.player_name}
+          </span>
+          {pick.odds_display && (
+            <span style={{ fontSize: 11, color: tc.label, fontWeight: 600 }}>{fmtOdds(pick.odds_display)}</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+          {pick.country && <CountryFlag cc={pick.country} />}
+          {pick.world_ranking && (
+            <span style={{ fontSize: 11, color: '#6b7280' }}>WR #{pick.world_ranking}</span>
+          )}
+          {isLive && hasScores && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#00e87a' }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#00e87a', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+              Live
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Score column */}
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        {hasScores ? (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor(totalPar), lineHeight: 1 }}>
+              {fmtScore(totalPar)}
+            </div>
+            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+              {isLive ? `R${rounds.length}: ${fmtScore(todayRaw)}` : isComplete ? `Rd ${rounds.length}` : ''}
+            </div>
+            {pts != null && (
+              <div style={{ fontSize: 11, fontWeight: 700, color: tc.label, marginTop: 1 }}>
+                {pts > 0 ? '+' : ''}{pts} pts
+              </div>
+            )}
+          </>
+        ) : (
+          <span style={{ fontSize: 12, color: '#4b5563' }}>—</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmptySlot({ tier }) {
+  const tc = TIER_COLORS[tier] || TIER_COLORS[4];
+  return (
+    <div style={{
+      border: `1.5px dashed ${tc.border}`,
+      borderRadius: 14, padding: '18px 16px',
+      display: 'flex', alignItems: 'center', gap: 14,
+      opacity: 0.6,
+    }}>
+      <div style={{
+        width: 44, height: 44, borderRadius: '50%',
+        border: `2px dashed ${tc.accent}`, flexShrink: 0, opacity: 0.5,
+      }} />
+      <span style={{ fontSize: 13, color: '#4b5563' }}>No pick selected</span>
+    </div>
+  );
+}
+
+function PoolRosterTab({ leagueId, league }) {
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/golf/pool/leagues/${leagueId}/my-roster`)
+      .then(r => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [leagueId]);
+
+  // Parse tier config to know how many picks per tier
+  let tiersConfig = [];
+  try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
+
+  const picks = data?.picks || [];
+  const picksLocked = data?.picks_locked ?? !!league.picks_locked;
+  const tournStatus = league.pool_tournament_status;
+
+  // Group picks by tier
+  const byTier = {};
+  for (const p of picks) {
+    if (!byTier[p.tier_number]) byTier[p.tier_number] = [];
+    byTier[p.tier_number].push(p);
+  }
+
+  // Determine tiers to show (from config or fallback to unique tier numbers in picks or 1–4)
+  const tierNums = tiersConfig.length
+    ? tiersConfig.map(t => parseInt(t.tier || t.tier_number || t.id)).filter(Boolean)
+    : picks.length
+      ? [...new Set(picks.map(p => p.tier_number))].sort()
+      : [1, 2, 3, 4];
+
+  const hasAnyPicks = picks.length > 0;
+
+  const statusBar = () => {
+    if (tournStatus === 'active') return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 12, marginBottom: 20 }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#00e87a', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+        <span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Tournament in progress · Scores updating live</span>
+      </div>
+    );
+    if (tournStatus === 'completed') return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 12, marginBottom: 20 }}>
+        <Trophy size={14} style={{ color: '#fbbf24' }} />
+        <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Tournament complete · Final results</span>
+      </div>
+    );
+    if (picksLocked) return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 12, marginBottom: 20 }}>
+        <Lock size={14} style={{ color: '#fbbf24' }} />
+        <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Picks locked · Tee time has passed</span>
+      </div>
+    );
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 12, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Flag size={14} style={{ color: '#00e87a' }} />
+          <span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Picks open</span>
+        </div>
+        <button
+          onClick={() => navigate(`/golf/league/${leagueId}/picks`)}
+          style={{ background: '#00e87a', color: '#0a0e1a', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+        >
+          {hasAnyPicks ? 'Edit Picks →' : 'Make Picks →'}
+        </button>
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+      <BallLoader />
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 0 40px' }}>
+      <style>{`
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {statusBar()}
+
+      {!hasAnyPicks ? (
+        /* ── Empty state ── */
+        <div>
+          {tierNums.map(tierNum => {
+            const tc = TIER_COLORS[tierNum] || TIER_COLORS[4];
+            const tierCfg = tiersConfig.find(t => parseInt(t.tier || t.tier_number || t.id) === tierNum);
+            const slotCount = parseInt(tierCfg?.picks || 1);
+            return (
+              <div key={tierNum} style={{ marginBottom: 28 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: tc.label, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    {TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {Array.from({ length: slotCount }).map((_, i) => (
+                    <EmptySlot key={i} tier={tierNum} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {!picksLocked && (
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <button
+                onClick={() => navigate(`/golf/league/${leagueId}/picks`)}
+                style={{ background: '#00e87a', color: '#0a0e1a', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Pick your players →
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ── Picks grid ── */
+        <div>
+          {tierNums.map(tierNum => {
+            const tc = TIER_COLORS[tierNum] || TIER_COLORS[4];
+            const tierPicks = byTier[tierNum] || [];
+            const tierCfg = tiersConfig.find(t => parseInt(t.tier || t.tier_number || t.id) === tierNum);
+            const slotCount = parseInt(tierCfg?.picks || tierPicks.length || 1);
+            return (
+              <div key={tierNum} style={{ marginBottom: 28 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: tc.label, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    {TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#4b5563' }}>{tierPicks.length}/{slotCount}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {tierPicks.map((pick, idx) => (
+                    <PlayerCard
+                      key={pick.id}
+                      pick={pick}
+                      tier={tierNum}
+                      idx={idx}
+                      tournStatus={tournStatus}
+                      picksLocked={picksLocked}
+                      navigate={navigate}
+                      leagueId={leagueId}
+                    />
+                  ))}
+                  {/* Fill empty slots */}
+                  {Array.from({ length: Math.max(0, slotCount - tierPicks.length) }).map((_, i) => (
+                    <EmptySlot key={`empty-${i}`} tier={tierNum} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Tab: Roster ────────────────────────────────────────────────────────────────
 
 function RosterTab({ leagueId, league }) {
   // Pool + tiered pick sheet — replace generic roster UI entirely
   if (league.format_type === 'pool' && league.pick_sheet_format === 'tiered') {
-    return <TieredPickSheet leagueId={leagueId} league={league} />;
+    return <PoolRosterTab leagueId={leagueId} league={league} />;
   }
 
   const fmt = league.format_type || 'tourneyrun';

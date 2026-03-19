@@ -461,6 +461,53 @@ router.get('/leagues/:id/picks/all', authMiddleware, (req, res) => {
   }
 });
 
+// ── GET /leagues/:id/my-roster ────────────────────────────────────────────────
+
+router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+
+    const member = db.prepare('SELECT * FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!member && league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not a member' });
+
+    const tid = req.query.tournament_id || league.pool_tournament_id;
+    if (!tid) return res.json({ picks: [], submitted: false, picks_locked: !!league.picks_locked });
+
+    // picks JOIN pool_tier_players (odds, world_ranking) JOIN golf_players (country) LEFT JOIN golf_scores
+    const picks = db.prepare(`
+      SELECT
+        pp.id, pp.tier_number, pp.player_id, pp.player_name, pp.salary_used,
+        ptp.odds_display, ptp.world_ranking,
+        gp.country,
+        gs.round1, gs.round2, gs.round3, gs.round4,
+        gs.made_cut, gs.finish_position, gs.fantasy_points
+      FROM pool_picks pp
+      LEFT JOIN pool_tier_players ptp ON ptp.league_id = pp.league_id
+        AND ptp.tournament_id = pp.tournament_id
+        AND ptp.player_id = pp.player_id
+      LEFT JOIN golf_players gp ON gp.id = pp.player_id
+      LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = pp.tournament_id
+      WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
+      ORDER BY pp.tier_number ASC, COALESCE(gs.fantasy_points, 0) DESC
+    `).all(req.params.id, tid, req.user.id);
+
+    const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
+    const lockTime = league.picks_lock_time || (tourn ? computeLockTime(tourn.start_date) : null);
+
+    res.json({
+      picks,
+      submitted: picks.length > 0,
+      picks_locked: !!league.picks_locked,
+      lock_time: lockTime,
+      tournament: tourn,
+    });
+  } catch (err) {
+    console.error('[golf-pool] my-roster error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── POST /leagues/:id/picks/remind ───────────────────────────────────────────
 
 router.post('/leagues/:id/picks/remind', authMiddleware, (req, res) => {
