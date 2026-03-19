@@ -1883,6 +1883,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const rowRefs = useRef({});
 
   useEffect(() => {
     api.get(`/golf/leagues/${leagueId}/standings`)
@@ -1929,9 +1930,17 @@ function StandingsTab({ leagueId, league, currentUserId }) {
     const isBot  = /^bot[\s_]?\d/i.test(s.username || '');
 
     return (
-      <div style={{ borderLeft: `3px solid ${isMe ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div ref={el => { rowRefs.current[s.user_id] = el; }} style={{ borderLeft: `3px solid ${isMe ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <button
-          onClick={() => canExpand ? setExpanded(isOpen ? null : s.user_id) : null}
+          onClick={e => {
+            if (!canExpand) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setExpanded(isOpen ? null : s.user_id);
+            setTimeout(() => {
+              rowRefs.current[s.user_id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 10);
+          }}
           style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 11px 11px', background: isMe ? 'rgba(0,232,122,0.04)' : 'transparent', border: 'none', cursor: canExpand ? 'pointer' : 'default', textAlign: 'left' }}
           onMouseEnter={e => { if (canExpand) e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.07)' : 'rgba(255,255,255,0.03)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.04)' : 'transparent'; }}
@@ -2514,6 +2523,7 @@ function PGALiveTab({ leagueId, league }) {
   const [filter, setFilter]       = useState('all');   // all | pool | leaders
   const [sortBy, setSortBy]       = useState('position'); // position | name | today
   const [expandedRow, setExpandedRow] = useState(null);
+  const pgaRowRefs = useRef({});
   const [lastFetch, setLastFetch] = useState(null);
   const [secsSince, setSecsSince] = useState(null);
 
@@ -2711,7 +2721,7 @@ function PGALiveTab({ leagueId, league }) {
           );
 
           return (
-            <div key={i} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent' }}>
+            <div key={i} ref={el => { pgaRowRefs.current[i] = el; }} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent' }}>
               {/* Desktop row */}
               <div className="hidden sm:grid" style={{ gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center' }}>
                 {posCell}
@@ -2730,7 +2740,14 @@ function PGALiveTab({ leagueId, league }) {
               {/* Mobile row — tap to expand */}
               <button
                 className="grid sm:hidden"
-                onClick={() => setExpandedRow(isOpen ? null : i)}
+                onClick={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setExpandedRow(isOpen ? null : i);
+                  setTimeout(() => {
+                    pgaRowRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }, 10);
+                }}
                 style={{ width: '100%', gridTemplateColumns: '44px 1fr 48px 44px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
               >
                 {posCell}

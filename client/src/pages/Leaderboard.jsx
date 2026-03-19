@@ -251,6 +251,7 @@ export default function Leaderboard() {
   const [livePlayerIds, setLivePlayerIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const rowRefs = useRef({});
   const [lastRefresh, setLastRefresh] = useState(null);
   const [secondsSince, setSecondsSince] = useState(null);
   const [sortBy, setSortBy] = useState('points');
@@ -522,6 +523,7 @@ export default function Leaderboard() {
             return (
               <div
                 key={team.user_id}
+                ref={el => { rowRefs.current[team.user_id] = el; }}
                 className="card overflow-hidden transition-all duration-200"
                 style={isMe ? { borderColor: 'rgba(55,138,221,0.6)' } : undefined}
               >
@@ -529,7 +531,14 @@ export default function Leaderboard() {
                 <button
                   type="button"
                   className="w-full text-left px-4 py-3.5 hover:bg-gray-800/50 transition-colors"
-                  onClick={() => setExpanded(isExpanded ? null : team.user_id)}
+                  onClick={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setExpanded(isExpanded ? null : team.user_id);
+                    setTimeout(() => {
+                      rowRefs.current[team.user_id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 10);
+                  }}
                 >
                   <div className="flex items-center gap-3">
 
