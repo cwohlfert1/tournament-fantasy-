@@ -483,40 +483,14 @@ const { scheduleAutoSync, backfillCompleted } = require('./golfSyncService');
 scheduleAutoSync();
 setTimeout(backfillCompleted, 15 * 1000); // backfill after server is up
 
-// ── One-time cleanup: remove player_stats rows where the player's team does not
-//    match either team in the game (cross-team contamination from a prior bug
-//    in processBoxScore that lacked espn_team_id validation). Basketball only.
-try {
-  const contaminated = db.prepare(`
-    SELECT ps.id, ps.player_id, ps.game_id, ps.points,
-           p.name  AS player_name,
-           p.team  AS player_team,
-           g.team1, g.team2, g.game_date
-    FROM player_stats ps
-    JOIN players p ON p.id  = ps.player_id
-    JOIN games   g ON g.id  = ps.game_id
-    WHERE p.team IS NOT NULL
-      AND g.team1 IS NOT NULL AND g.team2 IS NOT NULL
-      AND p.team != g.team1
-      AND p.team != g.team2
-    ORDER BY g.game_date DESC
-  `).all();
-
-  if (contaminated.length === 0) {
-    console.log('[cleanup] player_stats: no contaminated rows found — DB is clean.');
-  } else {
-    console.log(`[cleanup] player_stats: found ${contaminated.length} contaminated rows:`);
-    for (const r of contaminated) {
-      console.log(`  player="${r.player_name}" team="${r.player_team}" | game: "${r.team1}" vs "${r.team2}" (${r.game_date}) | pts=${r.points}`);
-    }
-    const ids = contaminated.map(r => r.id);
-    const placeholders = ids.map(() => '?').join(',');
-    const del = db.prepare(`DELETE FROM player_stats WHERE id IN (${placeholders})`).run(...ids);
-    console.log(`[cleanup] player_stats: deleted ${del.changes} contaminated rows.`);
-  }
-} catch (err) {
-  console.error('[cleanup] player_stats cleanup error:', err.message);
-}
+// ── DISABLED: the team-name string mismatch DELETE was too broad and wiped
+//    valid player_stats rows where ESPN displayName != our DB team string
+//    (e.g. "Ohio State Buckeyes" vs "Ohio State"). DELETE removed until a
+//    safer espn_athlete_id-based check is implemented.
+//
+// try {
+//   ... DELETE FROM player_stats WHERE team name mismatch ...
+// } catch (err) { ... }
 
 // ── One-time fix: NC State players were seeded before the bracket pull ran,
 //    leaving them with team='NC State', espn_team_id=null, espn_athlete_id=''.
@@ -554,8 +528,12 @@ try {
 }
 
 // ESPN live scoring poller — smart polling (2 min live window, 30 min otherwise)
-const { startSmartPoller, pullSchedule } = require('./espnPoller');
+const { startSmartPoller, pullSchedule, pollESPN } = require('./espnPoller');
 startSmartPoller(io);
+
+// Immediate ESPN poll at startup to restore any stats that were incorrectly
+// deleted — ON CONFLICT DO UPDATE means this is a safe re-ingest, not a dupe.
+setTimeout(() => pollESPN(io).catch(e => console.error('[startup] immediate ESPN poll failed:', e.message)), 3000);
 
 // Pull full tournament schedule at startup (after bracket pull finishes) + every 6h
 // This populates the games table with all scheduled games including future ones.

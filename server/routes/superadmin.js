@@ -619,4 +619,17 @@ router.delete('/sandbox/:id', superadmin, (req, res) => {
   }
 });
 
+// ── Force ESPN poll — restores player_stats from live ESPN box scores ────────
+// POST /api/superadmin/espn-poll
+router.post('/espn-poll', superadmin, async (req, res) => {
+  try {
+    const { pollESPN } = require('../espnPoller');
+    const io = req.app.get('io');
+    const stats = await pollESPN(io);
+    res.json({ ok: true, stats });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;
