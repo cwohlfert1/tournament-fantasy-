@@ -302,7 +302,7 @@ export default function GolfLanding() {
               to="/golf/create?format=pool"
               className="inline-flex items-center justify-center gap-2 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-semibold px-7 py-3.5 rounded-full transition-all bg-transparent hover:bg-gray-800/50"
             >
-              🏆 Run an Office Pool →
+              <Trophy size={15} strokeWidth={1.75} /> Run an Office Pool →
             </Link>
           </div>
           <button
@@ -911,8 +911,9 @@ export default function GolfLanding() {
             padding: '12px 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           }} className="md:hidden">
-            <span style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>
-              ⛳ Masters in {days} day{days === 1 ? '' : 's'}
+            <span style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, lineHeight: 1.3, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Flag size={13} color="#00e87a" strokeWidth={2} />
+              Masters in {days} day{days === 1 ? '' : 's'}
             </span>
             <Link
               to="/golf/create"
