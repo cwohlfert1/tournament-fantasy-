@@ -511,7 +511,7 @@ export default function Leaderboard() {
           <div className="flex items-center justify-between px-4 py-2.5 mb-3 rounded-xl bg-gray-900 border border-gray-800">
             <ColHdr col="name"   label="Team" />
             <div className="flex items-center gap-5">
-              <ColHdr col="etp"    label="Proj. ETP" />
+              <ColHdr col="etp"    label="PTP" />
               <ColHdr col="alive"  label="Alive" />
               <ColHdr col="points" label="Pts" />
             </div>
@@ -596,7 +596,7 @@ export default function Leaderboard() {
                       {projETP !== null && projETP > 0 && (
                         <div className="text-right hidden sm:block">
                           <div className="text-amber-400 font-bold text-sm">{projETP.toFixed(1)}</div>
-                          <div className="text-gray-600 text-[9px]">Proj. ETP</div>
+                          <div className="text-gray-600 text-[9px]">PTP</div>
                         </div>
                       )}
                       {totalPlayers > 0 && (
@@ -611,6 +611,12 @@ export default function Leaderboard() {
                       <div className="text-right min-w-[40px]">
                         <div className="font-black leading-tight" style={{ fontSize: 22, color: ptsColor }}>{team.total_points > 0 ? team.total_points : '—'}</div>
                         <div className="text-gray-500 text-[10px]">pts</div>
+                        {/* Mobile: PTP stacked below pts (hidden on sm+ where column header shows) */}
+                        {projETP !== null && projETP > 0 && (
+                          <div className="block sm:hidden text-[10px] font-semibold text-amber-500/70 mt-0.5 whitespace-nowrap">
+                            {projETP.toFixed(0)} PTP
+                          </div>
+                        )}
                       </div>
                       <svg
                         className="w-4 h-4 text-gray-500 transition-transform duration-200 flex-shrink-0"
