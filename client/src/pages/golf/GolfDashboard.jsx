@@ -278,8 +278,11 @@ export default function GolfDashboard() {
 
   if (loading) return <BallLoader />;
 
-  const activeLeagues = leagues.filter(l => ACTIVE_STATUSES.has(l.status));
-  const pastLeagues   = leagues.filter(l => !ACTIVE_STATUSES.has(l.status));
+  const isActiveLeague = l =>
+    ACTIVE_STATUSES.has(l.status) &&
+    !(l.format_type === 'pool' && l.pool_tournament_status === 'completed');
+  const activeLeagues = leagues.filter(isActiveLeague);
+  const pastLeagues   = leagues.filter(l => !isActiveLeague(l));
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-10">

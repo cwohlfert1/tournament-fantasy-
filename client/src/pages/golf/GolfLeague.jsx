@@ -831,7 +831,7 @@ function PoolRosterTab({ leagueId, league }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/golf/pool/leagues/${leagueId}/my-roster`)
+    api.get(`/golf/leagues/${leagueId}/my-roster`)
       .then(r => setData(r.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));

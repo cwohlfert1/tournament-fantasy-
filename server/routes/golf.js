@@ -543,32 +543,35 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
 
     const rawComps = espnData?.events?.[0]?.competitions?.[0]?.competitors || [];
 
-    const competitors = rawComps.map(comp => {
+    const competitors = rawComps.map((comp, idx) => {
       const name = comp.athlete?.displayName || comp.athlete?.fullName || '';
 
-      // Status
+      // Status — field only present for cut/WD players; absent for active competitors
       const statusDesc = (comp.status?.type?.description || '').toLowerCase();
-      const isCut = statusDesc.includes('cut') || statusDesc === 'cut';
-      const isWD  = statusDesc.includes('withdrawn') || statusDesc === 'wd';
+      const isCut = statusDesc.includes('cut');
+      const isWD  = statusDesc.includes('withdrawn');
       const isMDF = statusDesc.includes('did not finish');
 
-      // Position
-      const posText = comp.status?.position?.displayValue || comp.status?.position?.displayText || String(comp.sortOrder ?? '');
+      // Sort order — ESPN scoreboard uses 'order', not 'sortOrder'
+      const order = comp.order ?? comp.sortOrder ?? (idx + 1);
 
-      // Total score (to-par string like "-8", "E", "+2") + numeric version
+      // Position text — derive from order (1st=1, tied players share same order)
+      const posText = comp.status?.position?.displayValue || String(order);
+
+      // Total score string (e.g. "-7", "E", "+2") + numeric
       const totalStr = comp.score != null ? String(comp.score) : null;
-      const totalNum = totalStr == null ? null : totalStr === 'E' ? 0 : parseInt(totalStr, 10);
-
-      // Round scores from linescores — value is to-par for that round
-      const ls = comp.linescores || [];
-      const getRound = n => {
-        const e = ls[n - 1]; // linescores are ordered R1, R2, R3, R4
-        if (!e) return null;
-        const v = e.value;
-        if (v == null || v === '' || v === '--' || v === 'E') return v === 'E' ? 0 : null;
-        const num = Number(v);
-        return isNaN(num) ? null : num;
+      const parsePar = s => {
+        if (s == null) return null;
+        if (s === 'E' || s === 'Even') return 0;
+        const n = parseInt(s, 10);
+        return isNaN(n) ? null : n;
       };
+      const totalNum = parsePar(totalStr);
+
+      // Round scores — linescores[n] covers round n+1.
+      // linescore.value = stroke count (e.g. 64); displayValue = to-par (e.g. "-7")
+      const ls = comp.linescores || [];
+      const getRound = n => parsePar((ls[n - 1]?.displayValue) ?? null);
 
       const r1 = getRound(1), r2 = getRound(2), r3 = getRound(3), r4 = getRound(4);
       const completedRounds = [r1, r2, r3, r4].filter(r => r !== null);
@@ -582,10 +585,10 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
 
       return {
         name,
-        sortOrder: comp.sortOrder ?? 999,
+        sortOrder: order,
         posText,
-        total: totalNum,   // numeric to-par (what frontend fmtPar expects)
-        totalStr,          // raw string from ESPN
+        total: totalNum,
+        totalStr,
         r1, r2, r3, r4, today, thru,
         flagHref, countryAlt, currentRound,
         status: isWD ? 'wd' : isCut ? 'cut' : isMDF ? 'mdf' : 'active',
