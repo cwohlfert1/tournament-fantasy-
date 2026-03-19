@@ -1062,7 +1062,7 @@ export default function LeagueHome() {
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-sm truncate"
                             style={{ color: isElim ? '#6b7280' : '#fff', textDecoration: isElim ? 'line-through' : 'none' }}>
-                            {pick.player_name}{pick.jersey_number ? <span style={{ color: '#6b7280', fontWeight: 'normal' }}> #{pick.jersey_number}</span> : null}
+                            {pick.player_name}{pick.jersey_number ? <span style={{ color: '#4b5563', fontWeight: 'normal', fontSize: '10px', marginLeft: '6px' }}>· #{pick.jersey_number}</span> : null}
                           </div>
                           <div className="text-gray-500 text-xs truncate">
                             {pick.team} <span style={{ fontSize: 14 }}>{teamEmoji(pick.team)}</span>{pick.position ? ` · ${pick.position}` : ''}

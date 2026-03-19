@@ -710,7 +710,7 @@ export default function Leaderboard() {
                                   {/* Name + team */}
                                   <div className="flex-1 min-w-0">
                                     <div className={`font-medium text-sm leading-tight ${player.is_eliminated ? 'line-through text-gray-500' : 'text-white'}`}>
-                                      {player.name}{player.jersey_number ? <span className="text-gray-500 font-normal"> #{player.jersey_number}</span> : null}
+                                      {player.name}{player.jersey_number ? <span className="text-gray-600 font-normal text-[10px] ml-1.5">· #{player.jersey_number}</span> : null}
                                       {playerIsLive && <span className="ml-1.5 text-[9px] font-bold text-green-400 animate-pulse not-italic">● LIVE</span>}
                                     </div>
                                     <div className="text-gray-500 text-[10px] mt-0.5">

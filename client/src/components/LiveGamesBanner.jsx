@@ -112,7 +112,7 @@ export default function LiveGamesBanner({ leagueId, onLiveStatus }) {
                         }}>
                           {av.initials}
                         </div>
-                        <span className="text-gray-200 text-xs font-medium leading-tight">{player.player_name}{player.jersey_number ? <span className="text-gray-500 font-normal"> #{player.jersey_number}</span> : null}</span>
+                        <span className="text-gray-200 text-xs font-medium leading-tight">{player.player_name}{player.jersey_number ? <span className="text-gray-600 font-normal text-[10px] ml-1.5">· #{player.jersey_number}</span> : null}</span>
                         <span className="text-gray-600 text-[10px]">{player.team} {teamEmoji(player.team)}</span>
                         <span className="text-gray-500 text-[10px] ml-auto whitespace-nowrap">
                           {player.owner_team_name}
