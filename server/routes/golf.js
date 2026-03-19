@@ -2,6 +2,10 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 
+// ── ESPN PGA Live cache ─────────────────────────────────────────────────────────
+const _espnCache = new Map(); // eventId → { ts, data }
+const ESPN_CACHE_TTL = 60_000; // 60 seconds
+
 // Initialize golf tables + seed on first require
 require('../golf-db');
 const db = require('../db');
@@ -462,6 +466,112 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
     `).all(activeTournId, req.params.id);
     res.json({ standings, active_tournament_id: activeTournId || null });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// ── PGA Live leaderboard ────────────────────────────────────────────────────────
+router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'Not found' });
+    if (!getMember(req.params.id, req.user.id) && league.commissioner_id !== req.user.id)
+      return res.status(403).json({ error: 'Not a member' });
+
+    // Determine tournament: pool uses pool_tournament_id, others use active tournament
+    const tid = league.pool_tournament_id ||
+      db.prepare("SELECT id FROM golf_tournaments WHERE status='active' ORDER BY start_date ASC LIMIT 1").get()?.id;
+    const tourn = tid ? db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid) : null;
+
+    // Picks for the current user (pool format)
+    let myPickNames = [];
+    if (league.format_type === 'pool' && tid) {
+      myPickNames = db.prepare(`
+        SELECT pl.name as player_name
+        FROM pool_picks pp JOIN golf_players pl ON pl.id = pp.player_id
+        WHERE pp.league_id = ? AND pp.user_id = ?
+      `).all(req.params.id, req.user.id).map(r => r.player_name);
+    }
+
+    const eventId = tourn?.espn_event_id;
+    if (!eventId) {
+      return res.json({ competitors: [], tournament: tourn, my_pick_names: myPickNames, no_event: true });
+    }
+
+    // Serve from cache if fresh
+    const cached = _espnCache.get(eventId);
+    if (cached && Date.now() - cached.ts < ESPN_CACHE_TTL) {
+      return res.json({ ...cached.data, my_pick_names: myPickNames });
+    }
+
+    // Fetch from ESPN
+    let espnData;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const r = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event=${eventId}`,
+        { headers: { Accept: 'application/json' }, signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (!r.ok) throw new Error(`ESPN HTTP ${r.status}`);
+      espnData = await r.json();
+    } catch (fetchErr) {
+      console.error('[pga-live] ESPN fetch error:', fetchErr.message);
+      return res.json({ competitors: [], tournament: tourn, my_pick_names: myPickNames, fetch_error: true });
+    }
+
+    const rawComps =
+      espnData?.leaderboard?.competitors ||
+      espnData?.leaderboard?.entries ||
+      espnData?.events?.[0]?.competitions?.[0]?.competitors || [];
+
+    const competitors = rawComps.map(comp => {
+      const name = comp.athlete?.displayName || comp.athlete?.fullName || comp.displayName || '';
+      const statusId = comp.status?.type?.id || comp.status?.id || '';
+      const posText = comp.status?.position?.displayText || comp.position?.displayText || String(comp.sortOrder ?? '');
+
+      // Round scores (to-par)
+      const ls = comp.linescores || comp.rounds || [];
+      const getRound = n => {
+        const e = ls.find(l => Number(l.period?.number ?? l.period ?? l.roundNumber ?? l.number) === n);
+        if (!e) return null;
+        const v = e.value ?? e.score;
+        if (v == null || v === '' || v === '--') return null;
+        const n2 = Number(v);
+        return isNaN(n2) ? null : n2; // to-par value
+      };
+
+      const r1 = getRound(1), r2 = getRound(2), r3 = getRound(3), r4 = getRound(4);
+      const completedRounds = [r1, r2, r3, r4].filter(r => r !== null);
+      const total = completedRounds.length > 0 ? completedRounds.reduce((a, b) => a + b, 0) : null;
+      const currentRound = completedRounds.length;
+      const today = completedRounds[currentRound - 1] ?? null;
+      const thru = comp.status?.thruHole ?? comp.status?.holes ?? null;
+
+      // Flag / country
+      const flagHref = comp.athlete?.flag?.href || '';
+      const countryAlt = comp.athlete?.flag?.alt || comp.athlete?.country || '';
+
+      return {
+        name,
+        sortOrder: comp.sortOrder ?? 999,
+        posText,
+        r1, r2, r3, r4, total, today, thru,
+        flagHref, countryAlt, currentRound,
+        isCut: statusId === 'C' || statusId === 'STATUS_MISSED_CUT',
+        isWD:  statusId === 'WD' || statusId === 'STATUS_WITHDRAWN',
+        isMDF: statusId === 'MDF' || statusId === 'STATUS_MADE_CUT_DID_NOT_FINISH',
+      };
+    });
+
+    competitors.sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const payload = { competitors, tournament: tourn, event_id: eventId };
+    _espnCache.set(eventId, { ts: Date.now(), data: payload });
+    res.json({ ...payload, my_pick_names: myPickNames });
+  } catch (err) {
+    console.error('[pga-live]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.post('/leagues/:id/scores', authMiddleware, (req, res) => {

@@ -2172,6 +2172,266 @@ function ReferralSection() {
   );
 }
 
+// ── Tab: PGA Live ───────────────────────────────────────────────────────────────
+
+function PGALiveTab({ leagueId, league }) {
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState('all');   // all | pool | leaders
+  const [sortBy, setSortBy]       = useState('position'); // position | name | today
+  const [expandedRow, setExpandedRow] = useState(null);
+  const [lastFetch, setLastFetch] = useState(null);
+  const [secsSince, setSecsSince] = useState(null);
+
+  async function load() {
+    try {
+      const r = await api.get(`/golf/leagues/${leagueId}/pga-live`);
+      setData(r.data);
+      setLastFetch(Date.now());
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    const iv = setInterval(load, 60_000);
+    return () => clearInterval(iv);
+  }, [leagueId]); // eslint-disable-line
+
+  // Tick "updated X ago"
+  useEffect(() => {
+    if (!lastFetch) return;
+    const iv = setInterval(() => setSecsSince(Math.floor((Date.now() - lastFetch) / 1000)), 5000);
+    setSecsSince(0);
+    return () => clearInterval(iv);
+  }, [lastFetch]);
+
+  if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading leaderboard…</div>;
+
+  const competitors  = data?.competitors || [];
+  const tournament   = data?.tournament;
+  const myPickNames  = data?.my_pick_names || [];
+  const isLive       = tournament?.status === 'active';
+
+  if (data?.no_event || data?.fetch_error || competitors.length === 0) {
+    return (
+      <div className="py-12 text-center space-y-3">
+        <div className="w-14 h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto">
+          <Flag className="w-7 h-7 text-gray-600" />
+        </div>
+        <p className="text-gray-500 text-sm">
+          {data?.no_event ? 'No tournament ESPN ID configured for this league.' : 'PGA leaderboard unavailable right now.'}
+        </p>
+        <button onClick={load} style={{ color: '#00e87a', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Normalize for pick matching
+  const norm = s => (s || '').toLowerCase().replace(/[.']/g, '').trim();
+  const myPickSet = new Set(myPickNames.map(norm));
+  const isMyPick  = name => myPickSet.has(norm(name));
+
+  // Derive current round from data
+  const maxRound = competitors.reduce((mx, c) => Math.max(mx, c.currentRound || 0), 0);
+
+  // Filter
+  let display = [...competitors];
+  if (filter === 'pool') {
+    const myPicks = display.filter(c => isMyPick(c.name));
+    const rest    = display.filter(c => !isMyPick(c.name));
+    display = [...myPicks, ...rest.filter(() => false)]; // show only picks
+    if (display.length === 0) display = competitors.filter(c => isMyPick(c.name));
+  }
+  if (filter === 'leaders') display = competitors.filter(c => !c.isCut && !c.isWD).slice(0, 25);
+
+  // Sort (position is default, already sorted by sortOrder from server)
+  if (sortBy === 'name')  display = [...display].sort((a, b) => a.name.localeCompare(b.name));
+  if (sortBy === 'today') display = [...display].sort((a, b) => (a.today ?? 999) - (b.today ?? 999));
+
+  // Format to-par
+  const fmtPar = val => {
+    if (val == null) return { text: '—', color: '#374151' };
+    if (val === 0)   return { text: 'E',  color: '#9ca3af' };
+    return val < 0   ? { text: String(val), color: '#00e87a' }
+                     : { text: `+${val}`,  color: '#ef4444' };
+  };
+
+  const ageTxt = secsSince == null ? '' : secsSince < 60 ? `${secsSince}s ago` : `${Math.floor(secsSince / 60)}m ago`;
+
+  return (
+    <div className="space-y-3">
+
+      {/* ── Tournament header ── */}
+      <div style={{ background: '#111827', border: `1px solid ${isLive ? 'rgba(0,232,122,0.2)' : '#1f2937'}`, borderRadius: 14, padding: '14px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{tournament?.name || 'PGA Tour Event'}</div>
+            <div style={{ color: '#6b7280', fontSize: 12, marginTop: 3 }}>
+              {[tournament?.course, tournament?.start_date?.slice(0, 10)].filter(Boolean).join(' · ')}
+            </div>
+            {maxRound > 0 && (
+              <div style={{ color: '#9ca3af', fontSize: 11, marginTop: 4 }}>
+                Round {maxRound} of 4{isLive ? ' · In Progress' : tournament?.status === 'completed' ? ' · Final' : ''}
+              </div>
+            )}
+          </div>
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+            {isLive ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.3)', color: '#00e87a', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                Live
+              </span>
+            ) : null}
+            {ageTxt && <span style={{ color: '#374151', fontSize: 10 }}>Updated {ageTxt}</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Filter + Sort bar ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {[
+            { key: 'all',     label: `All (${competitors.length})` },
+            { key: 'pool',    label: `My Picks (${myPickNames.length})` },
+            { key: 'leaders', label: 'Top 25' },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => setFilter(key)} style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', transition: 'all 0.15s', background: filter === key ? '#00e87a' : 'transparent', color: filter === key ? '#001a0d' : '#6b7280', border: filter === key ? 'none' : '1px solid #1f2937' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ background: '#111827', border: '1px solid #1f2937', color: '#9ca3af', fontSize: 12, padding: '5px 10px', borderRadius: 8, cursor: 'pointer' }}>
+          <option value="position">Sort: Position</option>
+          <option value="today">Sort: Today</option>
+          <option value="name">Sort: Name</option>
+        </select>
+      </div>
+
+      {/* ── Leaderboard ── */}
+      <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>
+
+        {/* Desktop column headers */}
+        <div className="hidden sm:grid" style={{ gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
+          {['Pos', 'Player', 'R1', 'R2', 'R3', 'R4', 'Total', 'Today'].map((h, i) => (
+            <div key={h} style={{ textAlign: i >= 2 ? 'center' : 'left', color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
+          ))}
+        </div>
+
+        {/* Mobile column headers */}
+        <div className="grid sm:hidden" style={{ gridTemplateColumns: '44px 1fr 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
+          {['Pos', 'Player', 'Total', 'Today'].map((h, i) => (
+            <div key={h} style={{ textAlign: i >= 2 ? 'center' : 'left', color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
+          ))}
+        </div>
+
+        {display.length === 0 ? (
+          <div style={{ padding: 24, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
+            {filter === 'pool' ? 'No picks submitted yet.' : 'No players found.'}
+          </div>
+        ) : display.map((c, i) => {
+          const myPick   = isMyPick(c.name);
+          const total    = fmtPar(c.total);
+          const todayFmt = fmtPar(c.today);
+          const rounds   = [c.r1, c.r2, c.r3, c.r4];
+          const isOpen   = expandedRow === i;
+          const statusBadge = c.isCut ? <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', padding: '1px 5px', borderRadius: 3 }}>CUT</span>
+            : c.isWD  ? <span style={{ fontSize: 10, fontWeight: 700, color: '#f97316', background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.25)', padding: '1px 5px', borderRadius: 3 }}>WD</span>
+            : c.isMDF ? <span style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', padding: '1px 5px', borderRadius: 3 }}>MDF</span>
+            : null;
+
+          const playerCell = (
+            <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+              {c.flagHref && (
+                <img src={c.flagHref} alt={c.countryAlt} style={{ width: 16, height: 11, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
+              )}
+              <span style={{ color: myPick ? '#00e87a' : '#fff', fontWeight: myPick ? 700 : 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {c.name}
+              </span>
+              {myPick && <span style={{ fontSize: 8, fontWeight: 700, color: '#00e87a', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.05em', flexShrink: 0 }}>PICK</span>}
+              {statusBadge && <span style={{ marginLeft: 2, flexShrink: 0 }}>{statusBadge}</span>}
+            </div>
+          );
+
+          const posCell = (
+            <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 700 }}>
+              {c.posText || '—'}
+            </div>
+          );
+
+          const todayCell = (
+            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: (c.isCut || c.isWD) ? '#374151' : todayFmt.color, fontVariantNumeric: 'tabular-nums' }}>
+              {(c.isCut || c.isWD) ? '—' : todayFmt.text}
+              {c.thru != null && !c.isCut && !c.isWD && (
+                <div style={{ color: '#4b5563', fontSize: 9 }}>{c.thru === 18 ? 'F' : `T${c.thru}`}</div>
+              )}
+            </div>
+          );
+
+          const totalCell = (
+            <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 14, color: total.color, fontVariantNumeric: 'tabular-nums' }}>
+              {total.text}
+            </div>
+          );
+
+          return (
+            <div key={i} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent' }}>
+              {/* Desktop row */}
+              <div className="hidden sm:grid" style={{ gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center' }}>
+                {posCell}
+                {playerCell}
+                {rounds.map((r, ri) => {
+                  const { text, color } = fmtPar(r);
+                  const isCurrent = (ri + 1) === maxRound && isLive && r != null;
+                  return (
+                    <div key={ri} style={{ textAlign: 'center', fontSize: 11, color: r != null ? color : '#374151', fontWeight: isCurrent ? 700 : 400 }}>{text}</div>
+                  );
+                })}
+                {totalCell}
+                {todayCell}
+              </div>
+
+              {/* Mobile row — tap to expand */}
+              <button
+                className="grid sm:hidden"
+                onClick={() => setExpandedRow(isOpen ? null : i)}
+                style={{ width: '100%', gridTemplateColumns: '44px 1fr 48px 44px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              >
+                {posCell}
+                {playerCell}
+                {totalCell}
+                {todayCell}
+              </button>
+
+              {/* Mobile expanded row */}
+              {isOpen && (
+                <div className="sm:hidden" style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.04)', padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+                  {['R1', 'R2', 'R3', 'R4'].map((label, ri) => {
+                    const { text, color } = fmtPar(rounds[ri]);
+                    const isCurrent = (ri + 1) === maxRound && isLive && rounds[ri] != null;
+                    return (
+                      <div key={ri} style={{ textAlign: 'center' }}>
+                        <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
+                        <div style={{ color: rounds[ri] != null ? color : '#374151', fontSize: 14, fontWeight: isCurrent ? 800 : 500 }}>{text}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p style={{ color: '#374151', fontSize: 11, textAlign: 'center' }}>
+        Data from ESPN · Refreshes every 60s
+      </p>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 function getTabs(league, isComm) {
@@ -2187,6 +2447,9 @@ function getTabs(league, isComm) {
     { key: 'lineup',    label: 'Lineup'    },
     { key: 'standings', label: 'Standings' },
   );
+  if (league?.format_type === 'pool' && league?.pool_tournament_id) {
+    base.push({ key: 'pga-live', label: '⛳ PGA Live' });
+  }
   if (isComm) {
     base.push({ key: 'commissioner', label: '⚙ Commissioner' });
   }
@@ -2340,6 +2603,9 @@ export default function GolfLeague() {
       )}
       {tab === 'standings' && (
         <StandingsTab leagueId={id} league={league} currentUserId={user?.id} />
+      )}
+      {tab === 'pga-live' && (
+        <PGALiveTab leagueId={id} league={league} />
       )}
       {tab === 'commissioner' && isComm && (
         <CommissionerTab leagueId={id} leagueName={league.name} members={members} />
