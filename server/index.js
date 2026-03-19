@@ -527,6 +527,56 @@ try {
   console.error('[cleanup] NC State fix error:', err.message);
 }
 
+// ── Deduplicate players that were inserted twice (once from seed, once from bracket pull).
+//    Keep the row with a valid espn_athlete_id; re-point any draft_picks / player_stats
+//    that reference the orphaned row, then delete the orphan.
+try {
+  const dupes = db.prepare(`
+    SELECT name, COUNT(*) as cnt
+    FROM players
+    GROUP BY LOWER(name)
+    HAVING cnt > 1
+  `).all();
+
+  if (dupes.length > 0) {
+    console.log(`[dedup] found ${dupes.length} duplicate player name(s):`, dupes.map(d => d.name));
+
+    const deduped = db.transaction(() => {
+      let deleted = 0;
+      for (const { name } of dupes) {
+        const rows = db.prepare(
+          "SELECT * FROM players WHERE LOWER(name) = LOWER(?) ORDER BY (espn_athlete_id IS NULL OR espn_athlete_id = '') ASC"
+        ).all(name);
+        // rows[0] = has espn_athlete_id (good), rows[1+] = orphans
+        const keeper = rows[0];
+        const orphans = rows.slice(1);
+        for (const orphan of orphans) {
+          // Re-point draft_picks
+          const dpFix = db.prepare(
+            'UPDATE draft_picks SET player_id = ? WHERE player_id = ?'
+          ).run(keeper.id, orphan.id);
+          // Re-point player_stats rows that don't conflict with a keeper row for the same game
+          const psFix = db.prepare(
+            'UPDATE player_stats SET player_id = ? WHERE player_id = ? AND game_id NOT IN (SELECT game_id FROM player_stats WHERE player_id = ?)'
+          ).run(keeper.id, orphan.id, keeper.id);
+          // Delete any remaining orphan player_stats (duped game rows)
+          db.prepare('DELETE FROM player_stats WHERE player_id = ?').run(orphan.id);
+          // Delete orphan player
+          db.prepare('DELETE FROM players WHERE id = ?').run(orphan.id);
+          console.log(`[dedup] merged "${orphan.name}" (${orphan.id}) → keeper (${keeper.id}) | dp=${dpFix.changes} ps=${psFix.changes}`);
+          deleted++;
+        }
+      }
+      return deleted;
+    })();
+    console.log(`[dedup] removed ${deduped} orphan player row(s)`);
+  } else {
+    console.log('[dedup] no duplicate players found');
+  }
+} catch (err) {
+  console.error('[dedup] error:', err.message);
+}
+
 // ESPN live scoring poller — smart polling (2 min live window, 30 min otherwise)
 const { startSmartPoller, pullSchedule, pollESPN, reingestCompletedGames } = require('./espnPoller');
 startSmartPoller(io);
