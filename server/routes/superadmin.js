@@ -646,4 +646,67 @@ router.post('/reingest-stats', superadmin, async (req, res) => {
   }
 });
 
+// ── Roster stat diagnostic — GET /api/superadmin/roster-diag?team=Boozer+T ──
+// Returns every drafted player for the matching team_name with:
+//   espn_athlete_id, total_points, game_log, is_eliminated
+// Makes it easy to spot which players have no stats and why.
+router.get('/roster-diag', superadmin, (req, res) => {
+  try {
+    const teamName = (req.query.team || '').trim();
+    if (!teamName) return res.status(400).json({ error: 'team query param required' });
+
+    // Find the league member
+    const member = db.prepare(`
+      SELECT lm.league_id, lm.user_id, lm.team_name, u.username
+      FROM league_members lm
+      JOIN users u ON u.id = lm.user_id
+      WHERE LOWER(lm.team_name) LIKE LOWER(?)
+      LIMIT 1
+    `).get(`%${teamName}%`);
+
+    if (!member) return res.status(404).json({ error: `No team matching "${teamName}"` });
+
+    const picks = db.prepare(`
+      SELECT dp.player_id, dp.pick_number,
+             p.name, p.team, p.espn_team_id, p.espn_athlete_id,
+             p.season_ppg, p.seed, p.is_eliminated
+      FROM draft_picks dp
+      JOIN players p ON p.id = dp.player_id
+      WHERE dp.league_id = ? AND dp.user_id = ?
+      ORDER BY dp.pick_number
+    `).all(member.league_id, member.user_id);
+
+    const result = picks.map(p => {
+      const statRows = db.prepare(`
+        SELECT ps.points, ps.round, ps.opponent, g.game_date, g.team1, g.team2,
+               g.is_completed, g.is_live, g.espn_event_id
+        FROM player_stats ps
+        JOIN games g ON g.id = ps.game_id
+        WHERE ps.player_id = ?
+        ORDER BY g.game_date
+      `).all(p.player_id);
+
+      const totalPts = statRows.reduce((s, r) => s + r.points, 0);
+
+      return {
+        pick:            p.pick_number,
+        name:            p.name,
+        team:            p.team,
+        espn_team_id:    p.espn_team_id,
+        espn_athlete_id: p.espn_athlete_id || '(empty)',
+        season_ppg:      p.season_ppg,
+        seed:            p.seed,
+        is_eliminated:   !!p.is_eliminated,
+        total_pts:       totalPts,
+        games_with_stats: statRows.length,
+        game_log:        statRows,
+      };
+    });
+
+    res.json({ member, picks: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
