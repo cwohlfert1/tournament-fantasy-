@@ -1384,7 +1384,7 @@ export default function LeagueHome() {
                           <div className="text-brand-400 font-bold">{row.total_points > 0 ? row.total_points : '—'}</div>
                           {/* Mobile: PTP stacked below pts */}
                           {projETP !== null && projETP > 0 && (
-                            <div className="block sm:hidden text-[10px] font-semibold text-amber-500/70 mt-0.5 whitespace-nowrap">
+                            <div className="block sm:hidden text-right text-[10px] font-semibold text-amber-500/70 mt-0.5 whitespace-nowrap">
                               {projETP.toFixed(0)} PTP
                             </div>
                           )}

@@ -613,7 +613,7 @@ export default function Leaderboard() {
                         <div className="text-gray-500 text-[10px]">pts</div>
                         {/* Mobile: PTP stacked below pts (hidden on sm+ where column header shows) */}
                         {projETP !== null && projETP > 0 && (
-                          <div className="block sm:hidden text-[10px] font-semibold text-amber-500/70 mt-0.5 whitespace-nowrap">
+                          <div className="block sm:hidden text-right text-[10px] font-semibold text-amber-500/70 mt-0.5 whitespace-nowrap">
                             {projETP.toFixed(0)} PTP
                           </div>
                         )}
