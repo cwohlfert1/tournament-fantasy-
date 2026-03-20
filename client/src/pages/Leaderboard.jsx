@@ -71,19 +71,32 @@ function InfoTooltip({ text }) {
 
 function SgBonusCard({ sgLeader, sgBoard, bonus }) {
   const [expanded, setExpanded] = useState(false);
+  const [cardOpen, setCardOpen] = useState(() => window.innerWidth >= 768);
   if (!bonus || bonus <= 0) return null;
 
   return (
     <div className="card mb-6 bg-gradient-to-br from-purple-900/20 via-gray-900 to-gray-900 border-purple-500/25 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-5 pt-5 pb-3">
+      {/* Header — always visible, toggles card on mobile */}
+      <button
+        type="button"
+        onClick={() => setCardOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-5 pt-5 pb-3 text-left hover:bg-white/[0.02] transition-colors"
+      >
         <span className="text-lg">🎯</span>
         <h3 className="text-white font-bold text-base">Single Game Bonus</h3>
         <span className="text-purple-400 font-bold">{fmt(bonus)}</span>
+        {!cardOpen && sgLeader && (
+          <span className="text-gray-500 text-xs truncate ml-1">· {sgLeader.player_name} {sgLeader.points}pts</span>
+        )}
         <InfoTooltip text="Paid to the owner of the player with the highest single game point total during the tournament. Example: John Tonje scored 37 points vs BYU last March — his owner won the bonus." />
-      </div>
+        <svg className="w-4 h-4 text-gray-500 ml-auto shrink-0 transition-transform duration-200"
+          style={{ transform: cardOpen ? 'rotate(180deg)' : 'none' }}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
-      {!sgLeader ? (
+      {cardOpen && (!sgLeader ? (
         <div className="px-5 pb-5 text-gray-500 text-sm">
           No games played yet — check back once the tournament tips off.
         </div>
@@ -189,7 +202,7 @@ function SgBonusCard({ sgLeader, sgBoard, bonus }) {
             </>
           )}
         </>
-      )}
+      ))}
     </div>
   );
 }
@@ -292,6 +305,7 @@ export default function Leaderboard() {
   const [sortBy, setSortBy] = useState('points');
   const [sortDir, setSortDir] = useState('desc');
   const [expandedPlayerId, setExpandedPlayerId] = useState(null);
+  const [prizePoolOpen, setPrizePoolOpen] = useState(() => window.innerWidth >= 768);
   useDocTitle(league ? `${league.name} Standings | TourneyRun` : 'Standings | TourneyRun');
 
   // ── "X seconds ago" ticker ────────────────────────────────────────────────
@@ -418,58 +432,75 @@ export default function Leaderboard() {
 
       {/* Prize pool banner */}
       {hasPrizePool && (
-        <div className="card p-5 mb-6 bg-gradient-to-br from-yellow-500/8 to-transparent border-yellow-500/20">
-          <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
-            <div>
-              <div className="text-gray-400 text-xs uppercase tracking-wider mb-1">Total Prize Pool</div>
-              <div className="text-3xl font-black text-yellow-400">{fmt(totalPool)}</div>
-              <div className="text-gray-500 text-xs mt-0.5">
+        <div className="card mb-6 bg-gradient-to-br from-yellow-500/8 to-transparent border-yellow-500/20 overflow-hidden">
+          {/* Toggle header */}
+          <button
+            type="button"
+            onClick={() => setPrizePoolOpen(v => !v)}
+            className="w-full flex items-center gap-2 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
+          >
+            <span className="text-yellow-400 font-black text-lg">💰</span>
+            <span className="text-yellow-400 font-bold text-sm">Prize Pool</span>
+            <span className="text-white font-black text-sm">{fmt(totalPool)}</span>
+            {!prizePoolOpen && (
+              <span className="text-gray-500 text-xs truncate">
+                {pct1 > 0 && `· 1st ${fmt(pay1)}`}{pct2 > 0 && ` · 2nd ${fmt(pay2)}`}{pct3 > 0 && ` · 3rd ${fmt(pay3)}`}
+              </span>
+            )}
+            <svg className="w-4 h-4 text-gray-500 ml-auto shrink-0 transition-transform duration-200"
+              style={{ transform: prizePoolOpen ? 'rotate(180deg)' : 'none' }}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {prizePoolOpen && (
+            <div className="px-5 pb-5 border-t border-yellow-500/10">
+              <div className="text-gray-500 text-xs mt-3 mb-3">
                 {fmt(buyIn)} buy-in × {managerCount} team{managerCount !== 1 ? 's' : ''}
               </div>
-            </div>
-          </div>
-
-          <div className="space-y-2 text-sm">
-            {bonus > 0 && (
-              <div className="text-gray-500 text-xs pb-1 border-b border-gray-800">
-                Main pool for standings: <span className="text-white font-semibold">{fmt(mainPool)}</span>
-                <span className="text-gray-600 ml-1">({fmt(totalPool)} − {fmt(bonus)} bonus)</span>
+              <div className="space-y-2 text-sm">
+                {bonus > 0 && (
+                  <div className="text-gray-500 text-xs pb-1 border-b border-gray-800">
+                    Main pool for standings: <span className="text-white font-semibold">{fmt(mainPool)}</span>
+                    <span className="text-gray-600 ml-1">({fmt(totalPool)} − {fmt(bonus)} bonus)</span>
+                  </div>
+                )}
+                {pct1 > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">🥇 1st Place</span>
+                    <span className="text-white font-bold">{fmt(pay1)}</span>
+                    <span className="text-gray-600 text-xs">{pct1}% of {fmt(mainPool)}</span>
+                  </div>
+                )}
+                {pct2 > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">🥈 2nd Place</span>
+                    <span className="text-white font-bold">{fmt(pay2)}</span>
+                    <span className="text-gray-600 text-xs">{pct2}% of {fmt(mainPool)}</span>
+                  </div>
+                )}
+                {pct3 > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">🥉 3rd Place</span>
+                    <span className="text-white font-bold">{fmt(pay3)}</span>
+                    <span className="text-gray-600 text-xs">{pct3}% of {fmt(mainPool)}</span>
+                  </div>
+                )}
+                {bonus > 0 && (
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-800">
+                    <span className="text-gray-400">🎯 Single Game Bonus</span>
+                    <span className="text-purple-400 font-bold">{fmt(bonus)}</span>
+                    <span className="text-gray-600 text-xs hidden sm:inline">highest single-game scorer</span>
+                  </div>
+                )}
               </div>
-            )}
-            {pct1 > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">🥇 1st Place</span>
-                <span className="text-white font-bold">{fmt(pay1)}</span>
-                <span className="text-gray-600 text-xs">{pct1}% of {fmt(mainPool)}</span>
-              </div>
-            )}
-            {pct2 > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">🥈 2nd Place</span>
-                <span className="text-white font-bold">{fmt(pay2)}</span>
-                <span className="text-gray-600 text-xs">{pct2}% of {fmt(mainPool)}</span>
-              </div>
-            )}
-            {pct3 > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">🥉 3rd Place</span>
-                <span className="text-white font-bold">{fmt(pay3)}</span>
-                <span className="text-gray-600 text-xs">{pct3}% of {fmt(mainPool)}</span>
-              </div>
-            )}
-            {bonus > 0 && (
-              <div className="flex items-center justify-between pt-1 border-t border-gray-800">
-                <span className="text-gray-400">🎯 Single Game Bonus</span>
-                <span className="text-purple-400 font-bold">{fmt(bonus)}</span>
-                <span className="text-gray-600 text-xs hidden sm:inline">highest single-game scorer</span>
-              </div>
-            )}
-          </div>
-
-          {league.payment_instructions && (
-            <div className="mt-3 pt-3 border-t border-gray-800 flex items-center gap-2 text-sm">
-              <span className="text-gray-500 text-xs">Pay via:</span>
-              <span className="text-green-400 font-medium text-xs">{league.payment_instructions}</span>
+              {league.payment_instructions && (
+                <div className="mt-3 pt-3 border-t border-gray-800 flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 text-xs">Pay via:</span>
+                  <span className="text-green-400 font-medium text-xs">{league.payment_instructions}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

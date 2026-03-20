@@ -4,7 +4,7 @@ import { playerAvatarStyle, teamEmoji } from '../teamEmojis';
 
 export default function LiveGamesBanner({ leagueId, onLiveStatus }) {
   const [data, setData] = useState(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(() => window.innerWidth >= 768);
 
   const fetchLive = async () => {
     try {
