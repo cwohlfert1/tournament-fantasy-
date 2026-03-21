@@ -24,10 +24,8 @@ const AMOUNTS = {
 function getSquare() {
   const accessToken = process.env.SQUARE_ACCESS_TOKEN;
   if (!accessToken) throw new Error('SQUARE_ACCESS_TOKEN not set');
-  const { Client, Environment } = require('square');
-  const environment = process.env.SQUARE_ENVIRONMENT === 'production'
-    ? Environment.Production
-    : Environment.Sandbox;
+  const { Client } = require('square');
+  const environment = process.env.SQUARE_ENVIRONMENT === 'production' ? 'production' : 'sandbox';
   return new Client({ accessToken, environment });
 }
 
