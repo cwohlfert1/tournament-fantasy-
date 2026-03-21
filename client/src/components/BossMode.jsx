@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 // ─── Fake Excel Data ─────────────────────────────────────────────────────────
@@ -337,6 +337,120 @@ const rowNum = {
   padding: '2px 0',
 };
 
+// ─── Draggable Boss Button ────────────────────────────────────────────────────
+function DraggableBossButton({ onClick }) {
+  const defaultPos = () => {
+    try {
+      const saved = localStorage.getItem('bossButtonPos');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return { x: window.innerWidth - 80, y: window.innerHeight - 160 };
+  };
+
+  const [pos, setPos] = useState(defaultPos);
+  const dragging = useRef(false);
+  const startMouse = useRef({ x: 0, y: 0 });
+  const startPos = useRef({ x: 0, y: 0 });
+  const moved = useRef(false);
+  const btnRef = useRef(null);
+
+  const clamp = (p) => ({
+    x: Math.max(0, Math.min(window.innerWidth - 70, p.x)),
+    y: Math.max(0, Math.min(window.innerHeight - 80, p.y)),
+  });
+
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    dragging.current = true;
+    moved.current = false;
+    startMouse.current = { x: e.clientX, y: e.clientY };
+    startPos.current = { ...pos };
+
+    const onMove = (ev) => {
+      if (!dragging.current) return;
+      const dx = ev.clientX - startMouse.current.x;
+      const dy = ev.clientY - startMouse.current.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved.current = true;
+      const next = clamp({ x: startPos.current.x + dx, y: startPos.current.y + dy });
+      setPos(next);
+    };
+    const onUp = (ev) => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      const dx = ev.clientX - startMouse.current.x;
+      const dy = ev.clientY - startMouse.current.y;
+      const final = clamp({ x: startPos.current.x + dx, y: startPos.current.y + dy });
+      localStorage.setItem('bossButtonPos', JSON.stringify(final));
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const onTouchStart = (e) => {
+    const t = e.touches[0];
+    dragging.current = true;
+    moved.current = false;
+    startMouse.current = { x: t.clientX, y: t.clientY };
+    startPos.current = { ...pos };
+
+    const onMove = (ev) => {
+      if (!dragging.current) return;
+      ev.preventDefault();
+      const touch = ev.touches[0];
+      const dx = touch.clientX - startMouse.current.x;
+      const dy = touch.clientY - startMouse.current.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved.current = true;
+      setPos(clamp({ x: startPos.current.x + dx, y: startPos.current.y + dy }));
+    };
+    const onEnd = (ev) => {
+      dragging.current = false;
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      const touch = ev.changedTouches[0];
+      const final = clamp({ x: startPos.current.x + (touch.clientX - startMouse.current.x), y: startPos.current.y + (touch.clientY - startMouse.current.y) });
+      localStorage.setItem('bossButtonPos', JSON.stringify(final));
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+  };
+
+  const handleClick = () => {
+    if (!moved.current) onClick();
+  };
+
+  return (
+    <button
+      ref={btnRef}
+      onMouseDown={onMouseDown}
+      onTouchStart={onTouchStart}
+      onClick={handleClick}
+      title="Boss is coming… (B = Excel, G = Gmail)"
+      style={{
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y,
+        zIndex: 9998,
+        background: 'rgba(30,30,40,0.75)',
+        color: 'rgba(255,255,255,0.80)',
+        border: '1px solid rgba(255,255,255,0.22)',
+        borderRadius: 10,
+        padding: '6px 11px',
+        fontSize: 14,
+        cursor: 'grab',
+        backdropFilter: 'blur(6px)',
+        letterSpacing: '0.01em',
+        lineHeight: 1.4,
+        userSelect: 'none',
+        touchAction: 'none',
+      }}
+    >
+      <div style={{ fontSize: 10, opacity: 0.85, marginBottom: 3, letterSpacing: '0.04em' }}>Boss Coming?</div>
+      👔
+    </button>
+  );
+}
+
 // ─── Main BossMode Component ─────────────────────────────────────────────────
 export default function BossMode() {
   const [mode, setMode] = useState(null); // null | 'excel' | 'gmail'
@@ -349,10 +463,8 @@ export default function BossMode() {
 
   useEffect(() => {
     function onKey(e) {
-      // Don't hijack keys while typing in an input/textarea
       const tag = document.activeElement?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
-
       if (e.key === 'Escape') { dismiss(); return; }
       if (e.key === 'b' || e.key === 'B') { setMode('excel'); return; }
       if (e.key === 'g' || e.key === 'G') { setMode('gmail'); return; }
@@ -363,33 +475,9 @@ export default function BossMode() {
 
   return (
     <>
-      {/* The button — subtle, fixed bottom-right — hidden in draft room, golf, and hub */}
       {mode === null && !isDraft && !isGolf && !isHub && (
-        <button
-          onClick={() => setMode('excel')}
-          title="Boss is coming… (B = Excel, G = Gmail)"
-          style={{
-            position: 'fixed',
-            bottom: 84,
-            right: 14,
-            zIndex: 9998,
-            background: 'rgba(30,30,40,0.75)',
-            color: 'rgba(255,255,255,0.80)',
-            border: '1px solid rgba(255,255,255,0.22)',
-            borderRadius: 10,
-            padding: '6px 11px',
-            fontSize: 14,
-            cursor: 'pointer',
-            backdropFilter: 'blur(6px)',
-            letterSpacing: '0.01em',
-            lineHeight: 1.4,
-          }}
-        >
-          <div style={{ fontSize: 10, opacity: 0.85, marginBottom: 3, letterSpacing: '0.04em' }}>Boss Coming?</div>
-          👔
-        </button>
+        <DraggableBossButton onClick={() => setMode('excel')} />
       )}
-
       {mode === 'excel' && <FakeExcel onDismiss={dismiss} />}
       {mode === 'gmail' && <FakeGmail onDismiss={dismiss} />}
     </>

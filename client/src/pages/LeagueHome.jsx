@@ -119,7 +119,7 @@ function SmartDraftBanner({ leagueId }) {
               <p className="font-semibold text-white mb-1.5">Smart Draft is an AI-powered algorithm that drafts for you when you can't make it. It automatically:</p>
               <p>✓ Avoids injured players</p>
               <p>✓ Balances your roster across regions and teams</p>
-              <p>✓ Targets high PTP players with the best tournament upside</p>
+              <p>✓ Targets high Proj players with the best tournament upside</p>
               <p>✓ Fills position needs intelligently</p>
               <p className="text-gray-500 mt-1.5">Much smarter than just grabbing the highest rated player available.</p>
             </div>
@@ -1009,7 +1009,7 @@ export default function LeagueHome() {
                         </div>
                       )}
                       <div className="text-right">
-                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">PTP</div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">Proj</div>
                         <div className="font-black text-gray-300" style={{ fontSize: 18 }}>{totalETP.toFixed(1)}</div>
                       </div>
                     </div>
@@ -1336,7 +1336,7 @@ export default function LeagueHome() {
                 <ColHeader col="name" label="Team" align="left" />
                 {hasStandingsData && (
                   <div className="flex items-center gap-3 sm:gap-5">
-                    <span className="hidden sm:inline-block"><ColHeader col="etp" label="PTP" /></span>
+                    <span className="hidden sm:inline-block"><ColHeader col="etp" label="Proj" /></span>
                     <ColHeader col="alive" label="Alive" />
                     <ColHeader col="points" label="Pts" />
                   </div>
@@ -1382,10 +1382,10 @@ export default function LeagueHome() {
                         )}
                         <div className="text-right w-10">
                           <div className="text-brand-400 font-bold">{row.total_points > 0 ? row.total_points : '—'}</div>
-                          {/* Mobile: PTP stacked below pts */}
+                          {/* Mobile: Proj stacked below pts */}
                           {projETP !== null && projETP > 0 && (
                             <div className="block sm:hidden text-right text-[10px] font-semibold text-green-400 mt-0.5 whitespace-nowrap">
-                              {projETP.toFixed(0)} PTP
+                              {projETP.toFixed(0)} Proj
                             </div>
                           )}
                         </div>
