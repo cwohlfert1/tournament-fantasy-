@@ -70,6 +70,28 @@ const HUB_CSS = `
     border-color: rgba(0,204,106,0.25) !important;
     background: rgba(0,204,106,0.04) !important;
   }
+  .hub-steps-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  @media (max-width: 767px) {
+    .hub-steps-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .hub-steps-grid .hub-step-card {
+      padding: 24px 20px !important;
+      text-align: left !important;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .hub-steps-grid .hub-step-card > div:first-child {
+      width: 48px !important;
+      height: 48px !important;
+      font-size: 20px !important;
+      flex-shrink: 0;
+      margin: 0 !important;
+    }
+  }
 `;
 
 // ── Favicon ───────────────────────────────────────────────────────────────────
@@ -606,8 +628,8 @@ export default function HubLanding() {
             </h2>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, position: 'relative' }} className="grid-cols-1 md:grid-cols-3">
-            {/* Connecting dashed line */}
+          <div className="hub-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, position: 'relative' }}>
+            {/* Connecting dashed line — desktop only */}
             <div className="hidden md:block" style={{
               position: 'absolute', top: 44, left: '20%', right: '20%', height: 1,
               backgroundImage: 'linear-gradient(90deg, rgba(0,204,106,0.3) 50%, transparent 50%)',
@@ -616,10 +638,10 @@ export default function HubLanding() {
             }} />
 
             {[
-              { num: '01', icon: '📋', title: 'PICK YOUR PLAYERS', body: 'Draft once before the season — or pick new golfers every tournament. Snake draft, auction draft, or simple pick sheet.' },
-              { num: '02', icon: '📊', title: 'SCORE AS THEY PLAY', body: 'Points update live every round. Majors count 1.5×. Watch your league move in real time.' },
-              { num: '03', icon: '🏆', title: 'TAKE THE PRIZE', body: 'Highest score wins. Commissioner handles payouts. We track everything for you.' },
-            ].map(({ num, icon, title, body }) => (
+              { num: '01', icon: '📋', title: 'PICK YOUR PLAYERS', body: 'Draft once before the season — or pick new golfers every tournament. Snake draft, auction draft, or simple pick sheet.', sub: 'Golf: auction or snake draft. Pool: simple pick sheet. No experience needed.' },
+              { num: '02', icon: '📊', title: 'SCORE AS THEY PLAY', body: 'Points update live every round. Majors count 1.5×. Watch your league move in real time.', sub: 'We sync scores automatically from ESPN. No manual entry, ever.' },
+              { num: '03', icon: '🏆', title: 'TAKE THE PRIZE', body: 'Highest score wins. Commissioner handles payouts. We track everything for you.', sub: 'Commissioner sets payouts. We show who owes who. You collect.' },
+            ].map(({ num, icon, title, body, sub }) => (
               <div key={num} className="hub-step-card" style={{
                 textAlign: 'center', padding: '32px 28px',
                 background: 'rgba(255,255,255,0.025)',
@@ -636,7 +658,8 @@ export default function HubLanding() {
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#00cc6a', letterSpacing: '0.18em', marginBottom: 12 }}>{num}</div>
                 <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', color: '#f9fafb' }}>{title}</h3>
-                <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.75 }}>{body}</p>
+                <p style={{ margin: '0 0 12px', fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.75 }}>{body}</p>
+                <p style={{ margin: 0, fontSize: 12, color: 'rgba(0,204,106,0.6)', lineHeight: 1.65, fontStyle: 'italic' }}>{sub}</p>
               </div>
             ))}
           </div>
@@ -673,6 +696,72 @@ export default function HubLanding() {
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tag}</span>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────────────── PRICING ─────────────────────────────────────── */}
+      <section style={{ padding: 'clamp(64px,10vw,96px) 24px', borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 14 }}>Pricing</div>
+            <h2 style={{ margin: '0 0 12px', fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
+              Transparent pricing. No tiers.
+            </h2>
+            <p style={{ margin: 0, fontSize: 16, color: 'rgba(255,255,255,0.4)' }}>Tired of the fantasy sports monopoly?</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 40, alignItems: 'center' }}>
+            {/* Left — statement */}
+            <div>
+              <p style={{ margin: '0 0 16px', fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+                We take a flat <span style={{ color: '#f59e0b' }}>15%</span> of the prize pool.
+              </p>
+              <p style={{ margin: '0 0 12px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
+                That's it. No subscriptions. No tiers. No surprise fees.
+              </p>
+              <p style={{ margin: '0 0 32px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
+                Your $100 league = <span style={{ color: '#00e87a', fontWeight: 700 }}>$85 goes to your crew.</span>
+              </p>
+              <Link to="/golf" style={{
+                display: 'inline-block', padding: '12px 28px',
+                background: 'linear-gradient(135deg, #00e87a, #00cc6a)',
+                color: '#001a0d', fontWeight: 800, fontSize: 14,
+                borderRadius: 10, textDecoration: 'none',
+                letterSpacing: '0.02em',
+              }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                Start your free league →
+              </Link>
+            </div>
+
+            {/* Right — comparison table */}
+            <div style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, overflow: 'hidden' }}>
+              {/* Header row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.06em', textTransform: 'uppercase' }} />
+                <div style={{ padding: '14px 16px', fontSize: 12, fontWeight: 800, color: '#f59e0b', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center', background: 'rgba(245,158,11,0.06)', borderLeft: '1px solid rgba(245,158,11,0.15)', borderRight: '1px solid rgba(245,158,11,0.15)' }}>
+                  TourneyRun
+                </div>
+                <div style={{ padding: '14px 16px', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center' }}>
+                  The Big Guys
+                </div>
+              </div>
+              {[
+                { label: 'Platform fee',  ours: 'Flat 15%',      theirs: '10–25% + sub' },
+                { label: 'Subscriptions', ours: 'None',          theirs: '$5–20/month'  },
+                { label: 'Setup fees',    ours: 'None',          theirs: 'Often yes'    },
+                { label: 'Transparency',  ours: 'Always',        theirs: 'Buried'       },
+              ].map(({ label, ours, theirs }, i) => (
+                <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                  <div style={{ padding: '13px 16px', fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>{label}</div>
+                  <div style={{ padding: '13px 16px', fontSize: 13, color: '#f59e0b', fontWeight: 700, textAlign: 'center', background: 'rgba(245,158,11,0.04)', borderLeft: '1px solid rgba(245,158,11,0.1)', borderRight: '1px solid rgba(245,158,11,0.1)' }}>{ours}</div>
+                  <div style={{ padding: '13px 16px', fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 500, textAlign: 'center' }}>{theirs}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
