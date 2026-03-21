@@ -339,92 +339,89 @@ const rowNum = {
 
 // ─── Draggable Boss Button ────────────────────────────────────────────────────
 function DraggableBossButton({ onClick }) {
-  const defaultPos = () => {
+  // posRef drives the actual position; state triggers re-render
+  const posRef = useRef(null);
+  const [pos, setPos] = useState(() => {
     try {
       const saved = localStorage.getItem('bossButtonPos');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const p = JSON.parse(saved);
+        posRef.current = p;
+        return p;
+      }
     } catch (_) {}
-    return { x: window.innerWidth - 80, y: window.innerHeight - 160 };
-  };
-
-  const [pos, setPos] = useState(defaultPos);
-  const dragging = useRef(false);
-  const startMouse = useRef({ x: 0, y: 0 });
-  const startPos = useRef({ x: 0, y: 0 });
-  const moved = useRef(false);
-  const btnRef = useRef(null);
-
-  const clamp = (p) => ({
-    x: Math.max(0, Math.min(window.innerWidth - 70, p.x)),
-    y: Math.max(0, Math.min(window.innerHeight - 80, p.y)),
+    const p = { x: window.innerWidth - 90, y: window.innerHeight - 170 };
+    posRef.current = p;
+    return p;
   });
 
-  const onMouseDown = (e) => {
-    e.preventDefault();
-    dragging.current = true;
+  const dragState = useRef(null); // { startMouseX, startMouseY, startPosX, startPosY }
+  const moved = useRef(false);
+
+  function clamp(x, y) {
+    return {
+      x: Math.max(0, Math.min(window.innerWidth - 72, x)),
+      y: Math.max(0, Math.min(window.innerHeight - 72, y)),
+    };
+  }
+
+  function applyPos(x, y) {
+    const p = clamp(x, y);
+    posRef.current = p;
+    setPos({ ...p });
+    return p;
+  }
+
+  function startDrag(clientX, clientY) {
     moved.current = false;
-    startMouse.current = { x: e.clientX, y: e.clientY };
-    startPos.current = { ...pos };
-
-    const onMove = (ev) => {
-      if (!dragging.current) return;
-      const dx = ev.clientX - startMouse.current.x;
-      const dy = ev.clientY - startMouse.current.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved.current = true;
-      const next = clamp({ x: startPos.current.x + dx, y: startPos.current.y + dy });
-      setPos(next);
+    dragState.current = {
+      startMouseX: clientX,
+      startMouseY: clientY,
+      startPosX: posRef.current.x,
+      startPosY: posRef.current.y,
     };
-    const onUp = (ev) => {
-      dragging.current = false;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      const dx = ev.clientX - startMouse.current.x;
-      const dy = ev.clientY - startMouse.current.y;
-      const final = clamp({ x: startPos.current.x + dx, y: startPos.current.y + dy });
-      localStorage.setItem('bossButtonPos', JSON.stringify(final));
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
+  }
 
-  const onTouchStart = (e) => {
-    const t = e.touches[0];
-    dragging.current = true;
-    moved.current = false;
-    startMouse.current = { x: t.clientX, y: t.clientY };
-    startPos.current = { ...pos };
+  function moveDrag(clientX, clientY) {
+    if (!dragState.current) return;
+    const { startMouseX, startMouseY, startPosX, startPosY } = dragState.current;
+    const dx = clientX - startMouseX;
+    const dy = clientY - startMouseY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved.current = true;
+    applyPos(startPosX + dx, startPosY + dy);
+  }
 
-    const onMove = (ev) => {
-      if (!dragging.current) return;
-      ev.preventDefault();
-      const touch = ev.touches[0];
-      const dx = touch.clientX - startMouse.current.x;
-      const dy = touch.clientY - startMouse.current.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved.current = true;
-      setPos(clamp({ x: startPos.current.x + dx, y: startPos.current.y + dy }));
-    };
-    const onEnd = (ev) => {
-      dragging.current = false;
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('touchend', onEnd);
-      const touch = ev.changedTouches[0];
-      const final = clamp({ x: startPos.current.x + (touch.clientX - startMouse.current.x), y: startPos.current.y + (touch.clientY - startMouse.current.y) });
-      localStorage.setItem('bossButtonPos', JSON.stringify(final));
-    };
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onEnd);
-  };
+  function endDrag(clientX, clientY) {
+    if (!dragState.current) return;
+    const { startMouseX, startMouseY, startPosX, startPosY } = dragState.current;
+    const p = applyPos(startPosX + (clientX - startMouseX), startPosY + (clientY - startMouseY));
+    dragState.current = null;
+    localStorage.setItem('bossButtonPos', JSON.stringify(p));
+  }
 
-  const handleClick = () => {
-    if (!moved.current) onClick();
-  };
+  useEffect(() => {
+    const onMouseMove = (e) => moveDrag(e.clientX, e.clientY);
+    const onMouseUp   = (e) => endDrag(e.clientX, e.clientY);
+    const onTouchMove = (e) => { if (dragState.current) { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); } };
+    const onTouchEnd  = (e) => { if (dragState.current) endDrag(e.changedTouches[0].clientX, e.changedTouches[0].clientY); };
+
+    document.addEventListener('mousemove',  onMouseMove);
+    document.addEventListener('mouseup',    onMouseUp);
+    document.addEventListener('touchmove',  onTouchMove, { passive: false });
+    document.addEventListener('touchend',   onTouchEnd);
+    return () => {
+      document.removeEventListener('mousemove',  onMouseMove);
+      document.removeEventListener('mouseup',    onMouseUp);
+      document.removeEventListener('touchmove',  onTouchMove);
+      document.removeEventListener('touchend',   onTouchEnd);
+    };
+  }, []); // eslint-disable-line
 
   return (
     <button
-      ref={btnRef}
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-      onClick={handleClick}
+      onMouseDown={(e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
+      onTouchStart={(e) => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
+      onClick={() => { if (!moved.current) onClick(); }}
       title="Boss is coming… (B = Excel, G = Gmail)"
       style={{
         position: 'fixed',

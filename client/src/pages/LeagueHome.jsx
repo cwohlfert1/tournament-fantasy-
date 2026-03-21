@@ -1282,7 +1282,7 @@ export default function LeagueHome() {
                             )}
                           </div>
                         </div>
-                        <span className="text-3xl select-none shrink-0">👑</span>
+                        <svg className="shrink-0" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6-6 6 6"/><path d="M4 15h16v4H4z"/><path d="M4 11l2 4h12l2-4"/></svg>
                       </div>
                     </div>
 
