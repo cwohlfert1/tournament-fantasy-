@@ -3024,6 +3024,37 @@ export default function GolfLeague() {
 
   if (!league) return null;
 
+  // Payment just completed but webhook may not have fired yet
+  if (league.status === 'pending_payment') {
+    const justPaid = searchParams.get('paid') === 'true';
+    return (
+      <div className="max-w-lg mx-auto px-4 py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-green-900/40 border border-green-700/40 flex items-center justify-center mx-auto mb-5">
+          <Trophy className="w-8 h-8 text-green-400" />
+        </div>
+        <h2 className="text-2xl font-black text-white mb-2">
+          {justPaid ? 'Confirming your payment…' : 'Payment required'}
+        </h2>
+        <p className="text-gray-400 text-sm mb-6">
+          {justPaid
+            ? 'Your league will be live in a few seconds once we confirm your payment. Refresh the page to continue.'
+            : 'This league is pending payment. Complete checkout to activate it.'}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 text-white font-semibold text-sm transition-colors"
+          >
+            Refresh
+          </button>
+          <Link to="/golf/dashboard" className="px-6 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold text-sm transition-colors">
+            Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const isComm = league.commissioner_id === user?.id;
 
   function setTab(t) {

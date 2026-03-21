@@ -517,8 +517,21 @@ export default function CreateGolfLeague() {
         payment_methods:  JSON.stringify(form.payment_methods),
         pool_tiers:       JSON.stringify(form.pool_tiers),
       };
-      const res = await api.post('/golf/leagues', payload);
-      navigate(`/golf/league/${res.data.league.id}`);
+      const createRes = await api.post('/golf/leagues', payload);
+      const league = createRes.data.league;
+
+      // Trigger payment gate — league is created with pending_payment status
+      const payRes = await api.post('/golf/payments/create-checkout-session', {
+        type: 'comm_pro',
+        leagueId: league.id,
+      });
+
+      if (payRes.data.free || payRes.data.alreadyPaid) {
+        navigate(`/golf/league/${league.id}`);
+      } else {
+        // Redirect to Square hosted checkout
+        window.location.href = payRes.data.url;
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create league');
       setLoading(false);

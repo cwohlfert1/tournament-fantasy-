@@ -303,9 +303,9 @@ router.post('/leagues', authMiddleware, (req, res) => {
         payment_methods, payout_places,
         pick_sheet_format, pool_tiers, pool_salary_cap, pool_cap_unit,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds
-      ) VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      id, name, req.user.id, invite_code, parseInt(max_teams) || 8,
+      id, name, req.user.id, invite_code, 'pending_payment', parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
       roster_size, starters_per_week, parseInt(pick_time_limit) || 60,
       fmt, parseInt(salary_cap) || 2400, parseInt(weekly_salary_cap) || 50000,

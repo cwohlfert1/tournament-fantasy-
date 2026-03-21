@@ -240,11 +240,15 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
 
     const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
 
+    const redirectUrl = (type === 'comm_pro' && leagueId)
+      ? `${clientUrl}/golf/league/${leagueId}?paid=true`
+      : `${clientUrl}/golf/payment/success?type=${type}`;
+
     const { url, orderId: squareOrderId } = await createPaymentLink({
       name:       productNames[type] + (creditToApply > 0 ? ` (−$${creditToApply.toFixed(2)} credit)` : ''),
       amount:     finalAmount,
       metadata,
-      redirectUrl: `${clientUrl}/golf/payment/success?type=${type}&session_id=${squareOrderId || 'pending'}`,
+      redirectUrl,
       buyerEmail:  user?.email,
     });
 
@@ -385,6 +389,11 @@ async function fulfillGolfPayment(metadata) {
         paid_at = CURRENT_TIMESTAMP,
         stripe_session_id = excluded.stripe_session_id
     `).run(uuidv4(), metadata.league_id, metadata.user_id, metadata.season || SEASON, orderId);
+    // Activate the league (was created with pending_payment status)
+    if (metadata.league_id) {
+      db.prepare(`UPDATE golf_leagues SET status = 'lobby' WHERE id = ? AND status = 'pending_payment'`)
+        .run(metadata.league_id);
+    }
     console.log(`[golf] comm_pro fulfilled league=${metadata.league_id}`);
   }
 }
