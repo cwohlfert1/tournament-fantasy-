@@ -2857,20 +2857,20 @@ function PGALiveTab({ leagueId, league }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 function getTabs(league, isComm) {
+  const isPool = league?.format_type === 'pool';
   const base = [
-    { key: 'overview',  label: 'Overview'  },
-    { key: 'schedule',  label: 'Schedule'  },
-    { key: 'roster',    label: 'Roster'    },
+    { key: 'overview',  label: 'Overview' },
+    { key: 'roster',    label: isPool ? 'My Picks' : 'Roster' },
   ];
-  if (league?.format_type === 'tourneyrun') {
+  if (!isPool) {
+    base.push({ key: 'lineup', label: 'My Lineup' });
+  }
+  if (!isPool) {
     base.push({ key: 'freeagency', label: 'Free Agency' });
   }
-  base.push(
-    { key: 'lineup',    label: 'Lineup'    },
-    { key: 'standings', label: 'Standings' },
-  );
-  if (league?.format_type === 'pool' && league?.pool_tournament_id) {
-    base.push({ key: 'pga-live', label: '⛳ PGA Live' });
+  base.push({ key: 'standings', label: 'Standings' });
+  if (isPool && league?.pool_tournament_id) {
+    base.push({ key: 'pga-live', label: 'PGA Scoreboard' });
   }
   if (isComm) {
     base.push({ key: 'commissioner', label: '⚙ Commissioner' });
