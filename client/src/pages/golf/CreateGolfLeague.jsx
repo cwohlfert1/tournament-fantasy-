@@ -286,7 +286,7 @@ function TierConfigEditor({ tiers, onChange }) {
   }
 
   function addTier() {
-    onChange([...tiers, { tier: tiers.length + 1, odds_min: '', odds_max: '', picks: 1 }]);
+    onChange([...tiers, { tier: tiers.length + 1, odds_min: '', odds_max: '', picks: 1, approxPlayers: null }]);
   }
 
   function removeTier(i) {
@@ -297,43 +297,55 @@ function TierConfigEditor({ tiers, onChange }) {
     <div>
       <div className="space-y-2">
         {tiers.map((t, i) => (
-          <div key={i} className="flex items-center gap-2 bg-gray-800/40 rounded-xl px-3 py-2.5">
-            <span className="text-gray-500 text-xs font-bold w-10 shrink-0">T{t.tier}</span>
-            <input
-              type="text"
-              className="input py-1 text-xs w-20 shrink-0"
-              placeholder="8:1"
-              value={t.odds_min}
-              onChange={e => updateTier(i, 'odds_min', e.target.value)}
-            />
-            <span className="text-gray-600 text-xs shrink-0">–</span>
-            <input
-              type="text"
-              className="input py-1 text-xs w-24 shrink-0"
-              placeholder="33:1"
-              value={t.odds_max}
-              onChange={e => updateTier(i, 'odds_max', e.target.value)}
-            />
-            <span className="text-gray-500 text-xs shrink-0 ml-auto">Picks</span>
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => updateTier(i, 'picks', Math.max(1, (parseInt(t.picks) || 1) - 1))}
-                className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold flex items-center justify-center transition-colors"
-              >−</button>
-              <span className="w-6 text-center text-sm font-bold text-white">{t.picks}</span>
-              <button
-                type="button"
-                onClick={() => updateTier(i, 'picks', Math.min(10, (parseInt(t.picks) || 1) + 1))}
-                className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold flex items-center justify-center transition-colors"
-              >+</button>
+          <div key={i}>
+            <div className="flex items-center gap-2 bg-gray-800/40 rounded-xl px-3 py-2.5">
+              <span className="text-gray-500 text-xs font-bold w-10 shrink-0">T{t.tier}</span>
+              <input
+                type="text"
+                className="input py-1 text-xs w-20 shrink-0"
+                placeholder="8:1"
+                value={t.odds_min}
+                onChange={e => updateTier(i, 'odds_min', e.target.value)}
+              />
+              <span className="text-gray-600 text-xs shrink-0">–</span>
+              <input
+                type="text"
+                className="input py-1 text-xs w-24 shrink-0"
+                placeholder="250:1+"
+                value={t.odds_max}
+                onChange={e => updateTier(i, 'odds_max', e.target.value)}
+              />
+              {t.approxPlayers != null ? (
+                <span className="text-gray-600 text-xs shrink-0 hidden sm:inline">~{t.approxPlayers} players</span>
+              ) : (
+                <span className="text-gray-600 text-xs shrink-0 hidden sm:inline">Rest of field</span>
+              )}
+              <span className="text-gray-500 text-xs shrink-0 ml-auto">Picks</span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => updateTier(i, 'picks', Math.max(1, (parseInt(t.picks) || 1) - 1))}
+                  className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold flex items-center justify-center transition-colors"
+                >−</button>
+                <span className="w-6 text-center text-sm font-bold text-white">{t.picks}</span>
+                <button
+                  type="button"
+                  onClick={() => updateTier(i, 'picks', Math.min(10, (parseInt(t.picks) || 1) + 1))}
+                  className="w-6 h-6 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-bold flex items-center justify-center transition-colors"
+                >+</button>
+              </div>
+              {tiers.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeTier(i)}
+                  className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-red-400 text-lg leading-none transition-colors shrink-0"
+                >×</button>
+              )}
             </div>
-            {tiers.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeTier(i)}
-                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-red-400 text-lg leading-none transition-colors shrink-0"
-              >×</button>
+            {i === 0 && (
+              <p className="text-gray-600 text-xs mt-1 ml-3 italic">
+                Elite tier — Scheffler, McIlroy and similar favorites land here automatically
+              </p>
             )}
           </div>
         ))}
@@ -348,6 +360,9 @@ function TierConfigEditor({ tiers, onChange }) {
         </button>
         <span className="text-gray-500 text-xs">Total picks per team: <span className="text-white font-bold">{totalPicks}</span></span>
       </div>
+      <p className="text-gray-600 text-xs mt-3 leading-relaxed">
+        Tiers are auto-assigned by betting odds when the tournament field is loaded. You can adjust any tier before launch.
+      </p>
     </div>
   );
 }
@@ -423,10 +438,12 @@ const DEFAULT_FORM = {
   comm_pro_price: 19.99,
   pick_sheet_format: 'tiered',
   pool_tiers: [
-    { tier: 1, odds_min: '8:1',   odds_max: '33:1',   picks: 2 },
-    { tier: 2, odds_min: '35:1',  odds_max: '125:1',  picks: 3 },
-    { tier: 3, odds_min: '150:1', odds_max: '400:1',  picks: 2 },
-    { tier: 4, odds_min: '500:1', odds_max: '2000:1', picks: 2 },
+    { tier: 1, odds_min: '1:1',   odds_max: '12:1',   picks: 1, approxPlayers: 3  },
+    { tier: 2, odds_min: '14:1',  odds_max: '25:1',   picks: 1, approxPlayers: 5  },
+    { tier: 3, odds_min: '28:1',  odds_max: '50:1',   picks: 1, approxPlayers: 10 },
+    { tier: 4, odds_min: '55:1',  odds_max: '100:1',  picks: 1, approxPlayers: 17 },
+    { tier: 5, odds_min: '110:1', odds_max: '200:1',  picks: 1, approxPlayers: 25 },
+    { tier: 6, odds_min: '250:1', odds_max: '',        picks: 1, approxPlayers: null },
   ],
   pool_salary_cap: 50000,
   pool_cap_unit: 50000,
