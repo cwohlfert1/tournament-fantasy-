@@ -766,7 +766,7 @@ export default function HubLanding() {
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 14 }}>Pricing</div>
             <h2 style={{ margin: '0 0 12px', fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
-              Transparent pricing. No tiers.
+              We charge a flat fee per tournament. That's it.
             </h2>
             <p style={{ margin: 0, fontSize: 16, color: 'rgba(255,255,255,0.4)' }}>Tired of the fantasy sports monopoly?</p>
           </div>
@@ -775,13 +775,13 @@ export default function HubLanding() {
             {/* Left — statement */}
             <div>
               <p style={{ margin: '0 0 16px', fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-                We take a flat <span style={{ color: '#f59e0b' }}>15%</span> of the prize pool.
+                From <span style={{ color: '#00e87a' }}>$9.99</span> per tournament.
               </p>
               <p style={{ margin: '0 0 12px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
-                That's it. No subscriptions. No tiers. No surprise fees.
+                Zero prize pool fees. Zero subscriptions.
               </p>
               <p style={{ margin: '0 0 32px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
-                Your $100 league = <span style={{ color: '#00e87a', fontWeight: 700 }}>$85 goes to your crew.</span>
+                Your $100 buy-in? <span style={{ color: '#00e87a', fontWeight: 700 }}>Your crew keeps $100.</span>
               </p>
               <Link to="/golf" style={{
                 display: 'inline-block', padding: '12px 28px',
@@ -810,12 +810,13 @@ export default function HubLanding() {
                 </div>
               </div>
               {[
-                { label: 'Platform fee',  ours: 'Flat 15%',      theirs: '10–25% + sub' },
-                { label: 'Subscriptions', ours: 'None',          theirs: '$5–20/month'  },
-                { label: 'Setup fees',    ours: 'None',          theirs: 'Often yes'    },
-                { label: 'Transparency',  ours: 'Always',        theirs: 'Buried'       },
+                { label: 'Platform fee',   ours: 'From $9.99/tournament', theirs: '10–25% + sub' },
+                { label: 'Prize pool cut', ours: 'Zero',                  theirs: 'Up to 12.5%'  },
+                { label: 'Subscriptions',  ours: 'None',                  theirs: '$5–20/month'  },
+                { label: 'Setup fees',     ours: 'None',                  theirs: 'Often yes'    },
+                { label: 'Transparency',   ours: 'Always',                theirs: 'Buried'       },
               ].map(({ label, ours, theirs }, i) => (
-                <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                   <div style={{ padding: '13px 16px', fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>{label}</div>
                   <div style={{ padding: '13px 16px', fontSize: 13, color: '#f59e0b', fontWeight: 700, textAlign: 'center', background: 'rgba(245,158,11,0.04)', borderLeft: '1px solid rgba(245,158,11,0.1)', borderRight: '1px solid rgba(245,158,11,0.1)' }}>{ours}</div>
                   <div style={{ padding: '13px 16px', fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 500, textAlign: 'center' }}>{theirs}</div>
@@ -835,8 +836,8 @@ export default function HubLanding() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 18 }}>🏆</span>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>
-                tourney<span style={{ color: '#f59e0b' }}>run</span>
+              <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.02em' }}>
+                <span style={{ color: '#fff', fontWeight: 400 }}>tourney</span><span style={{ color: '#00cc6a', fontWeight: 700 }}>run</span>
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>© 2026 Player Pool Fantasy</div>
             </div>
