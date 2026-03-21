@@ -2676,9 +2676,15 @@ function PGALiveTab({ leagueId, league }) {
   async function load() {
     try {
       const r = await api.get(`/golf/leagues/${leagueId}/pga-live`);
+      console.log('PGA raw response:', r);
+      console.log('PGA data:', r.data);
+      console.log('competitors length:', r.data?.competitors?.length);
+      console.log('no_event:', r.data?.no_event, 'fetch_error:', r.data?.fetch_error);
       setData(r.data);
       setLastFetch(Date.now());
-    } catch (_) {}
+    } catch (err) {
+      console.error('PGA fetch error:', err);
+    }
     setLoading(false);
   }
 
