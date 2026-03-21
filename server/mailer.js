@@ -285,4 +285,93 @@ async function sendCommProUnlocked(toEmail, username, leagueName) {
   });
 }
 
-module.exports = { sendPasswordReset, sendWelcome, sendGolfPaymentConfirmation, sendCommProUnlocked };
+async function sendGolfPoolLive(toEmail, { username, leagueName, leagueId, spotsOpen, tournamentName }) {
+  const transport = getTransport();
+  const from = process.env.MAIL_FROM || process.env.MAIL_USER;
+  const leagueUrl = `https://www.tourneyrun.app/golf/league/${leagueId}`;
+
+  const tournamentLine = tournamentName
+    ? `<tr><td style="padding:10px 0;border-bottom:1px solid #0d2016;">
+         <table cellpadding="0" cellspacing="0"><tr>
+           <td style="font-size:16px;padding-right:12px;vertical-align:middle;">🏆</td>
+           <td style="font-size:14px;color:#d1d5db;vertical-align:middle;">Tournament: <strong style="color:#fff;">${tournamentName}</strong></td>
+         </tr></table>
+       </td></tr>`
+    : '';
+
+  await transport.sendMail({
+    from: `"TourneyRun Golf" <${from}>`,
+    to: toEmail,
+    subject: `Your TourneyRun pool is live! 🏌️`,
+    text: `Hey ${username},\n\nYour pool "${leagueName}" is live and ready for players.\n\nInvite link: ${leagueUrl}\nOpen spots: ${spotsOpen}${tournamentName ? `\nTournament: ${tournamentName}` : ''}\n\nShare the invite link with your group and get picks in before Thursday.\n\n— The TourneyRun Team`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#050f08;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#050f08;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+        <tr><td style="background:linear-gradient(90deg,transparent,#22c55e,transparent);height:2px;border-radius:2px;"></td></tr>
+        <tr><td style="background:#0a1a0f;border:1px solid #14532d55;border-top:none;border-radius:0 0 16px 16px;padding:36px 36px 32px;">
+
+          <div style="text-align:center;margin-bottom:24px;">
+            <div style="font-size:40px;">🏌️</div>
+            <div style="margin-top:8px;">
+              <span style="font-size:20px;font-weight:300;color:#86efac;">tourney</span><span style="font-size:20px;font-weight:800;color:#22c55e;">run</span>
+            </div>
+          </div>
+
+          <h1 style="margin:0 0 8px;font-size:24px;font-weight:900;color:#ffffff;text-align:center;">
+            Your pool is live! ✅
+          </h1>
+          <p style="margin:0 0 28px;font-size:15px;color:#86efac;text-align:center;line-height:1.6;">
+            Hey ${username} — <strong style="color:#fff;">${leagueName}</strong> is open and ready for picks.
+          </p>
+
+          <!-- Pool details -->
+          <div style="background:#071510;border:1px solid #14532d55;border-radius:12px;padding:20px 24px;margin-bottom:28px;">
+            <table cellpadding="0" cellspacing="0" style="width:100%;">
+              <tr><td style="padding:10px 0;border-bottom:1px solid #0d2016;">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td style="font-size:16px;padding-right:12px;vertical-align:middle;">🔗</td>
+                  <td style="font-size:13px;color:#6b7280;vertical-align:middle;">Invite link</td>
+                </tr></table>
+                <div style="margin-top:6px;padding-left:28px;">
+                  <a href="${leagueUrl}" style="color:#4ade80;font-size:13px;word-break:break-all;">${leagueUrl}</a>
+                </div>
+              </td></tr>
+              <tr><td style="padding:10px 0;border-bottom:1px solid #0d2016;">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td style="font-size:16px;padding-right:12px;vertical-align:middle;">👥</td>
+                  <td style="font-size:14px;color:#d1d5db;vertical-align:middle;">Open spots: <strong style="color:#fff;">${spotsOpen}</strong></td>
+                </tr></table>
+              </td></tr>
+              ${tournamentLine}
+            </table>
+          </div>
+
+          <!-- CTA -->
+          <div style="text-align:center;margin-bottom:28px;">
+            <a href="${leagueUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;font-size:15px;text-decoration:none;padding:14px 32px;border-radius:10px;">
+              Open Your Pool →
+            </a>
+          </div>
+
+          <p style="margin:0 0 4px;font-size:13px;color:#4b5563;text-align:center;">
+            Share the invite link with your group and get picks in before Thursday.
+          </p>
+          <p style="margin:0;font-size:11px;color:#166534;text-align:center;margin-top:20px;">
+            TourneyRun · Golf Pool Fantasy · tourneyrun.app
+          </p>
+
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+  });
+}
+
+module.exports = { sendPasswordReset, sendWelcome, sendGolfPaymentConfirmation, sendCommProUnlocked, sendGolfPoolLive };

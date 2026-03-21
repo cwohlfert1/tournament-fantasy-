@@ -408,6 +408,32 @@ async function fulfillGolfPayment(metadata) {
     if (metadata.league_id) {
       db.prepare(`UPDATE golf_leagues SET status = 'lobby' WHERE id = ? AND status = 'pending_payment'`)
         .run(metadata.league_id);
+
+      // Send "pool is live" confirmation email to the commissioner
+      try {
+        const league = db.prepare(
+          'SELECT name, max_teams, pool_tournament_id FROM golf_leagues WHERE id = ?'
+        ).get(metadata.league_id);
+        const user = db.prepare('SELECT email, username FROM users WHERE id = ?').get(metadata.user_id);
+        if (league && user) {
+          const memberCount = db.prepare(
+            'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?'
+          ).get(metadata.league_id).n;
+          const spotsOpen = Math.max(0, (league.max_teams || 20) - memberCount);
+          const tourn = league.pool_tournament_id
+            ? db.prepare('SELECT name FROM golf_tournaments WHERE id = ?').get(league.pool_tournament_id)
+            : null;
+          await require('../mailer').sendGolfPoolLive(user.email, {
+            username:       user.username,
+            leagueName:     league.name,
+            leagueId:       metadata.league_id,
+            spotsOpen,
+            tournamentName: tourn?.name || null,
+          });
+        }
+      } catch (emailErr) {
+        console.warn('[golf] pool-live email failed:', emailErr.message);
+      }
     }
     console.log(`[golf] comm_pro fulfilled league=${metadata.league_id}`);
   }
