@@ -239,7 +239,7 @@ export default function GolfLanding() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="bg-gray-950">
       <style>{STYLES}</style>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
@@ -315,70 +315,175 @@ export default function GolfLanding() {
       </div>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
-      {/* Product mockup                                                       */}
+      {/* PGA Scoreboard mockup                                                */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <div className="px-4 pb-10 pt-2">
+      <div className="px-4 pb-0 pt-2">
         <div className="max-w-3xl mx-auto">
-          <div style={{
-            background: '#0d1f0f',
-            border: '1px solid #1a3a1a',
-            borderRadius: 16,
-            overflow: 'hidden',
-            boxShadow: '0 24px 80px rgba(0,0,0,0.5), 0 0 40px rgba(34,197,94,0.06)',
-          }}>
-            {/* Browser chrome */}
-            <div style={{ background: '#0a1a0f', borderBottom: '1px solid #1a3a1a', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Browser frame */}
+          <div style={{ background: '#060d07', border: '1px solid #0f1a10', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.55), 0 0 40px rgba(34,197,94,0.05)' }}>
+            {/* Chrome bar */}
+            <div style={{ background: '#040a05', borderBottom: '1px solid #0a1209', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ display: 'flex', gap: 5 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1f2937' }} />
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1f2937' }} />
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1f2937' }} />
+                {[0,1,2].map(i => <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: '#1f2937' }} />)}
               </div>
-              <div style={{ flex: 1, background: '#111827', borderRadius: 6, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: '#374151', fontSize: 11 }}>tourneyrun.com/golf/league/masters-pool</span>
+              <div style={{ flex: 1, background: '#080f08', borderRadius: 6, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#1f2937', fontSize: 11 }}>tourneyrun.com · PGA Scoreboard · Valspar Championship</span>
               </div>
             </div>
-            {/* Mockup content */}
-            <div style={{ padding: '20px 16px' }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div>
-                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>The Masters Pool 2026</div>
-                  <div style={{ color: '#4ade80', fontSize: 11, marginTop: 2 }}>● Live · Round 3 in progress</div>
-                </div>
-                <div style={{ background: '#14532d33', border: '1px solid #22c55e33', borderRadius: 8, padding: '5px 12px', color: '#4ade80', fontSize: 12, fontWeight: 600 }}>Standings</div>
+
+            {/* Tournament header */}
+            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #0a1209' }}>
+              <div>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>Valspar Championship</div>
+                <div style={{ color: '#4b5563', fontSize: 11, marginTop: 2 }}>Innisbrook Resort · Round 2</div>
               </div>
-              {/* Leaderboard rows */}
-              {[
-                { pos: 1,  name: 'Mike T.',    team: 'Scheffler, Rory, Lowry',     pts: '+142.5', delta: '+8.5',  highlight: true  },
-                { pos: 2,  name: 'Sarah K.',   team: 'Morikawa, Thomas, Clark',    pts: '+138.0', delta: '+3.0',  highlight: false },
-                { pos: 3,  name: 'Dave R.',    team: 'DeChambeau, Fleetwood, Kim', pts: '+131.5', delta: '-2.0',  highlight: false },
-                { pos: 4,  name: 'Jen W.',     team: 'Rory, Homa, Burns',          pts: '+129.0', delta: '+1.5',  highlight: false },
-                { pos: 5,  name: 'Chris B.',   team: 'Scheffler, Cantlay, Taylor', pts: '+122.5', delta: '-5.5',  highlight: false },
-              ].map(({ pos, name, team, pts, delta, highlight }) => (
-                <div key={pos} style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '9px 12px',
-                  borderRadius: 8,
-                  background: highlight ? 'rgba(34,197,94,0.07)' : pos % 2 === 0 ? '#0a1509' : 'transparent',
-                  border: highlight ? '1px solid rgba(34,197,94,0.15)' : '1px solid transparent',
-                  marginBottom: 4,
-                }}>
-                  <div style={{ width: 22, textAlign: 'center', color: highlight ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{pos}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: highlight ? '#fff' : '#d1d5db', fontWeight: 600, fontSize: 13 }}>{name}</div>
-                    <div style={{ color: '#4b5563', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{team}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ color: highlight ? '#4ade80' : '#9ca3af', fontWeight: 700, fontSize: 13 }}>{pts}</div>
-                    <div style={{ color: delta.startsWith('+') ? '#22c55e' : '#ef4444', fontSize: 11 }}>{delta} R3</div>
-                  </div>
-                </div>
-              ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.18)', borderRadius: 8, padding: '4px 10px' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 700 }}>Live</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 390 }}>
+                <thead>
+                  <tr style={{ background: '#040a05', borderBottom: '1px solid #0a1209' }}>
+                    {['Pos','Player','R1','R2','R3','R4','Total','Today'].map((h, ci) => (
+                      <th key={h} style={{
+                        padding: ci === 0 ? '7px 10px' : ci === 1 ? '7px 10px 7px 0' : '7px 8px',
+                        textAlign: ci <= 1 ? 'left' : 'center',
+                        color: h === 'Total' ? '#22c55e' : '#1f2937',
+                        fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap',
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { pos: 1, flag: '🇺🇸', name: 'S. Scheffler',  r1: '-7', r2: '-6', total: '-13', today: '-6', expanded: true  },
+                    { pos: 2, flag: '🇮🇪', name: 'R. McIlroy',    r1: '-5', r2: '-4', total: '-9',  today: '-4', expanded: false },
+                    { pos: 3, flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', name: 'R. MacIntyre', r1: '-4', r2: '-4', total: '-8',  today: '-4', expanded: false },
+                    { pos: 4, flag: '🇺🇸', name: 'C. Morikawa',   r1: '-3', r2: '-5', total: '-8',  today: '-5', expanded: false },
+                    { pos: 5, flag: '🇺🇸', name: 'X. Schauffele', r1: '-4', r2: '-3', total: '-7',  today: '-3', expanded: false },
+                  ].flatMap(({ pos, flag, name, r1, r2, total, today, expanded }) => {
+                    const sc = v => v.startsWith('-') ? '#4ade80' : v === 'E' ? '#9ca3af' : '#f87171';
+                    const playerRow = (
+                      <tr key={`p${pos}`} style={{ background: expanded ? 'rgba(34,197,94,0.04)' : pos % 2 === 0 ? '#070e08' : '#060d07', borderBottom: expanded ? 'none' : '1px solid #0a1209' }}>
+                        <td style={{ padding: '9px 10px', color: '#4b5563', fontSize: 12, fontWeight: 700 }}>{pos}</td>
+                        <td style={{ padding: '9px 10px 9px 0', fontSize: 12, whiteSpace: 'nowrap' }}>
+                          <span style={{ marginRight: 5 }}>{flag}</span>
+                          <span style={{ color: expanded ? '#fff' : '#d1d5db', fontWeight: expanded ? 700 : 400 }}>{name}</span>
+                          <span style={{ marginLeft: 5, color: '#1f2937', fontSize: 9 }}>{expanded ? '▼' : '▶'}</span>
+                        </td>
+                        <td style={{ padding: '9px 8px', textAlign: 'center', color: sc(r1), fontSize: 12 }}>{r1}</td>
+                        <td style={{ padding: '9px 8px', textAlign: 'center', color: sc(r2), fontSize: 12, fontWeight: expanded ? 700 : 400 }}>{r2}</td>
+                        <td style={{ padding: '9px 8px', textAlign: 'center', color: '#1a2e1b', fontSize: 12 }}>—</td>
+                        <td style={{ padding: '9px 8px', textAlign: 'center', color: '#1a2e1b', fontSize: 12 }}>—</td>
+                        <td style={{ padding: '9px 8px', textAlign: 'center', color: sc(total), fontSize: 12, fontWeight: 700 }}>{total}</td>
+                        <td style={{ padding: '9px 10px', textAlign: 'center', color: sc(today), fontSize: 12, fontWeight: 600 }}>{today}</td>
+                      </tr>
+                    );
+                    if (!expanded) return [playerRow];
+                    const holes = [
+                      {h:1,s:4,par:4},{h:2,s:3,par:4},{h:3,s:4,par:4},{h:4,s:3,par:3},{h:5,s:5,par:5},{h:6,s:3,par:4},
+                      {h:7,s:4,par:4},{h:8,s:3,par:4},{h:9,s:4,par:4},{h:10,s:3,par:4},{h:11,s:4,par:4},{h:12,s:3,par:3},
+                      {h:13,s:4,par:4},{h:14,s:3,par:4},{h:15,s:3,par:4},{h:16,s:4,par:3},{h:17,s:3,par:4},{h:18,s:4,par:4},
+                    ];
+                    const holeRow = (
+                      <tr key={`h${pos}`} style={{ background: '#091208', borderBottom: '1px solid #0a1209' }}>
+                        <td colSpan={8} style={{ padding: '10px 14px 13px' }}>
+                          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#1f2937', marginBottom: 8 }}>Round 2 — Hole by Hole</div>
+                          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                            {holes.map(({ h, s, par }) => {
+                              const diff = s - par;
+                              const color = diff <= -2 ? '#eab308' : diff === -1 ? '#4ade80' : diff === 0 ? '#374151' : '#f97316';
+                              const ring  = diff !== 0 ? color : null;
+                              return (
+                                <div key={h} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 24 }}>
+                                  <span style={{ fontSize: 9, color: '#1f2937', marginBottom: 2 }}>{h}</span>
+                                  <div style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: diff <= -2 ? 3 : '50%', border: ring ? `1px solid ${ring}55` : 'none', background: ring ? `${ring}15` : 'transparent' }}>
+                                    <span style={{ fontSize: 11, fontWeight: diff !== 0 ? 700 : 400, color }}>{s}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                            {[
+                              { dot: '#eab308', label: 'Eagle+' },
+                              { dot: '#4ade80', label: 'Birdie' },
+                              { dot: null,      label: 'Par',    color: '#374151' },
+                              { dot: '#f97316', label: 'Bogey'  },
+                            ].map(({ dot, label, color }) => (
+                              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot || 'transparent', border: dot ? 'none' : '1px solid #374151', display: 'inline-block', flexShrink: 0 }} />
+                                <span style={{ fontSize: 10, color: color || dot }}>{label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                    return [playerRow, holeRow];
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer bar */}
+            <div style={{ background: '#040a05', borderTop: '1px solid #0a1209', padding: '7px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: '#1f2937', fontSize: 11 }}>Synced 3 min ago · updates every 10 min</span>
+              <span style={{ color: '#1f2937', fontSize: 11 }}>Data via ESPN</span>
             </div>
           </div>
+
           <p style={{ textAlign: 'center', color: '#374151', fontSize: 12, marginTop: 10, fontStyle: 'italic' }}>
-            Live standings. Updated after every round.
+            Live scoreboard inside your pool. No tab-switching.
           </p>
+        </div>
+      </div>
+
+      {/* Scoring options callout */}
+      <div className="px-4 pt-8 pb-8">
+        <div className="max-w-3xl mx-auto">
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <h3 style={{ color: '#fff', fontWeight: 800, fontSize: 18, marginBottom: 6, letterSpacing: '-0.01em' }}>Your pool, your rules.</h3>
+            <p style={{ color: '#6b7280', fontSize: 13 }}>Choose how your group scores — switch anytime before the tournament starts.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
+            {[
+              {
+                badge: 'STANDARD', badgeColor: '#9ca3af', badgeBg: 'rgba(156,163,175,0.12)',
+                title: 'Stroke Play',
+                desc: 'Lowest combined score wins. Simple, classic. The way real golf is played.',
+                active: true,
+              },
+              {
+                badge: 'EXCLUSIVE', badgeColor: '#4ade80', badgeBg: 'rgba(34,197,94,0.12)',
+                title: 'TourneyRun Style',
+                desc: 'Eagle +8 · Birdie +3 · Par +0.5 · Bogey −0.5. Majors count 1.5×. Every hole matters.',
+                active: false,
+              },
+              {
+                badge: null,
+                title: 'Points Race',
+                desc: 'Custom points per finishing position. Winner gets the most points, not the lowest score.',
+                active: false,
+              },
+            ].map(({ badge, badgeColor, badgeBg, title, desc, active }) => (
+              <div key={title} style={{
+                background: active ? 'rgba(34,197,94,0.04)' : '#070e08',
+                border: active ? '1px solid rgba(34,197,94,0.18)' : '1px solid #0f1a10',
+                borderRadius: 12, padding: '14px 16px',
+              }}>
+                {badge && (
+                  <span style={{ display: 'inline-block', marginBottom: 8, background: badgeBg, borderRadius: 4, padding: '2px 7px', color: badgeColor, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{badge}</span>
+                )}
+                <div style={{ color: '#f9fafb', fontWeight: 700, fontSize: 14, marginBottom: 5 }}>{title}</div>
+                <div style={{ color: '#4b5563', fontSize: 12, lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
