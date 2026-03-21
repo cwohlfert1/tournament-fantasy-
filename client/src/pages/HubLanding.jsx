@@ -614,6 +614,66 @@ export default function HubLanding() {
         </div>
       </section>
 
+      {/* ──────────────────── FEATURE STRIP ────────────────────────────────── */}
+      <section style={{ padding: '40px 24px', borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 }}>
+          {[
+            {
+              icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+              ),
+              title: 'Live PGA Scoreboard',
+              desc: 'Round-by-round scores sync automatically from ESPN. No spreadsheets.',
+            },
+            {
+              icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <circle cx="8.5" cy="9" r="1.5" fill="#22c55e" stroke="none"/>
+                  <circle cx="15.5" cy="9" r="1.5" fill="#22c55e" stroke="none"/>
+                  <circle cx="12" cy="13" r="1.5" fill="#22c55e" stroke="none"/>
+                </svg>
+              ),
+              title: 'Golf-Specific Platform',
+              desc: 'Built only for golf pools. Not a generic sports app with a golf tab.',
+            },
+            {
+              icon: (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="1" x2="12" y2="23"/>
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              ),
+              title: 'From $9.99/tournament',
+              desc: 'No prize pool fees. Your group keeps every dollar.',
+            },
+          ].map(({ icon, title, desc }) => (
+            <div key={title} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 14,
+              background: 'rgba(255,255,255,0.025)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 14,
+              padding: '18px 20px',
+            }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: 'rgba(34,197,94,0.08)',
+                border: '1px solid rgba(34,197,94,0.18)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {icon}
+              </div>
+              <div>
+                <div style={{ color: '#f9fafb', fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{title}</div>
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ──────────────────── HOW IT WORKS ─────────────────────────────────── */}
       <section style={{ padding: 'clamp(64px,10vw,100px) 24px', borderTop: '0.5px solid rgba(255,255,255,0.06)', position: 'relative' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
