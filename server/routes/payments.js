@@ -1,13 +1,16 @@
-const express = require('express');
-const db = require('../db');
+'use strict';
+
+const express  = require('express');
+const crypto   = require('crypto');
+const db       = require('../db');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-const ENTRY_FEE       = 5.00; // Flat $5 platform fee per league
-const SMART_DRAFT_FEE = 2.99; // Smart Draft upgrade per user per league
+const ENTRY_FEE       = 5.00;
+const SMART_DRAFT_FEE = 2.99;
 
-// ── Promo codes (server-side only — never sent to client bundle) ─────────────
+// ── Promo codes ───────────────────────────────────────────────────────────────
 const PROMO_CODES = {
   FOUNDINGMEMBER: {
     discountPct:    100,
@@ -16,25 +19,82 @@ const PROMO_CODES = {
   },
 };
 
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error('STRIPE_SECRET_KEY environment variable is not set');
-  return require('stripe')(key);
+// ── Square client factory ─────────────────────────────────────────────────────
+function getSquare() {
+  const accessToken = process.env.SQUARE_ACCESS_TOKEN;
+  if (!accessToken) throw new Error('SQUARE_ACCESS_TOKEN not set');
+  const { Client, Environment } = require('square');
+  const environment = process.env.SQUARE_ENVIRONMENT === 'production'
+    ? Environment.Production
+    : Environment.Sandbox;
+  return new Client({ accessToken, environment });
 }
 
-// Derive the base URL from the request if CLIENT_URL env var isn't set.
-// This ensures Stripe redirects back to the correct domain in production
-// even if CLIENT_URL is missing from Railway env vars.
+// ── Webhook signature verification ───────────────────────────────────────────
+// Square computes: base64(HMAC-SHA256(signatureKey, notificationUrl + rawBody))
+function verifySquareWebhook(rawBody, signatureHeader, signatureKey, notificationUrl) {
+  try {
+    const payload  = notificationUrl + rawBody;
+    const expected = crypto
+      .createHmac('sha256', signatureKey)
+      .update(payload, 'utf8')
+      .digest('base64');
+    return crypto.timingSafeEqual(
+      Buffer.from(expected),
+      Buffer.from(signatureHeader || '')
+    );
+  } catch {
+    return false;
+  }
+}
+
+// ── Derive base URL from request ──────────────────────────────────────────────
 function getClientUrl(req) {
   if (process.env.CLIENT_URL) return process.env.CLIENT_URL.replace(/\/$/, '');
   const proto = req.headers['x-forwarded-proto'] || req.protocol;
   return `${proto}://${req.get('host')}`;
 }
 
+// ── Helper: create a Square Payment Link ──────────────────────────────────────
+// Returns { url, orderId }
+async function createPaymentLink({ lineItems, metadata, redirectUrl, buyerEmail, referenceId }) {
+  const squareClient = getSquare();
+  const { result } = await squareClient.checkoutApi.createPaymentLink({
+    idempotencyKey: require('uuid').v4(),
+    order: {
+      locationId: process.env.SQUARE_LOCATION_ID,
+      referenceId,
+      lineItems: lineItems.map(item => ({
+        name:     item.name,
+        quantity: '1',
+        basePriceMoney: {
+          amount:   Math.round(item.amount * 100),
+          currency: 'USD',
+        },
+        ...(item.note && { note: item.note }),
+      })),
+      metadata: Object.fromEntries(
+        Object.entries(metadata)
+          .filter(([, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => [k, String(v)])
+      ),
+    },
+    checkoutOptions: {
+      redirectUrl,
+      askForShippingAddress: false,
+    },
+    ...(buyerEmail && {
+      prePopulatedData: { buyerEmail },
+    }),
+  });
+  return {
+    url:     result.paymentLink.url,
+    orderId: result.paymentLink.orderId,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/payments/validate-promo
-// Validates a promo code without creating a checkout session.
-// Returns { valid, message } — never reveals the code list.
 // ---------------------------------------------------------------------------
 router.post('/validate-promo', authMiddleware, (req, res) => {
   const { code } = req.body;
@@ -46,10 +106,6 @@ router.post('/validate-promo', authMiddleware, (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/payments/entry-checkout
-// Create a Stripe Checkout session for the $5 league access fee.
-// Accepts optional promoCode — if valid 100% discount, entry fee is waived:
-//   • No Smart Draft → marks paid immediately, returns { free: true }
-//   • With Smart Draft → Stripe session for $2.99 only, entry marked paid now
 // ---------------------------------------------------------------------------
 router.post('/entry-checkout', authMiddleware, async (req, res) => {
   try {
@@ -70,7 +126,7 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
       return res.status(409).json({ error: 'Already paid for this league' });
     }
 
-    // ── Evaluate promo code ──────────────────────────────────────────────────
+    // ── Evaluate promo ───────────────────────────────────────────────────────
     let entryFeeAmount = ENTRY_FEE;
     let promoApplied   = false;
     if (promoCode) {
@@ -78,118 +134,93 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
       if (promo && promo.appliesToEntry) {
         entryFeeAmount = ENTRY_FEE * (1 - promo.discountPct / 100);
         promoApplied   = true;
-        console.log(`[checkout] promo "${promoCode.toUpperCase().trim()}" applied — entry fee: $${entryFeeAmount}`);
+        console.log(`[checkout] promo "${promoCode}" applied — entry fee: $${entryFeeAmount}`);
       }
     }
 
     const { v4: uuidv4 } = require('uuid');
+    const clientUrl = getClientUrl(req);
 
-    // ── Entry fee fully waived ───────────────────────────────────────────────
+    // ── Entry fee fully waived by promo ──────────────────────────────────────
     if (entryFeeAmount === 0) {
-      // Mark entry payment as paid immediately (no Stripe needed for $0)
       db.prepare(`
         UPDATE member_payments
         SET status = 'paid', paid_at = CURRENT_TIMESTAMP, amount = 0, stripe_session_id = 'promo_waived'
         WHERE league_id = ? AND user_id = ?
       `).run(leagueId, req.user.id);
-      console.log(`[checkout] entry fee waived by promo for user=${req.user.id} league=${leagueId}`);
+      console.log(`[checkout] entry fee waived for user=${req.user.id} league=${leagueId}`);
 
       if (!includeSmartDraft) {
-        // Nothing left to charge — return free
         return res.json({ free: true, message: 'Access fee waived — welcome, Founding Member! 🎉' });
       }
 
-      // Smart Draft still needs to be charged — create a Stripe session for $2.99 only
-      const clientUrl = getClientUrl(req);
-      const stripe    = getStripe();
-
-      const sdSession = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-          price_data: {
-            currency:     'usd',
-            product_data: { name: `Smart Draft Upgrade ⚡ – ${league.name}` },
-            unit_amount:  Math.round(SMART_DRAFT_FEE * 100),
-          },
-          quantity: 1,
-        }],
-        mode:        'payment',
-        success_url: `${clientUrl}/league/${leagueId}?payment=success`,
-        cancel_url:  `${clientUrl}/league/${leagueId}?payment=cancelled`,
+      // Smart Draft still needs to be charged — create a $2.99 link
+      const orderId = uuidv4();
+      const { url, orderId: squareOrderId } = await createPaymentLink({
+        referenceId: orderId,
+        lineItems:   [{ name: `Smart Draft Upgrade ⚡ – ${league.name}`, amount: SMART_DRAFT_FEE }],
         metadata:    { type: 'smart_draft', league_id: leagueId, user_id: req.user.id },
+        redirectUrl: `${clientUrl}/league/${leagueId}?payment=success`,
       });
 
       db.prepare(`
         INSERT INTO smart_draft_upgrades (id, user_id, league_id, stripe_session_id, status)
         VALUES (?, ?, ?, ?, 'pending')
         ON CONFLICT(user_id, league_id) DO UPDATE SET stripe_session_id = excluded.stripe_session_id, status = 'pending'
-      `).run(uuidv4(), req.user.id, leagueId, sdSession.id);
+      `).run(uuidv4(), req.user.id, leagueId, squareOrderId);
 
-      return res.json({ url: sdSession.url });
+      return res.json({ url });
     }
 
-    // ── Standard Stripe checkout (entry fee > $0) ────────────────────────────
-    const clientUrl = getClientUrl(req);
-    const stripe    = getStripe();
-
+    // ── Standard checkout ────────────────────────────────────────────────────
+    const refId     = uuidv4();
     const lineItems = [{
-      price_data: {
-        currency:     'usd',
-        product_data: { name: `TourneyRun League Access – ${league.name}` },
-        unit_amount:  Math.round(entryFeeAmount * 100),
-      },
-      quantity: 1,
+      name:   `TourneyRun League Access – ${league.name}`,
+      amount: entryFeeAmount,
     }];
 
     if (includeSmartDraft) {
-      lineItems.push({
-        price_data: {
-          currency:     'usd',
-          product_data: { name: `Smart Draft Upgrade ⚡ – ${league.name}` },
-          unit_amount:  Math.round(SMART_DRAFT_FEE * 100),
-        },
-        quantity: 1,
-      });
+      lineItems.push({ name: `Smart Draft Upgrade ⚡ – ${league.name}`, amount: SMART_DRAFT_FEE });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types:  ['card'],
-      line_items:            lineItems,
-      mode:                  'payment',
-      allow_promotion_codes: true,
-      success_url: `${clientUrl}/league/${leagueId}?payment=success`,
-      cancel_url:  `${clientUrl}/league/${leagueId}?payment=cancelled`,
-      metadata: {
-        league_id:            leagueId,
-        user_id:              req.user.id,
-        includes_smart_draft: includeSmartDraft ? '1' : '0',
-      },
+    const metadata = {
+      type:                 'entry_fee',
+      league_id:            leagueId,
+      user_id:              req.user.id,
+      includes_smart_draft: includeSmartDraft ? '1' : '0',
+    };
+
+    const { url, orderId: squareOrderId } = await createPaymentLink({
+      referenceId: refId,
+      lineItems,
+      metadata,
+      redirectUrl: `${clientUrl}/league/${leagueId}?payment=success`,
     });
-    console.log(`[checkout] session created — redirect base: ${clientUrl}, smart_draft=${!!includeSmartDraft}`);
+
+    console.log(`[checkout] Square link created — smart_draft=${!!includeSmartDraft}`);
 
     const totalAmount = entryFeeAmount + (includeSmartDraft ? SMART_DRAFT_FEE : 0);
     db.prepare(
       'UPDATE member_payments SET stripe_session_id = ?, amount = ? WHERE league_id = ? AND user_id = ?'
-    ).run(session.id, totalAmount, leagueId, req.user.id);
+    ).run(squareOrderId, totalAmount, leagueId, req.user.id);
 
     if (includeSmartDraft) {
       db.prepare(`
         INSERT INTO smart_draft_upgrades (id, user_id, league_id, stripe_session_id, status)
         VALUES (?, ?, ?, ?, 'pending')
         ON CONFLICT(user_id, league_id) DO UPDATE SET stripe_session_id = excluded.stripe_session_id, status = 'pending'
-      `).run(uuidv4(), req.user.id, leagueId, session.id);
+      `).run(uuidv4(), req.user.id, leagueId, squareOrderId);
     }
 
-    res.json({ url: session.url });
+    res.json({ url });
   } catch (err) {
     console.error('entry-checkout error:', err);
-    res.status(500).json({ error: 'Stripe error: ' + err.message });
+    res.status(500).json({ error: 'Payment error: ' + err.message });
   }
 });
 
 // ---------------------------------------------------------------------------
 // POST /api/payments/smart-draft-checkout
-// Create a Stripe Checkout session for the $2.99 Smart Draft upgrade.
 // ---------------------------------------------------------------------------
 router.post('/smart-draft-checkout', authMiddleware, async (req, res) => {
   try {
@@ -199,7 +230,6 @@ router.post('/smart-draft-checkout', authMiddleware, async (req, res) => {
     const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    // Check if already purchased
     const existing = db.prepare(
       "SELECT * FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'"
     ).get(req.user.id, leagueId);
@@ -207,41 +237,30 @@ router.post('/smart-draft-checkout', authMiddleware, async (req, res) => {
 
     const { v4: uuidv4 } = require('uuid');
     const clientUrl = getClientUrl(req);
-    const stripe    = getStripe();
+    const refId     = uuidv4();
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency:     'usd',
-          product_data: { name: `TourneyRun Smart Draft — ${league.name}` },
-          unit_amount:  Math.round(SMART_DRAFT_FEE * 100),
-        },
-        quantity: 1,
-      }],
-      mode:        'payment',
-      success_url: `${clientUrl}/league/${leagueId}?smartdraft=success`,
-      cancel_url:  `${clientUrl}/league/${leagueId}?smartdraft=cancelled`,
+    const { url, orderId: squareOrderId } = await createPaymentLink({
+      referenceId: refId,
+      lineItems:   [{ name: `TourneyRun Smart Draft — ${league.name}`, amount: SMART_DRAFT_FEE }],
       metadata:    { type: 'smart_draft', league_id: leagueId, user_id: req.user.id },
+      redirectUrl: `${clientUrl}/league/${leagueId}?smartdraft=success`,
     });
 
-    // Upsert pending record
     db.prepare(`
       INSERT INTO smart_draft_upgrades (id, user_id, league_id, stripe_session_id, status)
       VALUES (?, ?, ?, ?, 'pending')
       ON CONFLICT(user_id, league_id) DO UPDATE SET stripe_session_id = excluded.stripe_session_id, status = 'pending'
-    `).run(uuidv4(), req.user.id, leagueId, session.id);
+    `).run(uuidv4(), req.user.id, leagueId, squareOrderId);
 
-    res.json({ url: session.url });
+    res.json({ url });
   } catch (err) {
     console.error('smart-draft-checkout error:', err);
-    res.status(500).json({ error: 'Stripe error: ' + err.message });
+    res.status(500).json({ error: 'Payment error: ' + err.message });
   }
 });
 
 // ---------------------------------------------------------------------------
 // GET /api/payments/smart-draft/:leagueId/status
-// Returns Smart Draft purchase status for the requesting user + all league members.
 // ---------------------------------------------------------------------------
 router.get('/smart-draft/:leagueId/status', authMiddleware, (req, res) => {
   try {
@@ -250,7 +269,6 @@ router.get('/smart-draft/:leagueId/status', authMiddleware, (req, res) => {
       "SELECT status, enabled FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ?"
     ).get(req.user.id, leagueId);
 
-    // All users who purchased AND have it enabled (shown with 🤖 icon)
     const activeUsers = db.prepare(
       "SELECT user_id FROM smart_draft_upgrades WHERE league_id = ? AND status = 'active' AND enabled != 0"
     ).all(leagueId).map(r => r.user_id);
@@ -267,7 +285,6 @@ router.get('/smart-draft/:leagueId/status', authMiddleware, (req, res) => {
 
 // ---------------------------------------------------------------------------
 // PATCH /api/payments/smart-draft/:leagueId/toggle
-// Toggles Smart Draft on/off for the requesting user (must have purchased).
 // ---------------------------------------------------------------------------
 router.patch('/smart-draft/:leagueId/toggle', authMiddleware, (req, res) => {
   try {
@@ -287,70 +304,67 @@ router.patch('/smart-draft/:leagueId/toggle', authMiddleware, (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/payments/smart-draft-standalone
-// Public — no login required. Creates a $2.99 Stripe Checkout for a
-// standalone Smart Draft credit (not yet tied to a specific league).
-// On success Stripe redirects to /register?smartdraft_session={SESSION_ID}
-// so the user can register/log-in and claim the credit.
+// Public — no login required.
+// Pre-generates an orderId, puts it in the redirect URL, stores a pending
+// credit row so the user can claim it after registering/logging in.
 // ---------------------------------------------------------------------------
 router.post('/smart-draft-standalone', async (req, res) => {
   try {
     const { v4: uuidv4 } = require('uuid');
     const clientUrl = getClientUrl(req);
-    const stripe    = getStripe();
+    // Use the orderId as both the Square referenceId AND the token in the URL
+    const orderId   = uuidv4();
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency:     'usd',
-          product_data: { name: 'TourneyRun Smart Draft Upgrade ⚡' },
-          unit_amount:  Math.round(SMART_DRAFT_FEE * 100),
-        },
-        quantity: 1,
-      }],
-      mode:        'payment',
-      // {CHECKOUT_SESSION_ID} is a Stripe template variable — replaced automatically
-      success_url: `${clientUrl}/register?smartdraft_session={CHECKOUT_SESSION_ID}`,
-      cancel_url:  `${clientUrl}/?smartdraft=cancelled`,
+    const { url, orderId: squareOrderId } = await createPaymentLink({
+      referenceId: orderId,
+      lineItems:   [{ name: 'TourneyRun Smart Draft Upgrade ⚡', amount: SMART_DRAFT_FEE }],
       metadata:    { type: 'smart_draft_credit' },
+      // Include orderId in the redirect so the client can pass it to /claim-credit
+      redirectUrl: `${clientUrl}/register?smartdraft_session=${orderId}`,
     });
 
-    // Pre-create pending credit row (user_id filled in after claim)
+    // Pre-create pending credit row keyed by our orderId
     db.prepare(`
       INSERT OR IGNORE INTO smart_draft_credits (id, stripe_session_id, status)
       VALUES (?, ?, 'pending')
-    `).run(uuidv4(), session.id);
+    `).run(uuidv4(), squareOrderId);
 
-    res.json({ url: session.url });
+    // Also index by our referenceId in case webhook arrives before claim
+    db.prepare(`
+      INSERT OR IGNORE INTO smart_draft_credits (id, stripe_session_id, status)
+      VALUES (?, ?, 'pending')
+    `).run(uuidv4(), orderId);
+
+    res.json({ url });
   } catch (err) {
     console.error('smart-draft-standalone error:', err);
-    res.status(500).json({ error: 'Stripe error: ' + err.message });
+    res.status(500).json({ error: 'Payment error: ' + err.message });
   }
 });
 
 // ---------------------------------------------------------------------------
 // POST /api/payments/claim-credit
-// Auth required. Called after register/login when ?smartdraft_session=X is
-// present. Verifies the Stripe session is paid and associates the credit
-// with the logged-in user.
+// Auth required. Verifies payment via Square Orders API and associates
+// the smart draft credit with the logged-in user.
+// Accepts session_id = our pre-generated orderId OR the Square order_id.
 // ---------------------------------------------------------------------------
 router.post('/claim-credit', authMiddleware, async (req, res) => {
   try {
     const { session_id } = req.body;
     if (!session_id) return res.status(400).json({ error: 'session_id is required' });
 
-    // Verify payment directly with Stripe (don't rely on webhook timing)
-    const stripe  = getStripe();
-    const session = await stripe.checkout.sessions.retrieve(session_id);
+    // Look up by our referenceId first, then by Square orderId
+    let credit = db.prepare(
+      "SELECT * FROM smart_draft_credits WHERE stripe_session_id = ?"
+    ).get(session_id);
 
-    if (session.payment_status !== 'paid') {
-      return res.status(402).json({ error: 'Payment not completed' });
+    if (!credit) {
+      return res.status(404).json({ error: 'Credit not found. Payment may still be processing.' });
     }
-    if (session.metadata?.type !== 'smart_draft_credit') {
-      return res.status(400).json({ error: 'Not a Smart Draft credit session' });
+    if (credit.status !== 'paid') {
+      return res.status(402).json({ error: 'Payment not completed yet.' });
     }
 
-    // Upsert the credit — either the webhook already created it or we do it now
     const { v4: uuidv4 } = require('uuid');
     db.prepare(`
       INSERT INTO smart_draft_credits (id, stripe_session_id, user_id, status, purchased_at)
@@ -371,7 +385,6 @@ router.post('/claim-credit', authMiddleware, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /api/payments/smart-draft-credits
-// Auth required. Returns how many unclaimed standalone credits the user has.
 // ---------------------------------------------------------------------------
 router.get('/smart-draft-credits', authMiddleware, (req, res) => {
   try {
@@ -387,105 +400,138 @@ router.get('/smart-draft-credits', authMiddleware, (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/payments/webhook
-// Stripe webhook — raw body required (configured in index.js).
+// Square webhook — raw body required (configured in index.js).
+// Square sends payment.completed events when a Payment Link is paid.
 // ---------------------------------------------------------------------------
 router.post('/webhook', async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-  try {
-    const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+  const signatureHeader = req.headers['x-square-hmacsha256-signature'];
+  const signatureKey    = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
+  const notificationUrl = process.env.SQUARE_WEBHOOK_URL ||
+    (() => {
+      const proto = req.headers['x-forwarded-proto'] || req.protocol;
+      return `${proto}://${req.get('host')}/api/payments/webhook`;
+    })();
+
+  const rawBody = req.body.toString('utf8');
+
+  if (signatureKey) {
+    if (!verifySquareWebhook(rawBody, signatureHeader, signatureKey, notificationUrl)) {
+      console.error('[square-webhook] Signature verification failed');
+      return res.status(400).send('Webhook signature mismatch');
+    }
+  } else {
+    console.warn('[square-webhook] SQUARE_WEBHOOK_SIGNATURE_KEY not set — skipping verification');
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session  = event.data.object;
-    const metadata = session.metadata || {};
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return res.status(400).send('Invalid JSON');
+  }
+
+  console.log(`[square-webhook] event=${event.type}`);
+
+  if (event.type === 'payment.completed') {
+    const payment = event.data?.object?.payment;
+    if (!payment?.order_id) {
+      console.warn('[square-webhook] No order_id on payment event');
+      return res.json({ received: true });
+    }
+
     try {
-      // ── Standalone Smart Draft credit (pre-registration purchase) ────────
+      // Retrieve the full order to get metadata
+      const squareClient = getSquare();
+      const { result: orderResult } = await squareClient.ordersApi.retrieveOrder(payment.order_id);
+      const order    = orderResult.order;
+      const metadata = order.metadata || {};
+
+      console.log(`[square-webhook] order=${payment.order_id} type=${metadata.type}`);
+
+      // ── Standalone Smart Draft credit ────────────────────────────────────
       if (metadata.type === 'smart_draft_credit') {
         const { v4: uuidv4 } = require('uuid');
-        db.prepare(`
+        // Mark paid by Square orderId and referenceId
+        const markPaid = db.prepare(`
           INSERT INTO smart_draft_credits (id, stripe_session_id, status, purchased_at)
           VALUES (?, ?, 'paid', CURRENT_TIMESTAMP)
           ON CONFLICT(stripe_session_id) DO UPDATE
             SET status = 'paid', purchased_at = COALESCE(purchased_at, CURRENT_TIMESTAMP)
-        `).run(uuidv4(), session.id);
-        console.log(`[webhook] Smart Draft credit paid: session=${session.id}`);
+        `);
+        markPaid.run(uuidv4(), payment.order_id);
+        if (order.referenceId && order.referenceId !== payment.order_id) {
+          markPaid.run(uuidv4(), order.referenceId);
+        }
+        console.log(`[square-webhook] Smart Draft credit paid: order=${payment.order_id}`);
 
-      // ── Smart Draft purchase ──────────────────────────────────────────────
+      // ── Smart Draft purchase ─────────────────────────────────────────────
       } else if (metadata.type === 'smart_draft') {
         db.prepare(`
           UPDATE smart_draft_upgrades
           SET status = 'active', purchased_at = CURRENT_TIMESTAMP
           WHERE stripe_session_id = ?
-        `).run(session.id);
-        console.log(`Smart Draft activated: league=${metadata.league_id} user=${metadata.user_id}`);
+        `).run(payment.order_id);
+        console.log(`[square-webhook] Smart Draft activated: league=${metadata.league_id} user=${metadata.user_id}`);
 
       // ── Golf payment (season pass / pool entry / comm pro) ───────────────
-      } else if (metadata.type && metadata.type.startsWith('golf_')) {
+      } else if (metadata.type?.startsWith('golf_')) {
         try {
-          await require('./golf-payments').handleGolfWebhook(session);
+          await require('./golf-payments').handleGolfWebhook({ order_id: payment.order_id, metadata });
         } catch (golfErr) {
-          console.error('[webhook] golf handler error:', golfErr.message);
+          console.error('[square-webhook] golf handler error:', golfErr.message);
         }
 
-      // ── League entry fee ──────────────────────────────────────────────────
-      } else {
-        const payment = db.prepare(
+      // ── League entry fee ─────────────────────────────────────────────────
+      } else if (metadata.type === 'entry_fee') {
+        const memberPayment = db.prepare(
           'SELECT * FROM member_payments WHERE stripe_session_id = ?'
-        ).get(session.id);
+        ).get(payment.order_id);
 
-        if (payment) {
+        if (memberPayment) {
           db.prepare(`
             UPDATE member_payments
-            SET status = 'paid',
-                paid_at = CURRENT_TIMESTAMP,
-                stripe_payment_intent_id = ?
+            SET status = 'paid', paid_at = CURRENT_TIMESTAMP, stripe_payment_intent_id = ?
             WHERE stripe_session_id = ?
-          `).run(session.payment_intent, session.id);
+          `).run(payment.id, payment.order_id);
 
-          console.log(`League access paid: league=${payment.league_id} user=${payment.user_id}`);
+          console.log(`[square-webhook] League access paid: league=${memberPayment.league_id} user=${memberPayment.user_id}`);
 
-          // Activate Smart Draft if it was bundled in this checkout
           if (metadata.includes_smart_draft === '1') {
             db.prepare(`
               UPDATE smart_draft_upgrades
               SET status = 'active', purchased_at = CURRENT_TIMESTAMP
               WHERE stripe_session_id = ?
-            `).run(session.id);
-            console.log(`Smart Draft activated (bundled): league=${payment.league_id} user=${payment.user_id}`);
+            `).run(payment.order_id);
+            console.log(`[square-webhook] Smart Draft activated (bundled): league=${memberPayment.league_id}`);
           }
 
-          // Auto-start: if the league has auto_start_on_full set and this was the last payment
+          // Auto-start draft if applicable
           try {
             const { performStartDraft } = require('../draftUtils');
-            const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(payment.league_id);
+            const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(memberPayment.league_id);
             if (league && league.status === 'lobby' && league.auto_start_on_full) {
               const memberCount = db.prepare(
                 'SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?'
-              ).get(payment.league_id);
+              ).get(memberPayment.league_id);
               const paidCount = db.prepare(
                 "SELECT COUNT(*) as cnt FROM member_payments WHERE league_id = ? AND status = 'paid'"
-              ).get(payment.league_id);
+              ).get(memberPayment.league_id);
               if (memberCount.cnt >= 2 && paidCount.cnt >= memberCount.cnt) {
-                const result = performStartDraft(payment.league_id, req.app.get('io'));
+                const result = performStartDraft(memberPayment.league_id, null);
                 if (result.success) {
-                  console.log(`[auto-start] All paid — draft auto-started for league ${payment.league_id}`);
+                  console.log(`[square-webhook] Auto-started draft for league ${memberPayment.league_id}`);
                 }
               }
             }
           } catch (autoErr) {
-            console.error('[auto-start] error in webhook:', autoErr);
+            console.error('[square-webhook] auto-start error:', autoErr);
           }
         } else {
-          console.warn('Webhook: no member_payment found for session', session.id);
+          console.warn('[square-webhook] No member_payment found for order', payment.order_id);
         }
       }
     } catch (err) {
-      console.error('Webhook DB error:', err);
+      console.error('[square-webhook] handler error:', err);
     }
   }
 
@@ -494,7 +540,6 @@ router.post('/webhook', async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /api/payments/league/:leagueId/status
-// Return payment status for all members of a league.
 // ---------------------------------------------------------------------------
 router.get('/league/:leagueId/status', authMiddleware, (req, res) => {
   try {
@@ -515,9 +560,9 @@ router.get('/league/:leagueId/status', authMiddleware, (req, res) => {
 
     res.json({
       payments,
-      paid_count: paidCount,
+      paid_count:  paidCount,
       total_count: payments.length,
-      entry_fee: ENTRY_FEE,
+      entry_fee:   ENTRY_FEE,
     });
   } catch (err) {
     console.error('payment status error:', err);

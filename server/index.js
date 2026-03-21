@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 // ── Env var validation ────────────────────────────────────────────────────────
-const REQUIRED_ENV = ['JWT_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
+const REQUIRED_ENV = ['JWT_SECRET', 'SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID'];
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missing.length) {
   console.error('[startup] Missing required environment variables:', missing.join(', '));
@@ -47,13 +47,13 @@ const io = new Server(server, {
 app.set('io', io);
 
 // ---------------------------------------------------------------------------
-// IMPORTANT: The Stripe webhook endpoint requires the RAW request body so
-// that stripe.webhooks.constructEvent() can verify the signature.
+// Square webhook endpoints require the RAW request body so that HMAC-SHA256
+// signature verification can run against the original bytes.
 // Register the raw body parser BEFORE the global express.json() middleware,
-// and ONLY for the webhook path.
+// and ONLY for webhook paths.
 // ---------------------------------------------------------------------------
-app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
-app.use('/api/golf/webhooks/stripe', express.raw({ type: 'application/json' }));
+app.use('/api/payments/webhook',      express.raw({ type: 'application/json' }));
+app.use('/api/golf/webhooks/stripe',  express.raw({ type: 'application/json' })); // URL kept for Square compatibility
 
 // Global middleware
 app.use(cors(corsOptions));
