@@ -287,6 +287,14 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
     return { synced: 0, notMatched: [], warning: 'ESPN event has no competitors yet' };
   }
 
+  // Detect if the event is fully completed via ESPN status
+  const espnStatusName = (
+    event?.competitions?.[0]?.status?.type?.name ||
+    event?.status?.type?.name || ''
+  ).toUpperCase();
+  const isCompleted = espnStatusName.includes('FINAL') || espnStatusName.includes('COMPLETE') ||
+    event?.competitions?.[0]?.status?.type?.completed === true;
+
   const allPlayers = db.prepare('SELECT * FROM golf_players WHERE is_active = 1').all();
   const notMatched = [];
   let synced = 0;
@@ -323,14 +331,22 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   ).all(tournament.id);
   for (const { member_id } of affected) recalcMemberPoints(member_id);
 
-  db.prepare('UPDATE golf_tournaments SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(tournament.id);
+  // Update tournament status
+  if (isCompleted) {
+    db.prepare("UPDATE golf_tournaments SET status = 'completed', last_synced_at = CURRENT_TIMESTAMP WHERE id = ?").run(tournament.id);
+    if (!silent) console.log(`[golf-sync] Tournament marked completed: ${tournament.name}`);
+  } else if (synced > 0) {
+    db.prepare("UPDATE golf_tournaments SET status = 'active', last_synced_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'completed'").run(tournament.id);
+  } else {
+    db.prepare('UPDATE golf_tournaments SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(tournament.id);
+  }
 
   if (!silent) {
-    console.log(`[golf-sync] Done — synced: ${synced}, unmatched: ${notMatched.length}`);
+    console.log(`[golf-sync] Done — synced: ${synced}, unmatched: ${notMatched.length}, completed: ${isCompleted}`);
     if (notMatched.length) console.log('[golf-sync] Unmatched:', notMatched.slice(0, 10).join(', '));
   }
 
-  return { synced, notMatched, espnEventName: event.name || event.shortName };
+  return { synced, notMatched, espnEventName: event.name || event.shortName, isCompleted };
 }
 
 // ── Auto-sync scheduler ─────────────────────────────────────────────────────────
@@ -345,34 +361,32 @@ async function runAutoSync() {
   // Only sync Thu–Sun (tournament days)
   if (![0, 4, 5, 6].includes(dow)) return;
 
-  const tournament = db.prepare(`
+  const tournaments = db.prepare(`
     SELECT * FROM golf_tournaments
-    WHERE status = 'active'
+    WHERE status IN ('active', 'scheduled')
        OR (date('now') BETWEEN date(start_date, '-1 day') AND date(end_date, '+1 day'))
-    ORDER BY start_date ASC LIMIT 1
-  `).get();
+    ORDER BY start_date ASC
+  `).all();
 
-  if (!tournament) return;
+  if (tournaments.length === 0) return;
 
-  console.log(`[golf-sync] Auto-sync triggered for: ${tournament.name}`);
-  try {
-    const result = await syncTournamentScores(tournament.id, { silent: false });
-    _lastSyncTime = new Date().toISOString();
-    _lastSyncResult = { ...result, tournamentName: tournament.name };
-
-    if (result.synced > 0 && tournament.status === 'scheduled') {
-      db.prepare("UPDATE golf_tournaments SET status = 'active' WHERE id = ?").run(tournament.id);
+  for (const tournament of tournaments) {
+    console.log(`[golf-sync] Auto-sync triggered for: ${tournament.name}`);
+    try {
+      const result = await syncTournamentScores(tournament.id, { silent: false });
+      _lastSyncTime = new Date().toISOString();
+      _lastSyncResult = { ...result, tournamentName: tournament.name };
+    } catch (e) {
+      console.error(`[golf-sync] Auto-sync error for ${tournament.name}:`, e.message);
     }
-  } catch (e) {
-    console.error('[golf-sync] Auto-sync error:', e.message);
   }
 }
 
 function scheduleAutoSync() {
   if (_syncInterval) clearInterval(_syncInterval);
-  _syncInterval = setInterval(runAutoSync, 30 * 60 * 1000);
+  _syncInterval = setInterval(runAutoSync, 10 * 60 * 1000);
   setTimeout(runAutoSync, 8000);
-  console.log('[golf-sync] Scheduled — 30 min intervals, Thu–Sun during active tournaments');
+  console.log('[golf-sync] Scheduled — 10 min intervals, Thu–Sun during active tournaments');
 }
 
 function getSyncStatus() {
