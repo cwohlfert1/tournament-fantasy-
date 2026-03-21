@@ -478,10 +478,23 @@ setInterval(() => {
 const { startPoolLockScheduler } = require('./golfPoolLockService');
 startPoolLockScheduler();
 
-// Golf score auto-sync — 30 min intervals Thu–Sun during active tournaments
+// Golf score auto-sync — 10 min intervals Thu–Sun during active tournaments
 const { scheduleAutoSync, backfillCompleted } = require('./golfSyncService');
 scheduleAutoSync();
 setTimeout(backfillCompleted, 15 * 1000); // backfill after server is up
+
+// Self-heal: correct any tournament marked 'completed' while still within its date window
+// (guards against sync bugs that prematurely complete a live tournament)
+try {
+  const healed = db.prepare(`
+    UPDATE golf_tournaments SET status = 'active'
+    WHERE status = 'completed'
+      AND date('now') BETWEEN date(start_date, '-1 day') AND date(end_date, '+1 day')
+  `).run();
+  if (healed.changes > 0) console.log(`[startup] Corrected ${healed.changes} tournament(s) incorrectly marked completed during active window`);
+} catch (e) {
+  console.error('[startup] Golf status self-heal error:', e.message);
+}
 
 // ── DISABLED: the team-name string mismatch DELETE was too broad and wiped
 //    valid player_stats rows where ESPN displayName != our DB team string

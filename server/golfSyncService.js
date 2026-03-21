@@ -287,13 +287,21 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
     return { synced: 0, notMatched: [], warning: 'ESPN event has no competitors yet' };
   }
 
-  // Detect if the event is fully completed via ESPN status
+  // Map ESPN status → our tournament status
   const espnStatusName = (
     event?.competitions?.[0]?.status?.type?.name ||
     event?.status?.type?.name || ''
-  ).toUpperCase();
-  const isCompleted = espnStatusName.includes('FINAL') || espnStatusName.includes('COMPLETE') ||
-    event?.competitions?.[0]?.status?.type?.completed === true;
+  );
+  let newTournamentStatus = null;
+  if (espnStatusName === 'STATUS_FINAL' || espnStatusName === 'STATUS_PLAY_COMPLETE') {
+    newTournamentStatus = 'completed';
+  } else if (espnStatusName === 'STATUS_IN_PROGRESS' || espnStatusName === 'STATUS_ACTIVE') {
+    newTournamentStatus = 'active';
+  } else if (espnStatusName === 'STATUS_SCHEDULED') {
+    newTournamentStatus = 'scheduled';
+  }
+  const isCompleted = newTournamentStatus === 'completed';
+  if (!silent) console.log(`[golf-sync] ESPN status: "${espnStatusName}" → tournament status: ${newTournamentStatus || '(no change)'}`);
 
   const allPlayers = db.prepare('SELECT * FROM golf_players WHERE is_active = 1').all();
   const notMatched = [];
@@ -331,12 +339,13 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   ).all(tournament.id);
   for (const { member_id } of affected) recalcMemberPoints(member_id);
 
-  // Update tournament status
-  if (isCompleted) {
-    db.prepare("UPDATE golf_tournaments SET status = 'completed', last_synced_at = CURRENT_TIMESTAMP WHERE id = ?").run(tournament.id);
-    if (!silent) console.log(`[golf-sync] Tournament marked completed: ${tournament.name}`);
+  // Update tournament status — ESPN status is authoritative
+  if (newTournamentStatus) {
+    db.prepare('UPDATE golf_tournaments SET status = ?, last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(newTournamentStatus, tournament.id);
+    if (!silent && newTournamentStatus !== tournament.status) console.log(`[golf-sync] Status: ${tournament.status} → ${newTournamentStatus}`);
   } else if (synced > 0) {
-    db.prepare("UPDATE golf_tournaments SET status = 'active', last_synced_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'completed'").run(tournament.id);
+    // No explicit ESPN status — infer active from having data
+    db.prepare("UPDATE golf_tournaments SET status = 'active', last_synced_at = CURRENT_TIMESTAMP WHERE id = ?").run(tournament.id);
   } else {
     db.prepare('UPDATE golf_tournaments SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(tournament.id);
   }
