@@ -584,6 +584,14 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
       const today = completedRounds[currentRound - 1] ?? null;
       const thru = comp.status?.thruHole ?? null;
 
+      // Hole-by-hole scores for the current round (nested linescores, if ESPN provides them)
+      const currentRoundLs = ls[Math.max(0, currentRound - 1)];
+      const holes = (currentRoundLs?.linescores || []).map(h => ({
+        hole:  h.period || h.number || null,
+        score: h.value  != null ? Number(h.value) : null,
+        par:   h.par    != null ? Number(h.par)   : null,
+      })).filter(h => h.hole != null);
+
       // Flag / country
       const flagHref = comp.athlete?.flag?.href || '';
       const countryAlt = comp.athlete?.flag?.alt || comp.athlete?.country || '';
@@ -598,6 +606,7 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
         flagHref, countryAlt, currentRound,
         status: isWD ? 'wd' : isCut ? 'cut' : isMDF ? 'mdf' : 'active',
         isCut, isWD, isMDF,
+        holes,
       };
     });
 

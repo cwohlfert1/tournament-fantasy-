@@ -1901,6 +1901,14 @@ function StandingsTab({ leagueId, league, currentUserId }) {
 
   useEffect(() => { fetchStandings(); }, [leagueId]); // eslint-disable-line
 
+  // Auto-expand the current user's own row after data loads
+  useEffect(() => {
+    if (data && currentUserId) {
+      const myRow = (data.standings || []).find(s => s.user_id === currentUserId);
+      if (myRow) setExpanded(currentUserId);
+    }
+  }, [!!data, currentUserId]); // eslint-disable-line
+
   if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading standings…</div>;
 
   const standings  = data?.standings || [];
@@ -2586,6 +2594,73 @@ function ReferralSection() {
   );
 }
 
+// ── Hole-by-hole scorecard helpers ─────────────────────────────────────────────
+
+function holeSym(score, par) {
+  if (score == null || par == null) return { text: '·', color: '#374151' };
+  const diff = score - par;
+  if (diff <= -2) return { text: '◎', color: '#f59e0b', title: 'Eagle or better' };
+  if (diff === -1) return { text: '●', color: '#00e87a', title: 'Birdie' };
+  if (diff === 0)  return { text: String(score), color: '#e5e7eb', title: 'Par' };
+  if (diff === 1)  return { text: '□', color: '#f59e0b', title: 'Bogey' };
+  return { text: '■', color: '#ef4444', title: 'Double bogey+' };
+}
+
+function HoleScorecard({ holes, currentRound }) {
+  if (!holes || holes.length === 0) {
+    return (
+      <div style={{ color: '#4b5563', fontSize: 11, fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+        Hole-by-hole data unavailable
+      </div>
+    );
+  }
+
+  const front = holes.filter(h => h.hole <= 9).sort((a, b) => a.hole - b.hole);
+  const back  = holes.filter(h => h.hole >= 10).sort((a, b) => a.hole - b.hole);
+
+  const cellStyle = { textAlign: 'center', minWidth: 22, fontSize: 12 };
+  const hdrStyle  = { ...cellStyle, color: '#4b5563', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em' };
+
+  function renderNine(nineHoles) {
+    return nineHoles.map(h => {
+      const { text, color } = holeSym(h.score, h.par);
+      return (
+        <div key={h.hole} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 22 }}>
+          <div style={hdrStyle}>{h.hole}</div>
+          {h.par != null && <div style={{ ...cellStyle, color: '#374151', fontSize: 9 }}>{h.par}</div>}
+          <div style={{ ...cellStyle, color, fontWeight: 700, fontSize: 13 }} title={holeSym(h.score, h.par).title}>{text}</div>
+        </div>
+      );
+    });
+  }
+
+  return (
+    <div style={{ overflowX: 'auto', paddingBottom: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, minWidth: 'max-content' }}>
+        {/* Front 9 */}
+        <div style={{ display: 'flex', gap: 2 }}>{renderNine(front)}</div>
+        {/* Divider */}
+        {back.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 6px', gap: 2 }}>
+            <div style={{ color: '#1f2937', fontSize: 9, fontWeight: 700 }}>│</div>
+            <div style={{ color: '#1f2937', fontSize: 9 }}>│</div>
+            <div style={{ color: '#1f2937', fontSize: 9 }}>│</div>
+          </div>
+        )}
+        {/* Back 9 */}
+        <div style={{ display: 'flex', gap: 2 }}>{renderNine(back)}</div>
+      </div>
+      <div style={{ marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {[['◎', '#f59e0b', 'Eagle+'], ['●', '#00e87a', 'Birdie'], ['#', '#e5e7eb', 'Par (digit)'], ['□', '#f59e0b', 'Bogey'], ['■', '#ef4444', 'Dbl+']].map(([sym, col, lbl]) => (
+          <span key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#4b5563' }}>
+            <span style={{ color: col, fontWeight: 700, fontSize: 11 }}>{sym}</span>{lbl}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Tab: PGA Live ───────────────────────────────────────────────────────────────
 
 function PGALiveTab({ leagueId, league }) {
@@ -2791,10 +2866,22 @@ function PGALiveTab({ leagueId, league }) {
             </div>
           );
 
+          const toggleRow = e => {
+            e.preventDefault(); e.stopPropagation();
+            setExpandedRow(isOpen ? null : i);
+            setTimeout(() => pgaRowRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 10);
+          };
+
           return (
             <div key={i} ref={el => { pgaRowRefs.current[i] = el; }} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent' }}>
-              {/* Desktop row */}
-              <div className="hidden sm:grid" style={{ gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center' }}>
+              {/* Desktop row — clickable */}
+              <button
+                className="hidden sm:grid"
+                onClick={toggleRow}
+                style={{ width: '100%', gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                onMouseEnter={e => { e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.05)' : 'rgba(255,255,255,0.02)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.025)' : 'transparent'; }}
+              >
                 {posCell}
                 {playerCell}
                 {rounds.map((r, ri) => {
@@ -2806,19 +2893,12 @@ function PGALiveTab({ leagueId, league }) {
                 })}
                 {totalCell}
                 {todayCell}
-              </div>
+              </button>
 
-              {/* Mobile row — tap to expand */}
+              {/* Mobile row */}
               <button
                 className="grid sm:hidden"
-                onClick={e => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setExpandedRow(isOpen ? null : i);
-                  setTimeout(() => {
-                    pgaRowRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                  }, 10);
-                }}
+                onClick={toggleRow}
                 style={{ width: '100%', gridTemplateColumns: '44px 1fr 48px 44px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
               >
                 {posCell}
@@ -2827,19 +2907,27 @@ function PGALiveTab({ leagueId, league }) {
                 {todayCell}
               </button>
 
-              {/* Mobile expanded row */}
+              {/* Expanded scorecard — both desktop + mobile */}
               {isOpen && (
-                <div className="sm:hidden" style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.04)', padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
-                  {['R1', 'R2', 'R3', 'R4'].map((label, ri) => {
-                    const { text, color } = fmtPar(rounds[ri]);
-                    const isCurrent = (ri + 1) === maxRound && isLive && rounds[ri] != null;
-                    return (
-                      <div key={ri} style={{ textAlign: 'center' }}>
-                        <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
-                        <div style={{ color: rounds[ri] != null ? color : '#374151', fontSize: 14, fontWeight: isCurrent ? 800 : 500 }}>{text}</div>
-                      </div>
-                    );
-                  })}
+                <div style={{ background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.04)', padding: '10px 14px' }}>
+                  {/* Round summary pills */}
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                    {['R1', 'R2', 'R3', 'R4'].map((label, ri) => {
+                      const { text, color } = fmtPar(rounds[ri]);
+                      const isCurrent = (ri + 1) === maxRound && isLive && rounds[ri] != null;
+                      return (
+                        <div key={ri} style={{ textAlign: 'center', minWidth: 32 }}>
+                          <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
+                          <div style={{ color: rounds[ri] != null ? color : '#374151', fontSize: 14, fontWeight: isCurrent ? 800 : 500 }}>{text}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Hole-by-hole scorecard for current round */}
+                  <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Round {c.currentRound || maxRound} — Hole by Hole
+                  </div>
+                  <HoleScorecard holes={c.holes} currentRound={c.currentRound} />
                 </div>
               )}
             </div>
