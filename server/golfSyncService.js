@@ -288,20 +288,34 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   }
 
   // Map ESPN status → our tournament status
+  // NOTE: ESPN returns STATUS_FINAL after EACH round, not only at tournament end.
+  // We guard against premature completion by also requiring R4 data to be present.
   const espnStatusName = (
     event?.competitions?.[0]?.status?.type?.name ||
     event?.status?.type?.name || ''
   );
+  console.log(`[golf-sync] ESPN_STATUS: "${espnStatusName}" for ${tournament.name}`);
+
+  // Check if round 4 data exists among competitors (true tournament completion)
+  const hasR4 = competitors.some(c => {
+    const ls = c.linescores || [];
+    return ls.length >= 4 || ls.some(l => (l.period === 4 || l.period?.number === 4) && l.value != null);
+  });
+
   let newTournamentStatus = null;
-  if (espnStatusName === 'STATUS_FINAL' || espnStatusName === 'STATUS_PLAY_COMPLETE') {
+  if ((espnStatusName === 'STATUS_FINAL' || espnStatusName === 'STATUS_PLAY_COMPLETE') && hasR4) {
     newTournamentStatus = 'completed';
+  } else if (espnStatusName === 'STATUS_FINAL' && !hasR4) {
+    // Per-round STATUS_FINAL (e.g. after R2) — tournament still in progress
+    newTournamentStatus = 'active';
+    console.log(`[golf-sync] STATUS_FINAL but no R4 data — treating as active (mid-tournament round end)`);
   } else if (espnStatusName === 'STATUS_IN_PROGRESS' || espnStatusName === 'STATUS_ACTIVE') {
     newTournamentStatus = 'active';
   } else if (espnStatusName === 'STATUS_SCHEDULED') {
     newTournamentStatus = 'scheduled';
   }
   const isCompleted = newTournamentStatus === 'completed';
-  if (!silent) console.log(`[golf-sync] ESPN status: "${espnStatusName}" → tournament status: ${newTournamentStatus || '(no change)'}`);
+  if (!silent) console.log(`[golf-sync] → tournament status: ${newTournamentStatus || '(no change)'}, hasR4: ${hasR4}`);
 
   const allPlayers = db.prepare('SELECT * FROM golf_players WHERE is_active = 1').all();
   const notMatched = [];

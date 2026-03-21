@@ -260,6 +260,19 @@ try {
   `).run();
 } catch (e) { console.error('[golf-db] Beta Group 1.0 draft_type fix error:', e.message); }
 
+// ── Valspar 2026 — keep active until tournament actually ends Sunday Mar 22 ───
+// ESPN returns STATUS_FINAL after each round, not just at tournament end.
+// Force status=active and correct end_date so the sync can't prematurely complete it.
+try {
+  db.prepare(`
+    UPDATE golf_tournaments
+    SET status   = 'active',
+        end_date = '2026-03-22'
+    WHERE espn_event_id = '401811938'
+      AND status = 'completed'
+  `).run();
+} catch (e) { console.error('[golf-db] Valspar status fix error:', e.message); }
+
 // ── Beta Group 1.0 — status, scoring_style, and test prize pool ───────────────
 try {
   db.prepare(`
