@@ -182,9 +182,29 @@ router.get('/payments/status', authMiddleware, (req, res) => {
 // POST /api/golf/payments/create-checkout-session
 // body: { type, leagueId?, tournamentId?, refCode? }
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// POST /api/golf/payments/validate-promo
+// ---------------------------------------------------------------------------
+router.post('/payments/validate-promo', authMiddleware, (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code required' });
+    const promo = db.prepare(
+      "SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND active = 1"
+    ).get(code.trim());
+    if (!promo) return res.status(404).json({ valid: false, error: 'Invalid or inactive promo code' });
+    const label = promo.discount_type === 'free'
+      ? 'First pool free!'
+      : `${promo.discount_value}% off`;
+    res.json({ valid: true, code: promo.code, discountType: promo.discount_type, discountValue: promo.discount_value, label });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/payments/create-checkout-session', authMiddleware, async (req, res) => {
   try {
-    const { type, leagueId, tournamentId, refCode } = req.body;
+    const { type, leagueId, tournamentId, refCode, promoCode } = req.body;
     const userId = req.user.id;
 
     if (!['season_pass', 'office_pool', 'comm_pro'].includes(type)) {
@@ -229,13 +249,30 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
           : 'Golf Pool Entry';
     }
 
+    // Check promo code
+    let promoRecord = null;
+    let promoDiscount = 0;
+    if (promoCode && type === 'comm_pro') {
+      promoRecord = db.prepare(
+        "SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND active = 1"
+      ).get(promoCode.trim());
+      if (promoRecord) {
+        if (promoRecord.discount_type === 'free') {
+          promoDiscount = baseAmount;
+        } else if (promoRecord.discount_type === 'percent') {
+          promoDiscount = Math.min(baseAmount, baseAmount * (promoRecord.discount_value / 100));
+        }
+      }
+    }
+
     // Check referral credit balance
     const creditRow = db.prepare(
       'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?'
     ).get(userId, SEASON);
     const creditBalance  = creditRow?.balance || 0;
-    const creditToApply  = Math.min(creditBalance, baseAmount);
-    const finalAmount    = Math.max(0, baseAmount - creditToApply);
+    const afterPromo     = Math.max(0, baseAmount - promoDiscount);
+    const creditToApply  = Math.min(creditBalance, afterPromo);
+    const finalAmount    = Math.max(0, afterPromo - creditToApply);
 
     const metadata = {
       type:         `golf_${type}`,
@@ -245,10 +282,23 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
       ...(tournamentId  && { tournament_id:  tournamentId  }),
       ...(refCode       && { ref_code:        refCode       }),
       ...(creditToApply > 0 && { credit_applied: String(creditToApply) }),
+      ...(promoRecord   && { promo_code_id:   promoRecord.id }),
     };
 
-    // If credit covers the full amount, fulfill directly without a payment
+    // Record promo use and fulfill directly if fully discounted
+    function recordPromoUse() {
+      if (!promoRecord) return;
+      const useId = uuidv4();
+      db.prepare(`
+        INSERT INTO promo_code_uses (id, promo_code_id, league_id, user_id, original_price, discount_amount, final_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(useId, promoRecord.id, leagueId || null, userId, baseAmount, promoDiscount, finalAmount);
+      db.prepare('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = ?').run(promoRecord.id);
+    }
+
+    // If credit + promo covers the full amount, fulfill directly without a payment
     if (finalAmount === 0) {
+      recordPromoUse();
       await fulfillGolfPayment(metadata);
       return res.json({ free: true });
     }
@@ -452,6 +502,27 @@ async function handleGolfWebhook({ order_id, metadata }) {
           SET balance = MAX(0, balance - ?)
           WHERE user_id = ? AND season = ?
         `).run(creditApplied, metadata.user_id, metadata.season || SEASON);
+      }
+    }
+
+    // Record promo code use (paid path — discount was partial, so Square was charged)
+    if (metadata.promo_code_id && metadata.user_id) {
+      try {
+        const promo = db.prepare('SELECT * FROM promo_codes WHERE id = ?').get(metadata.promo_code_id);
+        if (promo) {
+          const alreadyRecorded = db.prepare(
+            'SELECT id FROM promo_code_uses WHERE promo_code_id = ? AND league_id = ?'
+          ).get(metadata.promo_code_id, metadata.league_id || null);
+          if (!alreadyRecorded) {
+            db.prepare(`
+              INSERT INTO promo_code_uses (id, promo_code_id, league_id, user_id, original_price, discount_amount, final_price)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(uuidv4(), promo.id, metadata.league_id || null, metadata.user_id, 0, 0, 0);
+            db.prepare('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = ?').run(promo.id);
+          }
+        }
+      } catch (e) {
+        console.warn('[golf-payments] promo use record error:', e.message);
       }
     }
 

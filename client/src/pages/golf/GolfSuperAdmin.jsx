@@ -502,6 +502,315 @@ function PlayersTab() {
   );
 }
 
+// ── Ambassador Codes sub-component ───────────────────────────────────────────
+
+function AmbassadorCodes() {
+  const [codes, setCodes]               = useState([]);
+  const [monthStats, setMonthStats]     = useState(null);
+  const [expanded, setExpanded]         = useState(null); // code id → uses array
+  const [expandedUses, setExpandedUses] = useState({});   // id → uses[]
+  const [showCreate, setShowCreate]     = useState(false);
+  const [qrModal, setQrModal]           = useState(null); // { id, code, url }
+  const [err, setErr]                   = useState('');
+  const [saving, setSaving]             = useState(false);
+  const [form, setForm] = useState({
+    code: '', ambassador_name: '', ambassador_email: '',
+    discount_type: 'free', discount_value: 100, active: true,
+  });
+
+  const BASE_URL = 'https://www.tourneyrun.app';
+
+  function load() {
+    api.get('/golf/admin/promo-codes')
+      .then(r => { setCodes(r.data.codes || []); setMonthStats(r.data.monthStats); })
+      .catch(e => setErr(e.response?.data?.error || 'Load failed'));
+  }
+  useEffect(load, []);
+
+  function suggestCode(name) {
+    const parts = name.trim().split(/\s+/);
+    const first = (parts[0] || '').toUpperCase().slice(0, 8);
+    const num = Math.floor(Math.random() * 90) + 10;
+    return first + num;
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setSaving(true);
+    setErr('');
+    try {
+      await api.post('/golf/admin/promo-codes', form);
+      setShowCreate(false);
+      setForm({ code: '', ambassador_name: '', ambassador_email: '', discount_type: 'free', discount_value: 100, active: true });
+      load();
+    } catch (ex) {
+      setErr(ex.response?.data?.error || 'Failed to create code');
+    } finally { setSaving(false); }
+  }
+
+  async function toggleActive(c) {
+    try {
+      await api.patch(`/golf/admin/promo-codes/${c.id}`, { active: !c.active });
+      load();
+    } catch (ex) { setErr(ex.response?.data?.error || 'Failed'); }
+  }
+
+  async function deleteCode(id) {
+    if (!window.confirm('Delete this promo code and all its use records?')) return;
+    try {
+      await api.delete(`/golf/admin/promo-codes/${id}`);
+      load();
+    } catch (ex) { setErr(ex.response?.data?.error || 'Failed'); }
+  }
+
+  async function loadUses(id) {
+    if (expanded === id) { setExpanded(null); return; }
+    setExpanded(id);
+    if (expandedUses[id]) return;
+    try {
+      const r = await api.get(`/golf/admin/promo-codes/${id}/uses`);
+      setExpandedUses(u => ({ ...u, [id]: r.data.uses || [] }));
+    } catch (_) {}
+  }
+
+  function openQr(c) {
+    const url = `${BASE_URL}/golf/create?promo=${encodeURIComponent(c.code)}`;
+    setQrModal({ id: c.id, code: c.code, url });
+  }
+
+  const discountLabel = c => c.discount_type === 'free'
+    ? 'Free (100%)'
+    : `${c.discount_value}% off`;
+
+  const inputStyle = { background: '#0d1a0e', border: '1px solid #1a3320', borderRadius: 8, padding: '9px 12px', color: '#fff', fontSize: 13, width: '100%', outline: 'none', boxSizing: 'border-box' };
+  const labelStyle = { color: '#6b7280', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 5 };
+
+  return (
+    <div>
+      <Err msg={err} />
+
+      {/* Stats row */}
+      {monthStats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 10, marginBottom: 20 }}>
+          <Stat label="Active Codes"      value={monthStats.activeCodes}   color="#4ade80" />
+          <Stat label="Uses This Month"   value={monthStats.usesThisMonth} color="#4ade80" />
+          <Stat label="Total Discounts Given" value={`$${Number(monthStats.discountsGiven || 0).toFixed(2)}`} color="#fbbf24" />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <h4 style={{ margin: 0, color: '#fff', fontSize: 14, fontWeight: 700 }}>Ambassador Codes</h4>
+        <button
+          onClick={() => setShowCreate(true)}
+          style={{ background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+        >
+          + Create Code
+        </button>
+      </div>
+
+      {/* Create modal */}
+      {showCreate && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}
+        >
+          <div style={{ background: '#0a1a0f', border: '1px solid #14532d', borderRadius: 20, padding: 32, width: '100%', maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 24px', color: '#fff', fontSize: 18, fontWeight: 800 }}>Create Ambassador Code</h3>
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Ambassador Name *</label>
+                <input style={inputStyle} required value={form.ambassador_name}
+                  onChange={e => {
+                    const n = e.target.value;
+                    setForm(f => ({ ...f, ambassador_name: n, code: f.code || suggestCode(n) }));
+                  }}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Ambassador Email</label>
+                <input style={inputStyle} type="email" value={form.ambassador_email}
+                  onChange={e => setForm(f => ({ ...f, ambassador_email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Code *</label>
+                <input style={{ ...inputStyle, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}
+                  required value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                  placeholder="e.g. JAKE10"
+                />
+                <div style={{ color: '#374151', fontSize: 11, marginTop: 4 }}>URL: tourneyrun.app/golf/create?promo={form.code || 'CODE'}</div>
+              </div>
+              <div>
+                <label style={labelStyle}>Discount Type</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { value: 'free',    label: 'Free First Pool' },
+                    { value: 'percent', label: 'Custom %' },
+                  ].map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => setForm(f => ({ ...f, discount_type: opt.value, discount_value: opt.value === 'free' ? 100 : 50 }))}
+                      style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1.5px solid ${form.discount_type === opt.value ? '#22c55e' : '#1a3320'}`, background: form.discount_type === opt.value ? 'rgba(34,197,94,0.1)' : 'transparent', color: form.discount_type === opt.value ? '#4ade80' : '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                    >{opt.label}</button>
+                  ))}
+                </div>
+              </div>
+              {form.discount_type === 'percent' && (
+                <div>
+                  <label style={labelStyle}>Discount % (1–100)</label>
+                  <input style={inputStyle} type="number" min="1" max="100"
+                    value={form.discount_value}
+                    onChange={e => setForm(f => ({ ...f, discount_value: parseInt(e.target.value) || 50 }))}
+                  />
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Active</label>
+                <button type="button"
+                  onClick={() => setForm(f => ({ ...f, active: !f.active }))}
+                  style={{ width: 40, height: 22, borderRadius: 11, border: 'none', background: form.active ? '#16a34a' : '#374151', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}
+                >
+                  <span style={{ position: 'absolute', top: 3, left: form.active ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button type="submit" disabled={saving}
+                  style={{ flex: 1, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+                >{saving ? 'Creating…' : 'Create Code'}</button>
+                <button type="button" onClick={() => setShowCreate(false)}
+                  style={{ flex: 1, background: 'transparent', color: '#6b7280', border: '1px solid #1a3320', borderRadius: 10, padding: '11px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                >Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* QR code modal */}
+      {qrModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setQrModal(null); }}
+        >
+          <div style={{ background: '#0a1a0f', border: '1px solid #14532d', borderRadius: 20, padding: 32, width: '100%', maxWidth: 380, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 6px', color: '#fff', fontSize: 18, fontWeight: 800 }}>Card Assets — {qrModal.code}</h3>
+            <p style={{ color: '#6b7280', fontSize: 12, margin: '0 0 20px', wordBreak: 'break-all' }}>{qrModal.url}</p>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 16, marginBottom: 16, display: 'inline-block' }}>
+              <img
+                src={`/api/golf/admin/promo-codes/${qrModal.id}/qr`}
+                alt={`QR for ${qrModal.code}`}
+                style={{ width: 200, height: 200, display: 'block' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <a
+                href={`/api/golf/admin/promo-codes/${qrModal.id}/qr`}
+                download={`qr-${qrModal.code}.png`}
+                style={{ background: '#16a34a', color: '#fff', textDecoration: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 700 }}
+              >Download QR PNG</a>
+              <button
+                onClick={() => { navigator.clipboard.writeText(qrModal.url); }}
+                style={{ background: 'transparent', color: '#6b7280', border: '1px solid #1a3320', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >Copy URL</button>
+              <button onClick={() => setQrModal(null)}
+                style={{ background: 'transparent', color: '#6b7280', border: '1px solid #1a3320', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Codes table */}
+      {codes.length === 0 ? (
+        <EmptyState icon="🏷️" text="No ambassador codes yet — create one above" />
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', background: '#080f09', borderRadius: 12, overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: '#0d1f0f' }}>
+                <TH>Code</TH><TH>Ambassador</TH><TH>Discount</TH>
+                <TH right>Uses</TH><TH>Status</TH><TH>Created</TH><TH>Actions</TH>
+              </tr>
+            </thead>
+            <tbody>
+              {codes.map(c => (
+                <>
+                  <tr key={c.id}>
+                    <TD>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#4ade80', fontSize: 14, letterSpacing: '0.05em' }}>{c.code}</span>
+                    </TD>
+                    <TD>
+                      <div style={{ color: '#fff', fontWeight: 600, fontSize: 13 }}>{c.ambassador_name || '—'}</div>
+                      {c.ambassador_email && <div style={{ color: '#374151', fontSize: 11 }}>{c.ambassador_email}</div>}
+                    </TD>
+                    <TD muted>{discountLabel(c)}</TD>
+                    <TD right>
+                      <button
+                        onClick={() => loadUses(c.id)}
+                        style={{ background: 'transparent', border: 'none', color: c.uses_count_live > 0 ? '#60a5fa' : '#4b5563', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: c.uses_count_live > 0 ? 'underline' : 'none' }}
+                      >
+                        {c.uses_count_live}
+                      </button>
+                    </TD>
+                    <TD>
+                      <button
+                        onClick={() => toggleActive(c)}
+                        style={{ background: c.active ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: c.active ? '#4ade80' : '#f87171', border: `1px solid ${c.active ? '#166534' : '#7f1d1d'}`, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        {c.active ? 'Active' : 'Inactive'}
+                      </button>
+                    </TD>
+                    <TD muted>{fmt(c.created_at)}</TD>
+                    <TD>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => openQr(c)}
+                          style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid #1e40af44', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                        >QR / Card</button>
+                        <button
+                          onClick={() => deleteCode(c.id)}
+                          style={{ background: 'transparent', color: '#6b7280', border: '1px solid #1a2520', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                        >Delete</button>
+                      </div>
+                    </TD>
+                  </tr>
+                  {expanded === c.id && (
+                    <tr key={`${c.id}-uses`}>
+                      <td colSpan={7} style={{ background: '#060e07', padding: '0 0 0 20px' }}>
+                        {!expandedUses[c.id] ? (
+                          <div style={{ padding: '14px 14px', color: '#374151', fontSize: 13 }}>Loading…</div>
+                        ) : expandedUses[c.id].length === 0 ? (
+                          <div style={{ padding: '14px 14px', color: '#374151', fontSize: 13 }}>No uses yet.</div>
+                        ) : (
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr><TH>User</TH><TH>League</TH><TH right>Original</TH><TH right>Discount</TH><TH right>Paid</TH><TH>Date</TH></tr>
+                            </thead>
+                            <tbody>
+                              {expandedUses[c.id].map(u => (
+                                <tr key={u.id}>
+                                  <TD><span style={{ color: '#fff', fontWeight: 600 }}>{u.username || u.user_id}</span><br /><span style={{ color: '#374151', fontSize: 11 }}>{u.email}</span></TD>
+                                  <TD muted>{u.league_name || '—'}</TD>
+                                  <TD right muted>${Number(u.original_price).toFixed(2)}</TD>
+                                  <TD right><span style={{ color: '#fbbf24' }}>−${Number(u.discount_amount).toFixed(2)}</span></TD>
+                                  <TD right><span style={{ color: '#4ade80', fontWeight: 700 }}>${Number(u.final_price).toFixed(2)}</span></TD>
+                                  <TD muted>{fmt(u.used_at)}</TD>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Tab 4: Financials ─────────────────────────────────────────────────────────
 
 function FinancialsTab() {
@@ -596,6 +905,12 @@ function FinancialsTab() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Ambassador / Promo Codes */}
+      <div style={{ borderTop: '1px solid #111827', paddingTop: 24 }}>
+        <h3 style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Ambassador Codes</h3>
+        <AmbassadorCodes />
       </div>
 
       {/* Referral program */}

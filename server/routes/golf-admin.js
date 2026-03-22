@@ -437,6 +437,128 @@ router.get('/admin/financials', superadmin, (req, res) => {
   }
 });
 
+// ── Promo / Ambassador Codes ──────────────────────────────────────────────────
+
+router.get('/admin/promo-codes', superadmin, (req, res) => {
+  try {
+    const codes = db.prepare(`
+      SELECT pc.*,
+        (SELECT COUNT(*) FROM promo_code_uses WHERE promo_code_id = pc.id) AS uses_count_live,
+        (SELECT COUNT(*) FROM promo_code_uses
+         WHERE promo_code_id = pc.id
+           AND strftime('%Y-%m', used_at) = strftime('%Y-%m', 'now')) AS uses_this_month
+      FROM promo_codes pc
+      ORDER BY pc.created_at DESC
+    `).all();
+    const now = new Date();
+    const monthStats = {
+      activeCodes: codes.filter(c => c.active).length,
+      usesThisMonth: codes.reduce((s, c) => s + (c.uses_this_month || 0), 0),
+      discountsGiven: db.prepare(
+        "SELECT COALESCE(SUM(discount_amount),0) as n FROM promo_code_uses"
+      ).get().n,
+    };
+    res.json({ codes, monthStats });
+  } catch (err) {
+    console.error('[golf-admin] promo-codes list:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/admin/promo-codes', superadmin, (req, res) => {
+  try {
+    const { code, ambassador_name, ambassador_email, discount_type, discount_value, active } = req.body;
+    if (!code || !discount_type) return res.status(400).json({ error: 'code and discount_type required' });
+    const validTypes = ['percent', 'free'];
+    if (!validTypes.includes(discount_type)) return res.status(400).json({ error: 'Invalid discount_type' });
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO promo_codes (id, code, ambassador_name, ambassador_email, discount_type, discount_value, active)
+      VALUES (?, UPPER(?), ?, ?, ?, ?, ?)
+    `).run(id, code.trim(), ambassador_name || '', ambassador_email || '',
+      discount_type, parseFloat(discount_value) || 100, active !== false ? 1 : 0);
+    res.status(201).json({ code: db.prepare('SELECT * FROM promo_codes WHERE id = ?').get(id) });
+  } catch (err) {
+    if (err.message?.includes('UNIQUE')) return res.status(409).json({ error: 'Code already exists' });
+    console.error('[golf-admin] promo-codes create:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/admin/promo-codes/:id', superadmin, (req, res) => {
+  try {
+    const { ambassador_name, ambassador_email, discount_type, discount_value, active } = req.body;
+    const promo = db.prepare('SELECT id FROM promo_codes WHERE id = ?').get(req.params.id);
+    if (!promo) return res.status(404).json({ error: 'Not found' });
+    const fields = [];
+    const vals = [];
+    if (ambassador_name  !== undefined) { fields.push('ambassador_name = ?');  vals.push(ambassador_name); }
+    if (ambassador_email !== undefined) { fields.push('ambassador_email = ?'); vals.push(ambassador_email); }
+    if (discount_type    !== undefined) { fields.push('discount_type = ?');    vals.push(discount_type); }
+    if (discount_value   !== undefined) { fields.push('discount_value = ?');   vals.push(parseFloat(discount_value)); }
+    if (active           !== undefined) { fields.push('active = ?');           vals.push(active ? 1 : 0); }
+    if (fields.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    vals.push(req.params.id);
+    db.prepare(`UPDATE promo_codes SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+    res.json({ code: db.prepare('SELECT * FROM promo_codes WHERE id = ?').get(req.params.id) });
+  } catch (err) {
+    console.error('[golf-admin] promo-codes patch:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/admin/promo-codes/:id', superadmin, (req, res) => {
+  try {
+    db.prepare('DELETE FROM promo_code_uses WHERE promo_code_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM promo_codes WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[golf-admin] promo-codes delete:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/admin/promo-codes/:id/uses', superadmin, (req, res) => {
+  try {
+    const uses = db.prepare(`
+      SELECT pcu.*, u.username, u.email,
+             gl.name AS league_name
+      FROM promo_code_uses pcu
+      LEFT JOIN users u ON u.id = pcu.user_id
+      LEFT JOIN golf_leagues gl ON gl.id = pcu.league_id
+      WHERE pcu.promo_code_id = ?
+      ORDER BY pcu.used_at DESC
+    `).all(req.params.id);
+    res.json({ uses });
+  } catch (err) {
+    console.error('[golf-admin] promo-codes uses:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/admin/promo-codes/:id/qr', superadmin, async (req, res) => {
+  try {
+    const promo = db.prepare('SELECT code FROM promo_codes WHERE id = ?').get(req.params.id);
+    if (!promo) return res.status(404).json({ error: 'Not found' });
+    const baseUrl = process.env.CLIENT_URL
+      ? process.env.CLIENT_URL.replace(/\/$/, '')
+      : 'https://www.tourneyrun.app';
+    const url = `${baseUrl}/golf/create?promo=${encodeURIComponent(promo.code)}`;
+    const QRCode = require('qrcode');
+    const png = await QRCode.toBuffer(url, {
+      type: 'png', width: 400,
+      color: { dark: '#000000', light: '#ffffff' },
+      margin: 2,
+    });
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Disposition', `attachment; filename="qr-${promo.code}.png"`);
+    res.send(png);
+  } catch (err) {
+    console.error('[golf-admin] promo-codes qr:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 router.get('/admin/analytics', superadmin, (req, res) => {

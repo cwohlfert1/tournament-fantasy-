@@ -586,6 +586,38 @@ try {
   console.error('[golf-db] Payment tables migration error:', e.message);
 }
 
+// ── Promo / Ambassador Code Tables ─────────────────────────────────────────────
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS promo_codes (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      ambassador_name TEXT NOT NULL DEFAULT '',
+      ambassador_email TEXT NOT NULL DEFAULT '',
+      discount_type TEXT NOT NULL DEFAULT 'percent',
+      discount_value REAL NOT NULL DEFAULT 100,
+      uses_count INTEGER NOT NULL DEFAULT 0,
+      revenue_attributed REAL NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS promo_code_uses (
+      id TEXT PRIMARY KEY,
+      promo_code_id TEXT NOT NULL,
+      league_id TEXT,
+      user_id TEXT NOT NULL,
+      original_price REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      final_price REAL NOT NULL DEFAULT 0,
+      used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id)
+    );
+  `);
+} catch (e) {
+  console.error('[golf-db] Promo codes migration error:', e.message);
+}
+
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS pool_picks (

@@ -484,6 +484,9 @@ export default function CreateGolfLeague() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tournaments, setTournaments] = useState([]);
+  const [promoCode, setPromoCode] = useState(searchParams.get('promo') || '');
+  const [promoStatus, setPromoStatus] = useState(null); // null | { valid, label, discountType, discountValue } | { error }
+  const [promoChecking, setPromoChecking] = useState(false);
 
   useEffect(() => {
     api.get('/golf/tournaments').then(res => {
@@ -491,6 +494,24 @@ export default function CreateGolfLeague() {
       setTournaments(upcoming);
     }).catch(() => {});
   }, []);
+
+  // Auto-validate promo code if pre-filled from URL param
+  useEffect(() => {
+    if (promoCode && format === 'pool') validatePromo(promoCode);
+  }, []); // eslint-disable-line
+
+  async function validatePromo(code) {
+    if (!code.trim()) { setPromoStatus(null); return; }
+    setPromoChecking(true);
+    try {
+      const res = await api.post('/golf/payments/validate-promo', { code: code.trim() });
+      setPromoStatus({ valid: true, ...res.data });
+    } catch (err) {
+      setPromoStatus({ valid: false, error: err.response?.data?.error || 'Invalid code' });
+    } finally {
+      setPromoChecking(false);
+    }
+  }
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -540,6 +561,7 @@ export default function CreateGolfLeague() {
       const payRes = await api.post('/golf/payments/create-checkout-session', {
         type: 'comm_pro',
         leagueId: league.id,
+        ...(promoStatus?.valid && promoCode ? { promoCode: promoCode.trim() } : {}),
       });
 
       if (payRes.data.free || payRes.data.alreadyPaid) {
@@ -1165,6 +1187,47 @@ export default function CreateGolfLeague() {
             </div>
           );
         })()}
+
+        {/* ── Promo code (Pool only) ── */}
+        {format === 'pool' && (
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+              Promo / Ambassador Code <span style={{ color: '#374151', fontWeight: 400 }}>(optional)</span>
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="e.g. JAKE10"
+                value={promoCode}
+                style={{ textTransform: 'uppercase', flex: 1, letterSpacing: '0.05em' }}
+                onChange={e => {
+                  const v = e.target.value.toUpperCase();
+                  setPromoCode(v);
+                  setPromoStatus(null);
+                }}
+                onBlur={() => validatePromo(promoCode)}
+              />
+              <button
+                type="button"
+                onClick={() => validatePromo(promoCode)}
+                disabled={promoChecking || !promoCode.trim()}
+                style={{ padding: '0 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                {promoChecking ? '…' : 'Apply'}
+              </button>
+            </div>
+            {promoStatus?.valid && (
+              <div style={{ marginTop: 7, display: 'flex', alignItems: 'center', gap: 6, color: '#4ade80', fontSize: 13, fontWeight: 600 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                {promoCode} applied — {promoStatus.label}
+              </div>
+            )}
+            {promoStatus?.valid === false && (
+              <div style={{ marginTop: 7, color: '#f87171', fontSize: 13 }}>✕ {promoStatus.error}</div>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"
