@@ -636,7 +636,7 @@ export default function CreateGolfLeague() {
                   </span>
                   {f.recommended && (
                     <span className="inline-block bg-green-500/20 border border-green-500/30 text-green-400 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide">
-                      Default
+                      Season Long Fantasy
                     </span>
                   )}
                 </div>
