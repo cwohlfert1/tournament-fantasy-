@@ -276,6 +276,11 @@ try {
   `).run();
 } catch (e) { console.error('[golf-db] Valspar status fix error:', e.message); }
 
+// ── Delete Valspar test league (pending_payment, never used) ─────────────────
+try {
+  db.prepare("DELETE FROM golf_leagues WHERE id LIKE 'c209f6ee%' AND status = 'pending_payment'").run();
+} catch (e) { console.error('[golf-db] Valspar test league cleanup error:', e.message); }
+
 // ── Houston Open 2026 — seed tournament row if not present ────────────────────
 try {
   const _houston = db.prepare("SELECT id FROM golf_tournaments WHERE name LIKE '%Houston Open%'").get();

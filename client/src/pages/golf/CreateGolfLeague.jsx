@@ -502,7 +502,8 @@ export default function CreateGolfLeague() {
 
   useEffect(() => {
     api.get('/golf/tournaments').then(res => {
-      const upcoming = (res.data.tournaments || []).filter(t => t.status !== 'completed');
+      const today = new Date().toISOString().slice(0, 10);
+      const upcoming = (res.data.tournaments || []).filter(t => t.end_date >= today);
       setTournaments(upcoming);
     }).catch(() => {});
   }, []);
