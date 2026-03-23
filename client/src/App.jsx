@@ -31,6 +31,12 @@ class ErrorBoundary extends Component {
 import { useParams } from 'react-router-dom';
 import HubLanding from './pages/HubLanding';
 
+// Redirect /golf/join/:code → /golf/join?code=CODE
+function GolfJoinCode() {
+  const { code } = useParams();
+  return <Navigate to={`/golf/join?code=${code}`} replace />;
+}
+
 // Redirect helpers that preserve dynamic :id params
 function RedirectLeague() { const { id } = useParams(); return <Navigate to={`/basketball/league/${id}`} replace />; }
 function RedirectLeagueDraft() { const { id } = useParams(); return <Navigate to={`/basketball/league/${id}/draft`} replace />; }
@@ -155,6 +161,8 @@ export default function App() {
               <Route path="/golf/dashboard" element={<ProtectedRoute><GolfDashboard /></ProtectedRoute>} />
               <Route path="/golf/create" element={<ProtectedRoute><CreateGolfLeague /></ProtectedRoute>} />
               <Route path="/golf/join" element={<JoinGolfLeague />} />
+              <Route path="/golf/join/:code" element={<GolfJoinCode />} />
+              <Route path="/golf/register" element={<Navigate to="/register" replace />} />
               <Route path="/golf/league/:id" element={<ProtectedRoute><GolfLeague /></ProtectedRoute>} />
               <Route path="/golf/league/:id/draft" element={<ProtectedRoute><GolfDraft /></ProtectedRoute>} />
               <Route path="/golf/league/:id/auction" element={<ProtectedRoute><GolfAuctionDraft /></ProtectedRoute>} />
