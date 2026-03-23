@@ -461,6 +461,7 @@ const DEFAULT_FORM = {
     { tier: 5, odds_min: '110:1', odds_max: '200:1',  picks: 1, approxPlayers: 25 },
     { tier: 6, odds_min: '250:1', odds_max: '',        picks: 1, approxPlayers: null },
   ],
+  pool_drop_count: 2,
   pool_salary_cap: 50000,
   pool_cap_unit: 50000,
   // DK
@@ -746,6 +747,45 @@ export default function CreateGolfLeague() {
                   onChange={v => set('picks_per_team', v)}
                 />
                 <p className="text-gray-600 text-xs mt-2">Each manager picks this many golfers per tournament.</p>
+              </div>
+
+              {/* Scoring Rule — drop N worst players */}
+              <div>
+                <label className="label mb-2.5">Scoring Rule</label>
+                <div className="space-y-2">
+                  {[
+                    { val: true,  title: 'Drop lowest scores', sub: `Worst ${form.pool_drop_count || 2} players dropped each tournament` },
+                    { val: false, title: 'All picks count',    sub: 'Every player\'s total score is added' },
+                  ].map(opt => {
+                    const active = opt.val ? form.pool_drop_count > 0 : form.pool_drop_count === 0;
+                    return (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => set('pool_drop_count', opt.val ? (form.pool_drop_count || 2) : 0)}
+                        className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${active ? 'border-green-500/50 bg-green-500/8' : 'border-gray-700 bg-gray-800/20 hover:border-gray-600'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${active ? 'border-green-400' : 'border-gray-600'}`}>
+                            {active && <div className="w-2 h-2 rounded-full bg-green-400" />}
+                          </div>
+                          <div>
+                            <div className={`font-bold text-sm ${active ? 'text-white' : 'text-gray-300'}`}>{opt.title}</div>
+                            <div className="text-gray-500 text-xs mt-0.5">{opt.sub}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {form.pool_drop_count > 0 && (
+                  <div className="flex items-center gap-3 mt-3 pl-1">
+                    <span className="text-gray-400 text-sm">Drop</span>
+                    <PillSelector
+                      options={[1,2,3,4].map(n => ({ value: n, label: String(n) }))}
+                      value={form.pool_drop_count}
+                      onChange={v => set('pool_drop_count', v)}
+                    />
+                    <span className="text-gray-400 text-sm">worst players</span>
+                  </div>
+                )}
               </div>
 
               {/* Scoring Style */}

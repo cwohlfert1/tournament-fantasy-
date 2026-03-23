@@ -2,6 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 const db = require('../db');
+const { applyDropScoring } = require('../pool-utils');
 
 const router = express.Router();
 
@@ -512,13 +513,34 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       players:  tierPlayers.filter(p => p.tier_number === t.tier),
     }));
 
+    const dropCount = league.pool_drop_count ?? 2;
+    const isTotalStrokes = league.scoring_style === 'total_strokes';
+
+    let enrichedPicks = picks;
+    let teamScore = null;
+    let countingCount = null;
+    let droppedCount = null;
+
+    if (isTotalStrokes && picks.length > 0) {
+      const dropResult = applyDropScoring(picks, dropCount);
+      enrichedPicks  = dropResult.picks;
+      teamScore      = dropResult.team_score;
+      countingCount  = dropResult.counting_count;
+      droppedCount   = dropResult.dropped_count;
+    }
+
     res.json({
-      picks,
+      picks: enrichedPicks,
       submitted: picks.length > 0,
       picks_locked: !!league.picks_locked,
       lock_time: lockTime,
       tournament: tourn,
       tiers,
+      drop_count:     dropCount,
+      picks_per_team: league.picks_per_team || 8,
+      team_score:     teamScore,
+      counting_count: countingCount,
+      dropped_count:  droppedCount,
     });
   } catch (err) {
     console.error('[golf-pool] my-roster error:', err);

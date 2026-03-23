@@ -759,24 +759,28 @@ function CountryFlag({ cc }) {
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
-  const totalPar = rounds.reduce((s, r) => s + (r || 0), 0);
+  const totalPar = pick.player_total ?? rounds.reduce((s, r) => s + (r || 0), 0);
   const pts = pick.fantasy_points;
-  const isWD = pick.made_cut === 0 && pick.finish_position == null;
+  const isWD  = pick.made_cut === 0 && pick.finish_position == null;
   const isCUT = (pick.made_cut === 0 && pick.finish_position != null) || espnCut;
   const hasScores = rounds.length > 0;
   const isLive = tournStatus === 'active';
   const isComplete = tournStatus === 'completed';
-  const showTeeTime = !hasScores && !isCUT && !isWD && teeTimeRaw;
+  const showTeeTime = !hasScores && !isCUT && !isWD && !isPending && teeTimeRaw;
   const teeTxt = showTeeTime ? fmtTeeTimeShort(teeTimeRaw) : null;
+
+  // Drop-scoring display
+  const isDropStyle = isDropped || isCUT || isWD;
+  const countingBorder = !isDropStyle && hasScores ? '#00e87a' : tc.border;
 
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.03)',
-      border: `1px solid ${tc.border}`,
+      background: isDropped ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${isDropped ? 'rgba(107,114,128,0.2)' : countingBorder}`,
       borderRadius: 14,
       padding: '14px 16px',
       display: 'flex', alignItems: 'center', gap: 14,
@@ -784,7 +788,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
       animation: `fadeSlideUp 0.35s ease both`,
       animationDelay: `${idx * 60}ms`,
       transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-      opacity: (isCUT || isWD) ? 0.55 : 1,
+      opacity: isDropStyle ? 0.45 : isPending ? 0.7 : 1,
     }}
     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc.border}`; }}
     onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
@@ -816,6 +820,14 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
 
       {/* Score column */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0, minWidth: 70 }}>
+        {/* Drop status badge */}
+        {isDropped ? (
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>DROPPED</span>
+        ) : isPending ? (
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>PENDING</span>
+        ) : hasScores && !isCUT && !isWD ? (
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#00e87a', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>COUNTING</span>
+        ) : null}
         {(isWD || isCUT) && (
           <div style={{
             background: isWD ? 'rgba(239,68,68,0.15)' : 'rgba(107,114,128,0.15)',
@@ -826,13 +838,13 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
         )}
         {hasScores && !isCUT ? (
           <>
-            <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor(totalPar), lineHeight: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: isDropped ? '#6b7280' : scoreColor(totalPar), lineHeight: 1, textDecoration: isDropped ? 'line-through' : 'none' }}>
               {fmtScore(totalPar)}
             </div>
             <div style={{ fontSize: 11, color: '#6b7280' }}>
               {isLive ? `R${rounds.length}: ${fmtScore(todayRaw)}` : isComplete ? `Rd ${rounds.length}` : ''}
             </div>
-            {pts != null && (
+            {pts != null && !isDropped && (
               <div style={{ fontSize: 11, fontWeight: 700, color: tc.label }}>
                 {pts > 0 ? '+' : ''}{pts} pts
               </div>
@@ -840,7 +852,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
           </>
         ) : teeTxt ? (
           <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600, textAlign: 'right' }}>{teeTxt}</span>
-        ) : !isCUT && !isWD ? (
+        ) : !isCUT && !isWD && !isPending ? (
           <span style={{ fontSize: 12, color: '#4b5563' }}>—</span>
         ) : null}
       </div>
@@ -1046,6 +1058,10 @@ function PoolRosterTab({ leagueId, league }) {
   const lockTime     = data?.lock_time;
   const tourn        = data?.tournament;
   const tournStatus  = league.pool_tournament_status || tourn?.status;
+  const dropCount    = data?.drop_count ?? league.pool_drop_count ?? 2;
+  const teamScore    = data?.team_score;
+  const countingCount = data?.counting_count;
+  const picksPerTeam  = data?.picks_per_team || league.picks_per_team || 8;
 
   const totalTarget = tiers.reduce((s, t) => s + (t.picks || 0), 0);
   const totalDone   = Object.values(selected).flat().length;
@@ -1273,6 +1289,8 @@ function PoolRosterTab({ leagueId, league }) {
                           teeTimeRaw={espnData?.teeTimeRaw}
                           espnScheduled={espnData?.isScheduled}
                           espnCut={espnData?.isCut}
+                          isDropped={pick.is_dropped}
+                          isPending={pick.is_pending}
                         />
                       );
                     })}
@@ -1283,6 +1301,21 @@ function PoolRosterTab({ leagueId, league }) {
                 </div>
               );
             })}
+
+            {/* ── Team running total ── */}
+            {submitted && (tournStatus === 'active' || tournStatus === 'completed') && teamScore != null && (
+              <div style={{ marginTop: 16, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>
+                  {dropCount > 0 ? `Best ${picksPerTeam - dropCount} of ${picksPerTeam} counting` : `All ${picksPerTeam} counting`}
+                </div>
+                <div>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: teamScore < 0 ? '#00e87a' : teamScore > 0 ? '#ef4444' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>
+                    {teamScore === 0 ? 'E' : (teamScore > 0 ? '+' : '') + teamScore}
+                  </span>
+                  <span style={{ fontSize: 12, color: '#4b5563', marginLeft: 6 }}>Your score</span>
+                </div>
+              </div>
+            )}
           </>
         );
       })()}
@@ -2383,6 +2416,10 @@ function StandingsTab({ leagueId, league, currentUserId }) {
 
   // ── Pool leaderboard ────────────────────────────────────────────────────────
   if (isPool) {
+    const dropCount    = data?.drop_count ?? 2;
+    const picksPerTeam = data?.picks_per_team || 8;
+    const countingPicks = picksPerTeam - dropCount;
+
     // Derive which round(s) have data
     const allPicks = standings.flatMap(s => s.picks || []);
     let currentRound = 0;
@@ -2430,13 +2467,20 @@ function StandingsTab({ leagueId, league, currentUserId }) {
                   const isWD = p.round1 == null && p.made_cut === 0 && p.finish_position == null;
                   if (isTotalStrokes) {
                     const rounds = [p.round1, p.round2, p.round3, p.round4].filter(r => r != null);
-                    const playerTotal = rounds.reduce((s, r) => s + r, 0);
+                    const playerTotal = p.player_total ?? rounds.reduce((s, r) => s + r, 0);
                     const hasRounds = rounds.length > 0;
+                    const isDropped  = p.is_dropped;
+                    const isPending  = p.is_pending;
+                    const isMC       = p.is_mc || (p.made_cut === 0);
                     return (
-                      <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-                        <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none', opacity: isDropped ? 0.45 : 1 }}>
+                        <span style={{ flex: 1, color: isDropped ? '#6b7280' : '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isDropped ? 'line-through' : 'none' }}>
                           {p.player_name}
                         </span>
+                        {/* Status badges */}
+                        {isDropped && <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>DROPPED</span>}
+                        {isMC && !isDropped && <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>MC</span>}
+                        {isPending && <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>TBD</span>}
                         {isWD ? (
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', padding: '1px 5px', borderRadius: 4 }}>WD</span>
                         ) : (
@@ -2450,7 +2494,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
                               ) : null
                             ))}
                             {/* Player total */}
-                            <span style={{ fontSize: 12, fontWeight: 700, minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: hasRounds ? (playerTotal < 0 ? '#00e87a' : playerTotal > 0 ? '#ef4444' : '#9ca3af') : '#374151' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: hasRounds && !isDropped ? (playerTotal < 0 ? '#00e87a' : playerTotal > 0 ? '#ef4444' : '#9ca3af') : '#374151' }}>
                               {hasRounds ? (playerTotal === 0 ? 'E' : (playerTotal > 0 ? '+' : '') + playerTotal) : '—'}
                             </span>
                           </>
@@ -2531,6 +2575,16 @@ function StandingsTab({ leagueId, league, currentUserId }) {
 
         {/* ── Prize pool card ── */}
         {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} p1={p1} p2={p2} p3={p3} />}
+
+        {/* ── Drop scoring banner ── */}
+        {isTotalStrokes && dropCount > 0 && (
+          <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13 }}>⚖️</span>
+            <span style={{ color: '#9ca3af', fontSize: 12 }}>
+              Pick {picksPerTeam} · <span style={{ color: '#00e87a', fontWeight: 700 }}>Best {countingPicks} count</span> · Worst {dropCount} dropped · MC auto-dropped
+            </span>
+          </div>
+        )}
 
         {/* ── Leaderboard ── */}
         <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>

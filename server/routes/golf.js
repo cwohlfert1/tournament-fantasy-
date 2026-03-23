@@ -9,6 +9,7 @@ const ESPN_CACHE_TTL = 60_000; // 60 seconds
 // Initialize golf tables + seed on first require
 require('../golf-db');
 const db = require('../db');
+const { applyDropScoring } = require('../pool-utils');
 
 const router = express.Router();
 
@@ -295,6 +296,9 @@ router.post('/leagues', authMiddleware, (req, res) => {
 
     const poolTournamentIdFinal = pool_tournament_id || null;
 
+    const poolDropCount = parseInt(req.body.pool_drop_count);
+    const poolDropFinal = isNaN(poolDropCount) ? 2 : Math.max(0, poolDropCount);
+
     db.prepare(`
       INSERT INTO golf_leagues (
         id, name, commissioner_id, invite_code, status, max_teams,
@@ -306,8 +310,8 @@ router.post('/leagues', authMiddleware, (req, res) => {
         payment_methods, payout_places,
         pick_sheet_format, pool_tiers, pool_salary_cap, pool_cap_unit,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds,
-        pool_tournament_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        pool_tournament_id, pool_drop_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, name, req.user.id, invite_code, 'pending_payment', parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
@@ -321,7 +325,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
       pickSheetFmt, poolTiersJson, parseInt(pool_salary_cap) || 50000, parseInt(pool_cap_unit) || 50000,
       parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100,
       dtFinal, parseInt(bid_timer_seconds) || 30,
-      poolTournamentIdFinal
+      poolTournamentIdFinal, poolDropFinal
     );
 
     // Persist pool_tiers to normalized table when Pool format
@@ -446,17 +450,32 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         `).all(tid, req.params.id, tid, m.user_id) : [];
 
         const isTotalStrokes = league.scoring_style === 'total_strokes';
+        const dropCount = league.pool_drop_count ?? 2;
 
         let total_points;
+        let enrichedPicks;
+
         if (isTotalStrokes) {
-          // Sum to-par strokes for all picks (lower = better); null round scores = 0
-          const toParPerPick = picks.map(p => {
-            const rounds = [p.round1, p.round2, p.round3, p.round4].filter(r => r != null);
-            return rounds.reduce((s, r) => s + r, 0);
-          });
-          total_points = toParPerPick.reduce((s, v) => s + v, 0);
+          const dropResult = applyDropScoring(picks, dropCount);
+          total_points = dropResult.team_score;
+          enrichedPicks = dropResult.picks.map(p => ({
+            player_name: p.player_name, tier_number: p.tier_number,
+            fantasy_points: p.fantasy_points || 0,
+            round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
+            finish_position: p.finish_position, made_cut: p.made_cut,
+            player_total: p.player_total,
+            is_dropped: p.is_dropped,
+            is_pending: p.is_pending,
+            is_mc: p.is_mc,
+          }));
         } else {
           total_points = Math.round(picks.reduce((s, p) => s + (p.fantasy_points || 0), 0) * 10) / 10;
+          enrichedPicks = picks.map(p => ({
+            player_name: p.player_name, tier_number: p.tier_number,
+            fantasy_points: p.fantasy_points || 0,
+            round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
+            finish_position: p.finish_position, made_cut: p.made_cut,
+          }));
         }
 
         return {
@@ -465,12 +484,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
           season_points: total_points,
           submitted: picks.length > 0,
           scoring_style: league.scoring_style || 'fantasy_points',
-          picks: picks.map(p => ({
-            player_name: p.player_name, tier_number: p.tier_number,
-            fantasy_points: p.fantasy_points || 0,
-            round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
-            finish_position: p.finish_position, made_cut: p.made_cut,
-          })),
+          picks: enrichedPicks,
         };
       });
 
@@ -493,6 +507,8 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
       return res.json({
         standings, format: 'pool',
         scoring_style: scoringStyle,
+        drop_count: league.pool_drop_count ?? 2,
+        picks_per_team: league.picks_per_team || 8,
         active_tournament_id: tid,
         tournament: tourn,
         has_scores: hasScores,

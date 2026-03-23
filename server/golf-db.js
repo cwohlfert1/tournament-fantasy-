@@ -227,6 +227,7 @@ const _golfColMigrations = [
   `ALTER TABLE golf_tournaments ADD COLUMN espn_event_id TEXT`,
   `ALTER TABLE golf_tournaments ADD COLUMN last_synced_at DATETIME`,
   `ALTER TABLE golf_leagues ADD COLUMN payout_pool_override REAL`,
+  `ALTER TABLE golf_leagues ADD COLUMN pool_drop_count INTEGER DEFAULT 2`,
 ];
 for (const sql of _golfColMigrations) { try { db.exec(sql); } catch (_) {} }
 
