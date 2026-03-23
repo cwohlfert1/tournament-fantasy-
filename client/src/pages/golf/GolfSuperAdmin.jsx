@@ -987,7 +987,8 @@ function DevToolsTab() {
       if (action === 'email')      res = await api.post('/golf/admin/dev/test-email');
       if (action === 'sandbox')    res = await api.post('/golf/admin/sandbox/auction-draft');
       if (action === 'valspar')    res = await api.post('/golf/admin/dev/create-valspar-test-pool');
-      if (action === 'syncTiers')  res = await api.post('/golf/admin/dev/sync-pool-tiers');
+      if (action === 'syncTiers')     res = await api.post('/golf/admin/dev/sync-pool-tiers');
+      if (action === 'syncEspnField') res = await api.post('/golf/admin/dev/sync-espn-field', { tournament_id: selectedT });
       setResults(r => ({ ...r, [action]: res?.data }));
       if (action === 'sandbox' && res?.data?.url) navigate(res.data.url);
       if (action === 'valspar' && res?.data?.success) setValsparModal(res.data);
@@ -1014,6 +1015,18 @@ function DevToolsTab() {
           {r.results.map((row, i) => (
             <div key={i} style={{ color: row.skipped ? '#fbbf24' : '#4ade80', fontSize: 12, lineHeight: 1.6 }}>
               {row.skipped ? `⚠ ${row.league}: ${row.skipped}` : `✓ ${row.league}: ${row.players_assigned} players`}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (action === 'syncEspnField' && r.field_size != null) {
+      return (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ color: '#4ade80', fontSize: 12, lineHeight: 1.6 }}>✓ {r.tournament}: {r.field_size} players</div>
+          {(r.leagues_rebuilt || []).map((row, i) => (
+            <div key={i} style={{ color: row.skipped ? '#fbbf24' : '#60a5fa', fontSize: 12, lineHeight: 1.6, paddingLeft: 10 }}>
+              {row.skipped ? `⚠ ${row.league}: ${row.skipped}` : `↳ ${row.league}: ${row.players_assigned} assigned`}
             </div>
           ))}
         </div>
@@ -1157,6 +1170,21 @@ function DevToolsTab() {
             {loading.syncTiers ? 'Syncing…' : 'Re-Sync Tiers →'}
           </button>,
           '#071a0f', '#05966933'
+        )}
+        {toolCard('🏌️📋', 'Sync ESPN Field',
+          'Fetches the official entry list from ESPN for the selected tournament and rebuilds pool_tier_players for any linked pool leagues.',
+          'syncEspnField',
+          <div>
+            <select value={selectedT} onChange={e => setSelectedT(e.target.value)}
+              style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}>
+              {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <button onClick={() => run('syncEspnField')} disabled={loading.syncEspnField || !selectedT}
+              style={{ background: (loading.syncEspnField || !selectedT) ? '#1e3a5f' : '#2563eb', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: (loading.syncEspnField || !selectedT) ? 'not-allowed' : 'pointer' }}>
+              {loading.syncEspnField ? 'Fetching…' : 'Sync ESPN Field →'}
+            </button>
+          </div>,
+          '#0a0f1a', '#2563eb33'
         )}
         {toolCard('🗄️', 'DB Health Check',
           'Current row counts for all golf tables.',

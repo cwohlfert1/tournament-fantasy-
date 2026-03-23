@@ -737,6 +737,21 @@ try {
 
 try {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS golf_tournament_fields (
+      id TEXT PRIMARY KEY,
+      tournament_id TEXT NOT NULL,
+      player_name TEXT NOT NULL,
+      player_id TEXT,
+      espn_player_id TEXT,
+      world_ranking INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(tournament_id, player_name)
+    );
+  `);
+} catch (e) { console.error('[golf-db] golf_tournament_fields table error:', e.message); }
+
+try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS golf_waitlist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL,
@@ -820,6 +835,96 @@ try {
       }
     })();
     console.log(`[golf-db] Auto-assigned tier players for league ${_league.id} (${_league.name})`);
+  }
+
+  // ── Houston Open field correction (one-time fix) ────────────────────────────
+  // If McIlroy (not in field) is present OR Zalatoris (in field) is absent,
+  // the pool_tier_players were built from global OWGR, not the actual entry list.
+  // Rebuild from the official 133-player field.
+  const _HOU_LEAGUE_ID = 'ff568722-fbe9-4695-86a8-a31287c22841';
+  const _houLeague = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(_HOU_LEAGUE_ID);
+  if (_houLeague && _houLeague.pool_tournament_id) {
+    const _tid = _houLeague.pool_tournament_id;
+    const _mcIlroy = db.prepare(
+      "SELECT 1 FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND player_name = 'Rory McIlroy'"
+    ).get(_HOU_LEAGUE_ID, _tid);
+    const _zalatoris = db.prepare(
+      "SELECT 1 FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND player_name = 'Will Zalatoris'"
+    ).get(_HOU_LEAGUE_ID, _tid);
+
+    if (_mcIlroy || !_zalatoris) {
+      console.log('[golf-db] Houston Open: wrong field detected — rebuilding from official 133-player list...');
+
+      const _officialField = [
+        'Zach Bauchou', 'Christiaan Bezuidenhout', 'Chandler Blanchet', 'Michael Brennan',
+        'Dan Brown', 'Bronson Burgoon', 'Sam Burns', 'Brian Campbell', 'Rafael Campos',
+        'Ricky Castillo', 'Bud Cauley', 'Davis Chatfield', 'Luke Clanton', 'Wyndham Clark',
+        'Eric Cole', 'Pierceson Coody', 'Jason Day', 'Zecheng Dou',
+        'Adrien Dumont de Chassart', 'Nick Dunlap', 'Nico Echavarria', 'Austin Eckroat',
+        'Harris English', 'A.J. Ewart', 'Tony Finau', 'Patrick Fishburn', 'Steven Fisk',
+        'David Ford', 'Rickie Fowler', 'Ryan Fox', 'Brice Garnett', 'Ryan Gerard',
+        'Doug Ghim', 'Lucas Glover', 'Chris Gotterup', 'Max Greyserman', 'Ben Griffin',
+        'Emiliano Grillo', 'Nicolai Hojgaard', 'Rasmus Hojgaard', 'Harry Hall',
+        'Cole Hammer', 'Garrick Higgo', 'Joe Highsmith', 'Kensei Hirata', 'Lee Hodges',
+        'Rico Hoey', 'Charley Hoffman', 'Tom Hoge', 'Billy Horschel', 'Beau Hossler',
+        'Mason Howell', 'Mark Hubbard', 'Mackenzie Hughes', 'Sungjae Im', 'Stephan Jaeger',
+        'Takumi Kanaya', 'Jeffrey Kang', 'Johnny Keefer', 'Si Woo Kim', 'Tom Kim',
+        'Chris Kirk', 'Kurt Kitayama', 'Patton Kizzire', 'Jake Knapp', 'Brooks Koepka',
+        'Christo Lamprecht', 'Hank Lebioda', 'K.H. Lee', 'Min Woo Lee', 'Haotong Li',
+        'David Lipsky', 'Shane Lowry', 'Peter Malnati', 'Denny McCarthy', 'Max McGreevy',
+        'Mac Meissner', 'Keith Mitchell', 'William Mouw', 'Trey Mullinax',
+        'Rasmus Neergaard-Petersen', 'Pontus Nyholm', 'Thorbjorn Olesen', 'John Parry',
+        'Matthieu Pavon', 'Taylor Pendrith', 'Marco Penge', 'Chandler Phillips',
+        'J.T. Poston', 'Aldrich Potgieter', 'Andrew Putnam', 'Aaron Rai', 'Chad Ramey',
+        'Kristoffer Reitan', 'Davis Riley', 'Patrick Rodgers', 'Kevin Roy', 'Marcelo Rozo',
+        'Casey Russell', 'Adrien Saddier', 'Isaiah Salinda', 'Gordon Sargent',
+        'Scottie Scheffler', 'Adam Schenk', 'Matti Schmid', 'Adam Scott', 'Neal Shipley',
+        'Alex Smalley', 'Jordan Smith', 'Jimmy Stanger', 'Sam Stevens', 'Jesper Svensson',
+        'Adam Svensson', 'Sahith Theegala', 'Davis Thompson', 'Michael Thorbjornsen',
+        'Alejandro Tosti', 'Erik van Rooyen', 'John VanDerLaan', 'Jhonattan Vegas',
+        'Kris Ventura', 'Karl Vilips', 'Danny Walker', 'Matt Wallace', 'Paul Waring',
+        'Vince Whaley', 'Danny Willett', 'Aaron Wise', 'Gary Woodland', 'Dylan Wu',
+        'Sudarshan Yellamaraju', 'Kevin Yu', 'Will Zalatoris',
+      ];
+
+      const _getGP = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
+      const _insGP = db.prepare(
+        'INSERT OR IGNORE INTO golf_players (id, name, is_active, world_ranking) VALUES (?, ?, 1, ?)'
+      );
+      const _insTF = db.prepare(`
+        INSERT OR REPLACE INTO golf_tournament_fields
+          (id, tournament_id, player_name, player_id, world_ranking)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+
+      let _houTiersConfig = [];
+      try { _houTiersConfig = JSON.parse(_houLeague.pool_tiers || '[]'); } catch (_e) {}
+
+      db.prepare('DELETE FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?').run(_HOU_LEAGUE_ID, _tid);
+      db.prepare('DELETE FROM golf_tournament_fields WHERE tournament_id = ?').run(_tid);
+
+      db.transaction(() => {
+        for (const _pname of _officialField) {
+          let _p = _getGP.get(_pname);
+          if (!_p) {
+            _insGP.run(uuidv4(), _pname, 200);
+            _p = _getGP.get(_pname);
+          }
+          if (!_p) continue;
+
+          _insTF.run(uuidv4(), _tid, _pname, _p.id, _p.world_ranking || 200);
+
+          const _gen2 = (!_p.odds_display || !_p.odds_decimal) ? _rankToOddsLocal(_p.world_ranking || 200) : null;
+          const _od2 = _p.odds_display || _gen2.odds_display;
+          const _dec2 = _p.odds_decimal || _gen2.odds_decimal;
+          const _tier2 = _houTiersConfig.length ? _pickTier(_dec2, _houTiersConfig) : 6;
+
+          _insTP.run(uuidv4(), _HOU_LEAGUE_ID, _tid, _p.id, _p.name, _tier2, _od2, _dec2, _p.world_ranking || 200);
+        }
+      })();
+
+      console.log(`[golf-db] Houston Open field rebuilt: ${_officialField.length} players assigned to tiers`);
+    }
   }
 } catch (e) { console.error('[golf-db] Auto-assign tier players error:', e.message); }
 
