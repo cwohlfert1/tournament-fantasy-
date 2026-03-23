@@ -305,6 +305,11 @@ function TierConfigEditor({ tiers, onChange }) {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 480px) {
+          .tier-odds-input { width: 54px !important; font-size: 11px !important; padding: 4px 5px !important; }
+        }
+      `}</style>
       <div className="space-y-2">
         {tiers.map((t, i) => (
           <div key={i}>
@@ -312,7 +317,7 @@ function TierConfigEditor({ tiers, onChange }) {
               <span className="text-gray-500 text-xs font-bold w-10 shrink-0">T{t.tier}</span>
               <input
                 type="text"
-                className="input py-1 text-xs w-20 shrink-0"
+                className="input py-1 text-xs w-20 shrink-0 tier-odds-input"
                 placeholder="8:1"
                 value={t.odds_min}
                 onChange={e => updateTier(i, 'odds_min', e.target.value)}
@@ -320,7 +325,7 @@ function TierConfigEditor({ tiers, onChange }) {
               <span className="text-gray-600 text-xs shrink-0">–</span>
               <input
                 type="text"
-                className="input py-1 text-xs w-24 shrink-0"
+                className="input py-1 text-xs w-24 shrink-0 tier-odds-input"
                 placeholder="250:1+"
                 value={t.odds_max}
                 onChange={e => updateTier(i, 'odds_max', e.target.value)}
