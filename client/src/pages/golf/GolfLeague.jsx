@@ -247,15 +247,14 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
           )}
           {league.format_type === 'pool' && league.pool_tournament_id && (
             <button
-              onClick={() => navigate(`/golf/league/${league.id}/picks`)}
+              onClick={() => navigate('?tab=roster')}
               className={`w-full py-3 font-bold rounded-xl transition-all mb-2 ${
                 league.picks_locked
-                  ? 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed'
+                  ? 'bg-gray-800 text-gray-400 border border-gray-700'
                   : 'bg-blue-500 hover:bg-blue-400 text-white'
               }`}
-              disabled={league.picks_locked}
             >
-              {league.picks_locked ? 'Picks Locked' : 'Make Your Picks →'}
+              {league.picks_locked ? 'View My Picks →' : 'Make Your Picks →'}
             </button>
           )}
           {league.format_type === 'tourneyrun' && league.draft_status !== 'completed' && (
@@ -881,88 +880,209 @@ function fmtTeeTimeShort(isoStr) {
   } catch { return null; }
 }
 
+// ── Picks countdown timer ────────────────────────────────────────────────────
+function PicksCountdown({ lockTime }) {
+  const [display, setDisplay] = useState('');
+  const [urgent, setUrgent] = useState(false);
+  useEffect(() => {
+    function tick() {
+      const diff = new Date(lockTime) - Date.now();
+      if (diff <= 0) { setDisplay('Picks closed'); setUrgent(false); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setUrgent(diff < 3600000);
+      setDisplay(d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lockTime]);
+  return <span style={{ fontFamily: 'monospace', fontWeight: 700, color: urgent ? '#f87171' : '#00e87a' }}>{display}</span>;
+}
+
+// ── Tier picker bottom-sheet modal ───────────────────────────────────────────
+function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onClose }) {
+  const tc = ROSTER_TIER_COLORS[tierNum] || ROSTER_TIER_COLORS[4];
+  const limit = tierConfig?.picks || 1;
+  const remaining = limit - currentSel.length;
+  const sorted = [...players].sort((a, b) => (a.world_ranking || 999) - (b.world_ranking || 999));
+  const rgbMap = { '#f59e0b': '245,158,11', '#8b5cf6': '139,92,246', '#3b82f6': '59,130,246', '#10b981': '16,185,129' };
+  const rgb = rgbMap[tc.accent] || '16,185,129';
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.82)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ width: '100%', maxWidth: 560, background: '#111827', borderRadius: '20px 20px 0 0', maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 999 }} />
+        </div>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>{TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}</span>
+            </div>
+            <p style={{ color: '#6b7280', fontSize: 12, margin: '3px 0 0' }}>
+              {remaining > 0 ? `Pick ${remaining} more player${remaining > 1 ? 's' : ''}` : 'Tier complete ✓'}
+              {tierConfig?.odds_min && tierConfig?.odds_max && ` · ${fmtOdds(tierConfig.odds_min)} – ${fmtOdds(tierConfig.odds_max)}`}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', color: '#9ca3af', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+        {/* Player list */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '10px 14px 8px' }}>
+          {sorted.length === 0 && (
+            <p style={{ color: '#4b5563', textAlign: 'center', padding: 32, fontSize: 13 }}>No players in this tier yet</p>
+          )}
+          {sorted.map(p => {
+            const isSel = currentSel.includes(p.player_id);
+            const isFull = currentSel.length >= limit && !isSel;
+            return (
+              <button
+                key={p.player_id}
+                onClick={() => !isFull && onPick(p.player_id, p.player_name)}
+                style={{
+                  width: '100%', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '11px 14px', marginBottom: 6,
+                  background: isSel ? `rgba(${rgb},0.13)` : 'rgba(255,255,255,0.03)',
+                  border: `1.5px solid ${isSel ? tc.accent : 'rgba(255,255,255,0.07)'}`,
+                  borderRadius: 12, cursor: isFull ? 'not-allowed' : 'pointer',
+                  opacity: isFull ? 0.3 : 1, transition: 'background 0.1s, border-color 0.1s',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  <InitialsAvatar name={p.player_name} tier={tierNum} size={36} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.player_name}</div>
+                    {p.world_ranking && <div style={{ color: '#4b5563', fontSize: 11, marginTop: 1 }}>WR #{p.world_ranking}</div>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 8 }}>
+                  {p.odds_display && <span style={{ color: tc.label, fontSize: 13, fontWeight: 600 }}>{fmtOdds(p.odds_display)}</span>}
+                  {isSel && (
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: tc.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Check style={{ width: 13, height: 13, color: '#fff' }} />
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {/* Done button for multi-pick tiers */}
+        {limit > 1 && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+            <button
+              onClick={onClose}
+              style={{ width: '100%', background: currentSel.length >= limit ? '#00e87a' : '#1f2937', color: currentSel.length >= limit ? '#001a0d' : '#9ca3af', border: 'none', borderRadius: 12, padding: '12px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+            >
+              {currentSel.length >= limit ? 'Done ✓' : `${currentSel.length}/${limit} selected · Done`}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Pool Roster Tab (inline pick sheet) ──────────────────────────────────────
 function PoolRosterTab({ leagueId, league }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [teeTimeMap, setTeeTimeMap] = useState({}); // name → teeTimeRaw
+  const [teeTimeMap, setTeeTimeMap] = useState({});
 
-  useEffect(() => {
-    api.get(`/golf/leagues/${leagueId}/my-roster`)
-      .then(r => setData(r.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-    // Also fetch pga-live to get tee times + live status per player
-    api.get(`/golf/leagues/${leagueId}/pga-live`)
-      .then(r => {
-        const map = {};
-        for (const c of (r.data?.competitors || [])) {
-          const key = (c.name || '').toLowerCase().replace(/[.']/g, '').trim();
-          map[key] = { teeTimeRaw: c.teeTimeRaw, isScheduled: c.isScheduled, isCut: c.isCut, isWD: c.isWD };
-        }
-        setTeeTimeMap(map);
-      })
-      .catch(() => {});
-  }, [leagueId]);
+  // Picker state
+  const [selected, setSelected] = useState({});    // { [tierNum]: [playerId, ...] }
+  const [names, setNames]       = useState({});    // { [playerId]: playerName }
+  const [activeTier, setActiveTier] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  // Parse tier config to know how many picks per tier
-  let tiersConfig = [];
-  try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
-
-  const picks = data?.picks || [];
-  const picksLocked = data?.picks_locked ?? !!league.picks_locked;
-  const tournStatus = league.pool_tournament_status;
-
-  // Group picks by tier
-  const byTier = {};
-  for (const p of picks) {
-    if (!byTier[p.tier_number]) byTier[p.tier_number] = [];
-    byTier[p.tier_number].push(p);
+  async function load() {
+    try {
+      const r = await api.get(`/golf/leagues/${leagueId}/my-roster`);
+      setData(r.data);
+    } catch { setData(null); }
+    setLoading(false);
+    api.get(`/golf/leagues/${leagueId}/pga-live`).then(r => {
+      const map = {};
+      for (const c of (r.data?.competitors || [])) {
+        const key = (c.name || '').toLowerCase().replace(/[.']/g, '').trim();
+        map[key] = { teeTimeRaw: c.teeTimeRaw, isScheduled: c.isScheduled, isCut: c.isCut, isWD: c.isWD };
+      }
+      setTeeTimeMap(map);
+    }).catch(() => {});
   }
 
-  // Determine tiers to show (from config or fallback to unique tier numbers in picks or 1–4)
-  const tierNums = tiersConfig.length
-    ? tiersConfig.map(t => parseInt(t.tier || t.tier_number || t.id)).filter(Boolean)
-    : picks.length
-      ? [...new Set(picks.map(p => p.tier_number))].sort()
-      : [1, 2, 3, 4];
+  useEffect(() => { load(); }, [leagueId]); // eslint-disable-line
 
-  const hasAnyPicks = picks.length > 0;
+  // Auto-close tier picker when that tier is fully picked
+  useEffect(() => {
+    if (activeTier == null || !data?.tiers) return;
+    const t = data.tiers.find(t => t.tier === activeTier);
+    if (!t) return;
+    if ((selected[activeTier] || []).length >= (t.picks || 1)) {
+      const id = setTimeout(() => setActiveTier(null), 180);
+      return () => clearTimeout(id);
+    }
+  }, [selected, activeTier, data]);
 
-  const statusBar = () => {
-    if (tournStatus === 'active') return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 12, marginBottom: 20 }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#00e87a', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-        <span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Tournament in progress · Scores updating live</span>
-      </div>
-    );
-    if (tournStatus === 'completed') return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 12, marginBottom: 20 }}>
-        <Trophy size={14} style={{ color: '#fbbf24' }} />
-        <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Tournament complete · Final results</span>
-      </div>
-    );
-    if (picksLocked) return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 12, marginBottom: 20 }}>
-        <Lock size={14} style={{ color: '#fbbf24' }} />
-        <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Picks locked · Tee time has passed</span>
-      </div>
-    );
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 12, marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Flag size={14} style={{ color: '#00e87a' }} />
-          <span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Picks open</span>
-        </div>
-        <button
-          onClick={() => navigate(`/golf/league/${leagueId}/picks`)}
-          style={{ background: '#00e87a', color: '#0a0e1a', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-        >
-          {hasAnyPicks ? 'Edit Picks →' : 'Make Picks →'}
-        </button>
-      </div>
-    );
-  };
+  const picks        = data?.picks || [];
+  const picksLocked  = data?.picks_locked ?? !!league.picks_locked;
+  const submitted    = data?.submitted;
+  const tiers        = data?.tiers || [];
+  const lockTime     = data?.lock_time;
+  const tourn        = data?.tournament;
+  const tournStatus  = league.pool_tournament_status || tourn?.status;
+
+  const totalTarget = tiers.reduce((s, t) => s + (t.picks || 0), 0);
+  const totalDone   = Object.values(selected).flat().length;
+  const canSubmit   = tiers.length > 0 && tiers.every(t => (selected[t.tier] || []).length === (t.picks || 0));
+
+  function handlePick(tierNum, playerId, playerName) {
+    const limit = tiers.find(t => t.tier === tierNum)?.picks || 1;
+    setSelected(prev => {
+      const curr = prev[tierNum] || [];
+      if (curr.includes(playerId)) return { ...prev, [tierNum]: curr.filter(x => x !== playerId) };
+      if (curr.length >= limit) return prev;
+      return { ...prev, [tierNum]: [...curr, playerId] };
+    });
+    setNames(prev => ({ ...prev, [playerId]: playerName }));
+  }
+
+  async function handleConfirmSubmit() {
+    setSubmitting(true);
+    setSubmitError('');
+    const picksList = [];
+    for (const [tn, ids] of Object.entries(selected)) {
+      for (const pid of ids) {
+        picksList.push({ player_id: pid, player_name: names[pid] || '', tier_number: parseInt(tn) });
+      }
+    }
+    try {
+      await api.post(`/golf/leagues/${leagueId}/picks`, {
+        tournament_id: league.pool_tournament_id,
+        picks: picksList,
+      });
+      setShowConfirm(false);
+      await load();
+    } catch (err) {
+      setSubmitError(err.response?.data?.error || 'Submission failed. Try again.');
+    }
+    setSubmitting(false);
+  }
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
@@ -970,94 +1090,250 @@ function PoolRosterTab({ leagueId, league }) {
     </div>
   );
 
+  // Derive tier config for the submitted-picks view
+  let tiersConfig = [];
+  try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
+
+  const inSelection = !submitted && !picksLocked;
+
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 0 40px' }}>
-      <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: inSelection && tiers.length > 0 ? 104 : 40 }}>
+      <style>{`@keyframes fadeSlideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
-      {statusBar()}
-
-      {!hasAnyPicks ? (
-        /* ── Empty state ── */
-        <div>
-          {tierNums.map(tierNum => {
-            const tc = ROSTER_TIER_COLORS[tierNum] || ROSTER_TIER_COLORS[4];
-            const tierCfg = tiersConfig.find(t => parseInt(t.tier || t.tier_number || t.id) === tierNum);
-            const slotCount = parseInt(tierCfg?.picks || 1);
-            return (
-              <div key={tierNum} style={{ marginBottom: 28 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: tc.label, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                    {TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {Array.from({ length: slotCount }).map((_, i) => (
-                    <EmptySlot key={i} tier={tierNum} />
-                  ))}
-                </div>
+      {/* ── SELECTION MODE ── */}
+      {inSelection && (
+        <>
+          {/* Tournament + countdown */}
+          {tourn && (
+            <div style={{ background: 'rgba(0,232,122,0.05)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 12, padding: '12px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{tourn.name}</div>
+                <div style={{ color: '#4b5563', fontSize: 12, marginTop: 2 }}>Lock picks before Thursday tee time</div>
               </div>
-            );
-          })}
-          {!picksLocked && (
-            <div style={{ textAlign: 'center', marginTop: 12 }}>
-              <button
-                onClick={() => navigate(`/golf/league/${leagueId}/picks`)}
-                style={{ background: '#00e87a', color: '#0a0e1a', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-              >
-                Pick your players →
-              </button>
+              {lockTime && <PicksCountdown lockTime={lockTime} />}
             </div>
           )}
-        </div>
-      ) : (
-        /* ── Picks grid ── */
-        <div>
-          {tierNums.map(tierNum => {
+
+          {/* No tier data yet */}
+          {tiers.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 16px' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>⛳</div>
+              <p style={{ color: '#6b7280', fontSize: 14 }}>Pick sheet isn't ready yet — check back soon.</p>
+            </div>
+          )}
+
+          {/* Tier sections */}
+          {tiers.map(tierCfg => {
+            const tierNum = tierCfg.tier;
             const tc = ROSTER_TIER_COLORS[tierNum] || ROSTER_TIER_COLORS[4];
-            const tierPicks = byTier[tierNum] || [];
-            const tierCfg = tiersConfig.find(t => parseInt(t.tier || t.tier_number || t.id) === tierNum);
-            const slotCount = parseInt(tierCfg?.picks || tierPicks.length || 1);
+            const limit = tierCfg.picks || 1;
+            const currSel = selected[tierNum] || [];
+            const complete = currSel.length >= limit;
+
             return (
-              <div key={tierNum} style={{ marginBottom: 28 }}>
+              <div key={tierNum} style={{ marginBottom: 22, animation: 'fadeSlideUp 0.3s ease both' }}>
+                {/* Tier header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: tc.label, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                     {TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}
                   </span>
-                  <span style={{ fontSize: 11, color: '#4b5563' }}>{tierPicks.length}/{slotCount}</span>
+                  <span style={{ fontSize: 11, color: complete ? tc.label : '#4b5563' }}>
+                    {currSel.length}/{limit}{complete ? ' ✓' : ''}
+                  </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {tierPicks.map((pick, idx) => {
-                    const normName = (pick.player_name || '').toLowerCase().replace(/[.']/g, '').trim();
-                    const espnData = teeTimeMap[normName];
-                    return (<PlayerCard
-                      key={pick.id}
-                      pick={pick}
-                      tier={tierNum}
-                      idx={idx}
-                      tournStatus={tournStatus}
-                      picksLocked={picksLocked}
-                      navigate={navigate}
-                      leagueId={leagueId}
-                      teeTimeRaw={espnData?.teeTimeRaw}
-                      espnScheduled={espnData?.isScheduled}
-                      espnCut={espnData?.isCut}
-                    />);
-                  })}
-                  {/* Fill empty slots */}
-                  {Array.from({ length: Math.max(0, slotCount - tierPicks.length) }).map((_, i) => (
-                    <EmptySlot key={`empty-${i}`} tier={tierNum} />
-                  ))}
-                </div>
+
+                {/* Selected players */}
+                {currSel.map(playerId => {
+                  const pName = names[playerId] || 'Player';
+                  const pData = (tierCfg.players || []).find(p => p.player_id === playerId);
+                  return (
+                    <div key={playerId} style={{ border: `1.5px solid ${tc.accent}`, background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, animation: 'fadeSlideUp 0.2s ease both' }}>
+                      <InitialsAvatar name={pName} tier={tierNum} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pName}</div>
+                        {pData?.odds_display && <div style={{ fontSize: 12, color: tc.label, marginTop: 2 }}>{fmtOdds(pData.odds_display)}</div>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', background: tc.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Check style={{ width: 12, height: 12, color: '#fff' }} />
+                        </div>
+                        <button
+                          onClick={() => setSelected(prev => ({ ...prev, [tierNum]: (prev[tierNum] || []).filter(x => x !== playerId) }))}
+                          style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: '#6b7280', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >×</button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Empty pick slots — tap to open picker */}
+                {Array.from({ length: limit - currSel.length }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveTier(tierNum)}
+                    style={{ width: '100%', textAlign: 'left', marginBottom: 8, border: `1.5px dashed ${tc.border}`, borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', cursor: 'pointer', transition: 'background 0.12s, border-color 0.12s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = tc.accent; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = tc.border; }}
+                  >
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', border: `2px dashed ${tc.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: 0.55 }}>
+                      <span style={{ color: tc.accent, fontSize: 22, lineHeight: 1, marginTop: -1 }}>+</span>
+                    </div>
+                    <span style={{ fontSize: 13, color: '#6b7280' }}>Pick a player</span>
+                    <ChevronRight style={{ width: 16, height: 16, color: '#374151', marginLeft: 'auto' }} />
+                  </button>
+                ))}
               </div>
             );
           })}
+
+          {/* Sticky submit bar */}
+          {tiers.length > 0 && (
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'rgba(10,14,26,0.97)', borderTop: '1px solid rgba(255,255,255,0.07)', padding: '12px 16px 18px', zIndex: 50 }}>
+              <div style={{ maxWidth: 640, margin: '0 auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 1, background: '#1f2937', borderRadius: 999, height: 4, overflow: 'hidden' }}>
+                    <div style={{ height: 4, borderRadius: 999, background: canSubmit ? '#00e87a' : '#3b82f6', width: totalTarget > 0 ? `${Math.round((totalDone / totalTarget) * 100)}%` : '0%', transition: 'width 0.3s' }} />
+                  </div>
+                  <span style={{ color: '#6b7280', fontSize: 12, flexShrink: 0 }}>{totalDone}/{totalTarget} picks</span>
+                </div>
+                <button
+                  onClick={() => canSubmit && setShowConfirm(true)}
+                  disabled={!canSubmit}
+                  style={{ width: '100%', padding: '14px 0', background: canSubmit ? '#00e87a' : '#1f2937', color: canSubmit ? '#001a0d' : '#4b5563', border: canSubmit ? 'none' : '1px solid #374151', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'background 0.15s' }}
+                >
+                  {canSubmit ? 'Submit Picks →' : `${totalTarget - totalDone} more pick${totalTarget - totalDone !== 1 ? 's' : ''} needed`}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── LOCKED (no picks) ── */}
+      {picksLocked && !submitted && (
+        <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', marginBottom: 16 }}>
+            <Lock style={{ width: 28, height: 28, color: '#4b5563' }} />
+          </div>
+          <h3 style={{ color: '#fff', fontWeight: 800, fontSize: 20, margin: '0 0 8px' }}>Picks are closed</h3>
+          <p style={{ color: '#4b5563', fontSize: 14 }}>Tee time has passed. No picks were submitted.</p>
+        </div>
+      )}
+
+      {/* ── SUBMITTED: picks grid ── */}
+      {submitted && (() => {
+        const byTier = {};
+        for (const p of picks) {
+          if (!byTier[p.tier_number]) byTier[p.tier_number] = [];
+          byTier[p.tier_number].push(p);
+        }
+        const tierNums = tiersConfig.length
+          ? tiersConfig.map(t => parseInt(t.tier || t.tier_number || t.id)).filter(Boolean)
+          : [...new Set(picks.map(p => p.tier_number))].sort();
+
+        return (
+          <>
+            {/* Status banner */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: (tournStatus === 'active') ? 'rgba(0,232,122,0.06)' : picksLocked ? 'rgba(251,191,36,0.06)' : 'rgba(0,232,122,0.06)', border: `1px solid ${(tournStatus === 'active') ? 'rgba(0,232,122,0.2)' : picksLocked ? 'rgba(251,191,36,0.2)' : 'rgba(0,232,122,0.2)'}`, borderRadius: 12, marginBottom: 20, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {tournStatus === 'active'
+                  ? <><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#00e87a', display: 'inline-block', animation: 'pulse 1.5s infinite' }} /><span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Live · Scores updating</span></>
+                  : tournStatus === 'completed'
+                    ? <><Trophy size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Tournament complete</span></>
+                    : picksLocked
+                      ? <><Lock size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Picks locked</span></>
+                      : <><Check style={{ width: 14, height: 14, color: '#00e87a' }} /><span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Picks submitted ✓</span></>
+                }
+              </div>
+              {!picksLocked && lockTime && <PicksCountdown lockTime={lockTime} />}
+            </div>
+
+            {tierNums.map(tierNum => {
+              const tc = ROSTER_TIER_COLORS[tierNum] || ROSTER_TIER_COLORS[4];
+              const tierPicks = byTier[tierNum] || [];
+              const tierCfgItem = tiersConfig.find(t => parseInt(t.tier || t.tier_number || t.id) === tierNum);
+              const slotCount = parseInt(tierCfgItem?.picks || tierPicks.length || 1);
+              return (
+                <div key={tierNum} style={{ marginBottom: 28 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: tc.label, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}</span>
+                    <span style={{ fontSize: 11, color: '#4b5563' }}>{tierPicks.length}/{slotCount}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {tierPicks.map((pick, idx) => {
+                      const normName = (pick.player_name || '').toLowerCase().replace(/[.']/g, '').trim();
+                      const espnData = teeTimeMap[normName];
+                      return (
+                        <PlayerCard
+                          key={pick.id} pick={pick} tier={tierNum} idx={idx}
+                          tournStatus={tournStatus} picksLocked={picksLocked}
+                          navigate={navigate} leagueId={leagueId}
+                          teeTimeRaw={espnData?.teeTimeRaw}
+                          espnScheduled={espnData?.isScheduled}
+                          espnCut={espnData?.isCut}
+                        />
+                      );
+                    })}
+                    {Array.from({ length: Math.max(0, slotCount - tierPicks.length) }).map((_, i) => (
+                      <EmptySlot key={`empty-${i}`} tier={tierNum} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        );
+      })()}
+
+      {/* Tier picker modal */}
+      {activeTier != null && data?.tiers && (() => {
+        const td = data.tiers.find(t => t.tier === activeTier);
+        return td ? (
+          <TierPickerModal
+            tierNum={activeTier}
+            tierConfig={td}
+            players={td.players || []}
+            currentSel={selected[activeTier] || []}
+            onPick={(pid, pName) => handlePick(activeTier, pid, pName)}
+            onClose={() => setActiveTier(null)}
+          />
+        ) : null;
+      })()}
+
+      {/* Confirm submit modal */}
+      {showConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 300, padding: '0 16px 16px' }}>
+          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420 }}>
+            <h3 style={{ color: '#fff', fontWeight: 800, fontSize: 18, margin: '0 0 4px' }}>Lock in your picks?</h3>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 18px' }}>You won't be able to change them after submitting.</p>
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '12px 16px', marginBottom: 18 }}>
+              {tiers.map(t => {
+                const tc = ROSTER_TIER_COLORS[t.tier] || ROSTER_TIER_COLORS[4];
+                return (
+                  <div key={t.tier} style={{ marginBottom: 10 }}>
+                    <div style={{ color: '#4b5563', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{TIER_NAMES_ROSTER[t.tier] || `Tier ${t.tier}`}</div>
+                    {(selected[t.tier] || []).map(pid => (
+                      <div key={pid} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#e5e7eb', marginBottom: 2 }}>
+                        <div style={{ width: 16, height: 16, borderRadius: '50%', background: tc.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check style={{ width: 10, height: 10, color: '#fff' }} />
+                        </div>
+                        {names[pid] || pid}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+            {submitError && <p style={{ color: '#f87171', fontSize: 12, marginBottom: 12 }}>{submitError}</p>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowConfirm(false)} disabled={submitting} style={{ flex: 1, background: '#1f2937', border: 'none', color: '#9ca3af', padding: '12px 0', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleConfirmSubmit} disabled={submitting} style={{ flex: 1, background: '#00e87a', border: 'none', color: '#001a0d', padding: '12px 0', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                {submitting ? 'Submitting…' : 'Yes, lock them in →'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

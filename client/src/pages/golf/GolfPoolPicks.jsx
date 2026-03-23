@@ -260,6 +260,12 @@ export default function GolfPoolPicks() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Picks are now inline on the league page roster tab
+  useEffect(() => {
+    navigate(`/golf/league/${id}?tab=roster`, { replace: true });
+  }, []); // eslint-disable-line
+  return <div className="flex justify-center py-24"><div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" /></div>;
+
   useDocTitle('Make Your Picks | Golf Pool');
 
   const [league, setLeague]   = useState(null);
