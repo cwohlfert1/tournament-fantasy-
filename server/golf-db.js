@@ -241,6 +241,9 @@ const _espnIdSeeds = [
   // Valspar Championship 2026 (Mar 20-23, Innisbrook).
   // ID 401811938 confirmed via live scoreboard fetch (135 competitors returned).
   { pattern: '%Valspar%',        id: '401811938' },
+  // Texas Children's Houston Open 2026 (Mar 26-29, Memorial Park).
+  // ID 401811939 confirmed via ESPN scoreboard API on 2026-03-23.
+  { pattern: '%Houston Open%',   id: '401811939' },
 ];
 for (const { pattern, id } of _espnIdSeeds) {
   try {
@@ -272,6 +275,32 @@ try {
       AND status = 'completed'
   `).run();
 } catch (e) { console.error('[golf-db] Valspar status fix error:', e.message); }
+
+// ── Houston Open 2026 — seed tournament row if not present ────────────────────
+try {
+  const _houston = db.prepare("SELECT id FROM golf_tournaments WHERE name LIKE '%Houston Open%'").get();
+  if (!_houston) {
+    db.prepare(`
+      INSERT INTO golf_tournaments (id, name, course, start_date, end_date, season_year, is_major, status, espn_event_id)
+      VALUES (?, 'Texas Children''s Houston Open', 'Memorial Park Golf Course, Houston, TX',
+              '2026-03-27', '2026-03-30', 2026, 0, 'scheduled', '401811939')
+    `).run(uuidv4());
+  } else {
+    // Ensure espn_event_id is set even if row already existed
+    db.prepare("UPDATE golf_tournaments SET espn_event_id = '401811939' WHERE name LIKE '%Houston Open%' AND (espn_event_id IS NULL OR espn_event_id = '')").run();
+  }
+} catch (e) { console.error('[golf-db] Houston Open seed error:', e.message); }
+
+// ── COLLIN promo code — owner free code for personal use / testing ─────────────
+try {
+  const _existingCollin = db.prepare("SELECT id FROM promo_codes WHERE code = 'COLLIN'").get();
+  if (!_existingCollin) {
+    db.prepare(`
+      INSERT INTO promo_codes (id, code, ambassador_name, ambassador_email, discount_type, discount_value, active)
+      VALUES (?, 'COLLIN', 'Collin Wohlfert', 'cwohl@tourneyrun.app', 'free', 100, 1)
+    `).run(uuidv4());
+  }
+} catch (e) { console.error('[golf-db] COLLIN promo code seed error:', e.message); }
 
 // ── Beta Group 1.0 — status, scoring_style, and test prize pool ───────────────
 try {
