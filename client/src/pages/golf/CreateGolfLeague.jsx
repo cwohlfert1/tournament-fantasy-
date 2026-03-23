@@ -159,7 +159,8 @@ function PoolTierSelector({ maxTeams, poolTier, onChange }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+      <style>{`@media (max-width:480px){.pool-tier-top{grid-template-columns:repeat(2,1fr)!important}}`}</style>
+      <div className="pool-tier-top" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
         {POOL_TIERS.slice(0, 3).map(t => <TierBtn key={t.maxTeams} t={t} />)}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
