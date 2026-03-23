@@ -325,6 +325,19 @@ try {
   }
 } catch (e) { console.error('[golf-db] League ff568722 tournament fix error:', e.message); }
 
+// ── Beta Group 1.0 — ensure pool_tournament_id points to Valspar ──────────────
+try {
+  const _valspar = db.prepare("SELECT id FROM golf_tournaments WHERE espn_event_id = '401811938'").get();
+  if (_valspar) {
+    db.prepare(`
+      UPDATE golf_leagues
+      SET pool_tournament_id = ?
+      WHERE id = '68b1e250-6afc-4e80-ad7b-d8a22ae3ad7d'
+        AND (pool_tournament_id IS NULL OR pool_tournament_id = '')
+    `).run(_valspar.id);
+  }
+} catch (e) { console.error('[golf-db] Beta Group 1.0 tournament fix error:', e.message); }
+
 // ── Beta Group 1.0 — status, scoring_style, and test prize pool ───────────────
 try {
   db.prepare(`

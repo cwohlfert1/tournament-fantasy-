@@ -578,10 +578,16 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
       const name = comp.athlete?.displayName || comp.athlete?.fullName || '';
 
       // Status — field only present for cut/WD players; absent for active competitors
+      const statusName = (comp.status?.type?.name || '').toUpperCase();
       const statusDesc = (comp.status?.type?.description || '').toLowerCase();
+      const isScheduled = statusName === 'STATUS_SCHEDULED' || statusDesc.includes('scheduled');
       const isCut = statusDesc.includes('cut');
       const isWD  = statusDesc.includes('withdrawn');
       const isMDF = statusDesc.includes('did not finish');
+
+      // Tee time (pre-tournament)
+      const teeTimeRaw = comp.teeTime || null;
+      const startHole  = comp.status?.startHole ?? null;
 
       // Sort order — ESPN scoreboard uses 'order', not 'sortOrder'
       const order = comp.order ?? comp.sortOrder ?? (idx + 1);
@@ -639,8 +645,9 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
         totalStr,
         r1, r2, r3, r4, today, thru,
         flagHref, countryAlt, currentRound,
-        status: isWD ? 'wd' : isCut ? 'cut' : isMDF ? 'mdf' : 'active',
-        isCut, isWD, isMDF,
+        status: isWD ? 'wd' : isCut ? 'cut' : isMDF ? 'mdf' : isScheduled ? 'scheduled' : 'active',
+        isCut, isWD, isMDF, isScheduled,
+        teeTimeRaw, startHole,
         rounds,
       };
     });

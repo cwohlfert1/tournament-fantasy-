@@ -138,10 +138,9 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
         {/* Text to join — visible to all members */}
         <a
           href={`sms:?body=${encodeURIComponent(
-            `Join my fantasy golf league "${league.name}" on TourneyRun! ` +
-            `One draft, all season, majors count 1.5x. ` +
-            `Use invite code ${league.invite_code} or join here: ` +
-            `https://www.tourneyrun.app/golf/join?code=${league.invite_code}`
+            league.format_type === 'pool'
+              ? `Hey! Join my golf pool "${league.name}" on TourneyRun — pick your golfers, track live scores, winner takes the pot. Join here: https://www.tourneyrun.app/golf/join?code=${league.invite_code}`
+              : `Join my fantasy golf league "${league.name}" on TourneyRun! One draft, all season, majors count 1.5x. Use invite code ${league.invite_code} or join here: https://www.tourneyrun.app/golf/join?code=${league.invite_code}`
           )}`}
           title="Opens your texts on mobile"
           className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-semibold text-sm rounded-xl transition-all"
@@ -761,17 +760,19 @@ function CountryFlag({ cc }) {
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
   const totalPar = rounds.reduce((s, r) => s + (r || 0), 0);
   const pts = pick.fantasy_points;
   const isWD = pick.made_cut === 0 && pick.finish_position == null;
-  const isCUT = pick.made_cut === 0 && pick.finish_position != null;
+  const isCUT = (pick.made_cut === 0 && pick.finish_position != null) || espnCut;
   const hasScores = rounds.length > 0;
   const isLive = tournStatus === 'active';
   const isComplete = tournStatus === 'completed';
+  const showTeeTime = !hasScores && !isCUT && !isWD && teeTimeRaw;
+  const teeTxt = showTeeTime ? fmtTeeTimeShort(teeTimeRaw) : null;
 
   return (
     <div style={{
@@ -784,6 +785,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
       animation: `fadeSlideUp 0.35s ease both`,
       animationDelay: `${idx * 60}ms`,
       transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+      opacity: (isCUT || isWD) ? 0.55 : 1,
     }}
     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc.border}`; }}
     onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
@@ -813,7 +815,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
         </div>
       </div>
 
-      {/* Score column — badge sits inline at top, no absolute positioning */}
+      {/* Score column */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0, minWidth: 70 }}>
         {(isWD || isCUT) && (
           <div style={{
@@ -821,9 +823,9 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
             border: `1px solid ${isWD ? 'rgba(239,68,68,0.4)' : 'rgba(107,114,128,0.3)'}`,
             borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 700,
             color: isWD ? '#f87171' : '#9ca3af', letterSpacing: '0.05em',
-          }}>{isWD ? 'WD' : 'CUT'}</div>
+          }}>{isWD ? 'WD' : 'MC'}</div>
         )}
-        {hasScores ? (
+        {hasScores && !isCUT ? (
           <>
             <div style={{ fontSize: 18, fontWeight: 800, color: scoreColor(totalPar), lineHeight: 1 }}>
               {fmtScore(totalPar)}
@@ -837,9 +839,11 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
               </div>
             )}
           </>
-        ) : (
+        ) : teeTxt ? (
+          <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600, textAlign: 'right' }}>{teeTxt}</span>
+        ) : !isCUT && !isWD ? (
           <span style={{ fontSize: 12, color: '#4b5563' }}>—</span>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -863,16 +867,42 @@ function EmptySlot({ tier }) {
   );
 }
 
+// Format tee time for player card: "Thu 8:14 AM"
+function fmtTeeTimeShort(isoStr) {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    let h = d.getHours(), m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    const mm = m < 10 ? `0${m}` : String(m);
+    return `${days[d.getDay()]} ${h}:${mm} ${ampm}`;
+  } catch { return null; }
+}
+
 function PoolRosterTab({ leagueId, league }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [teeTimeMap, setTeeTimeMap] = useState({}); // name → teeTimeRaw
 
   useEffect(() => {
     api.get(`/golf/leagues/${leagueId}/my-roster`)
       .then(r => setData(r.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
+    // Also fetch pga-live to get tee times + live status per player
+    api.get(`/golf/leagues/${leagueId}/pga-live`)
+      .then(r => {
+        const map = {};
+        for (const c of (r.data?.competitors || [])) {
+          const key = (c.name || '').toLowerCase().replace(/[.']/g, '').trim();
+          map[key] = { teeTimeRaw: c.teeTimeRaw, isScheduled: c.isScheduled, isCut: c.isCut, isWD: c.isWD };
+        }
+        setTeeTimeMap(map);
+      })
+      .catch(() => {});
   }, [leagueId]);
 
   // Parse tier config to know how many picks per tier
@@ -1003,8 +1033,10 @@ function PoolRosterTab({ leagueId, league }) {
                   <span style={{ fontSize: 11, color: '#4b5563' }}>{tierPicks.length}/{slotCount}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {tierPicks.map((pick, idx) => (
-                    <PlayerCard
+                  {tierPicks.map((pick, idx) => {
+                    const normName = (pick.player_name || '').toLowerCase().replace(/[.']/g, '').trim();
+                    const espnData = teeTimeMap[normName];
+                    return (<PlayerCard
                       key={pick.id}
                       pick={pick}
                       tier={tierNum}
@@ -1013,8 +1045,11 @@ function PoolRosterTab({ leagueId, league }) {
                       picksLocked={picksLocked}
                       navigate={navigate}
                       leagueId={leagueId}
-                    />
-                  ))}
+                      teeTimeRaw={espnData?.teeTimeRaw}
+                      espnScheduled={espnData?.isScheduled}
+                      espnCut={espnData?.isCut}
+                    />);
+                  })}
                   {/* Fill empty slots */}
                   {Array.from({ length: Math.max(0, slotCount - tierPicks.length) }).map((_, i) => (
                     <EmptySlot key={`empty-${i}`} tier={tierNum} />
@@ -2750,15 +2785,27 @@ function PGALiveTab({ leagueId, league }) {
   const myPickNames  = data?.my_pick_names || [];
   const isLive       = tournament?.status === 'active';
 
+  // Pre-tournament: all competitors are scheduled (no scores yet)
+  const isPreTournament = competitors.length > 0 && competitors.every(c => c.isScheduled);
+
   if (data?.no_event || data?.fetch_error || competitors.length === 0) {
+    const isScheduledTournament = tournament?.status === 'scheduled';
     return (
       <div className="py-12 text-center space-y-3">
         <div className="w-14 h-14 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto">
           <Flag className="w-7 h-7 text-gray-600" />
         </div>
+        <p className="text-white font-bold text-sm">{tournament?.name || 'PGA Tour Event'}</p>
         <p className="text-gray-500 text-sm">
-          {data?.no_event ? 'No tournament ESPN ID configured for this league.' : 'PGA leaderboard unavailable right now.'}
+          {data?.no_event
+            ? 'No tournament ESPN ID configured for this league.'
+            : isScheduledTournament
+            ? 'Field not yet posted. Check back closer to tee time.'
+            : 'Leaderboard unavailable right now.'}
         </p>
+        {tournament?.start_date && (
+          <p className="text-gray-600 text-xs">Starts {tournament.start_date}</p>
+        )}
         <button onClick={load} style={{ color: '#00e87a', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
           Retry
         </button>
@@ -2774,15 +2821,28 @@ function PGALiveTab({ leagueId, league }) {
   // Derive current round from data
   const maxRound = competitors.reduce((mx, c) => Math.max(mx, c.currentRound || 0), 0);
 
+  // Format tee time: "Thu 8:14 AM · Hole 10"
+  const fmtTeeTime = (isoStr, hole) => {
+    if (!isoStr) return null;
+    try {
+      const d = new Date(isoStr);
+      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const day = days[d.getDay()];
+      let h = d.getHours(), m = d.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      const mm = m < 10 ? `0${m}` : String(m);
+      const holeStr = hole != null && hole !== 1 ? ` · Hole ${hole}` : hole === 1 ? ' · Hole 1' : '';
+      return `${day} ${h}:${mm} ${ampm}${holeStr}`;
+    } catch { return null; }
+  };
+
   // Filter
   let display = [...competitors];
   if (filter === 'pool') {
-    const myPicks = display.filter(c => isMyPick(c.name));
-    const rest    = display.filter(c => !isMyPick(c.name));
-    display = [...myPicks, ...rest.filter(() => false)]; // show only picks
-    if (display.length === 0) display = competitors.filter(c => isMyPick(c.name));
+    display = competitors.filter(c => isMyPick(c.name));
   }
-  if (filter === 'leaders') display = competitors.filter(c => !c.isCut && !c.isWD).slice(0, 25);
+  if (filter === 'leaders') display = competitors.filter(c => !c.isCut && !c.isWD && !c.isScheduled).slice(0, 25);
 
   // Sort (position is default, already sorted by sortOrder from server)
   if (sortBy === 'name')  display = [...display].sort((a, b) => a.name.localeCompare(b.name));
@@ -2850,17 +2910,25 @@ function PGALiveTab({ leagueId, league }) {
       {/* ── Leaderboard ── */}
       <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>
 
+        {/* Pre-tournament notice */}
+        {isPreTournament && (
+          <div style={{ padding: '10px 16px', background: 'rgba(245,158,11,0.06)', borderBottom: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13 }}>⏰</span>
+            <span style={{ fontSize: 12, color: '#d97706', fontWeight: 600 }}>Tee times — tournament starts {tournament?.start_date}</span>
+          </div>
+        )}
+
         {/* Desktop column headers */}
-        <div className="hidden sm:grid" style={{ gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
-          {['Pos', 'Player', 'R1', 'R2', 'R3', 'R4', 'Total', 'Today'].map((h, i) => (
-            <div key={h} style={{ textAlign: i >= 2 ? 'center' : 'left', color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
+        <div className="hidden sm:grid" style={{ gridTemplateColumns: isPreTournament ? '44px 1fr 1fr' : '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
+          {(isPreTournament ? ['#', 'Player', 'Tee Time'] : ['Pos', 'Player', 'R1', 'R2', 'R3', 'R4', 'Total', 'Today']).map((h, i) => (
+            <div key={h} style={{ textAlign: isPreTournament ? (i === 2 ? 'right' : 'left') : (i >= 2 ? 'center' : 'left'), color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
           ))}
         </div>
 
         {/* Mobile column headers */}
-        <div className="grid sm:hidden" style={{ gridTemplateColumns: '44px 1fr 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
-          {['Pos', 'Player', 'Total', 'Today'].map((h, i) => (
-            <div key={h} style={{ textAlign: i >= 2 ? 'center' : 'left', color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
+        <div className="grid sm:hidden" style={{ gridTemplateColumns: isPreTournament ? '32px 1fr 1fr' : '44px 1fr 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
+          {(isPreTournament ? ['#', 'Player', 'Tee Time'] : ['Pos', 'Player', 'Total', 'Today']).map((h, i) => (
+            <div key={h} style={{ textAlign: isPreTournament ? (i === 2 ? 'right' : 'left') : (i >= 2 ? 'center' : 'left'), color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
           ))}
         </div>
 
@@ -2919,39 +2987,53 @@ function PGALiveTab({ leagueId, league }) {
             setTimeout(() => pgaRowRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 10);
           };
 
+          const teeTxt = fmtTeeTime(c.teeTimeRaw, c.startHole);
+
           return (
-            <div key={i} ref={el => { pgaRowRefs.current[i] = el; }} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent' }}>
+            <div key={i} ref={el => { pgaRowRefs.current[i] = el; }} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent', opacity: c.isCut || c.isWD ? 0.55 : 1 }}>
               {/* Desktop row — clickable */}
               <button
                 className="hidden sm:grid"
-                onClick={toggleRow}
-                style={{ width: '100%', gridTemplateColumns: '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                onMouseEnter={e => { e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.05)' : 'rgba(255,255,255,0.02)'; }}
+                onClick={isPreTournament ? undefined : toggleRow}
+                style={{ width: '100%', gridTemplateColumns: isPreTournament ? '44px 1fr 1fr' : '44px 1fr 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: isPreTournament ? 'default' : 'pointer', textAlign: 'left' }}
+                onMouseEnter={e => { if (!isPreTournament) e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.05)' : 'rgba(255,255,255,0.02)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.025)' : 'transparent'; }}
               >
                 {posCell}
                 {playerCell}
-                {rounds.map((r, ri) => {
-                  const { text, color } = fmtPar(r);
-                  const isCurrent = (ri + 1) === maxRound && isLive && r != null;
-                  return (
-                    <div key={ri} style={{ textAlign: 'center', fontSize: 11, color: r != null ? color : '#374151', fontWeight: isCurrent ? 700 : 400 }}>{text}</div>
-                  );
-                })}
-                {totalCell}
-                {todayCell}
+                {isPreTournament ? (
+                  <div style={{ textAlign: 'right', fontSize: 12, color: myPick ? '#d97706' : '#6b7280', fontWeight: myPick ? 700 : 400 }}>
+                    {teeTxt || '—'}
+                  </div>
+                ) : (<>
+                  {rounds.map((r, ri) => {
+                    const { text, color } = fmtPar(r);
+                    const isCurrent = (ri + 1) === maxRound && isLive && r != null;
+                    return (
+                      <div key={ri} style={{ textAlign: 'center', fontSize: 11, color: r != null ? color : '#374151', fontWeight: isCurrent ? 700 : 400 }}>{text}</div>
+                    );
+                  })}
+                  {totalCell}
+                  {todayCell}
+                </>)}
               </button>
 
               {/* Mobile row */}
               <button
                 className="grid sm:hidden"
-                onClick={toggleRow}
-                style={{ width: '100%', gridTemplateColumns: '44px 1fr 48px 44px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                onClick={isPreTournament ? undefined : toggleRow}
+                style={{ width: '100%', gridTemplateColumns: isPreTournament ? '32px 1fr 1fr' : '44px 1fr 48px 44px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: isPreTournament ? 'default' : 'pointer', textAlign: 'left' }}
               >
                 {posCell}
                 {playerCell}
-                {totalCell}
-                {todayCell}
+                {isPreTournament ? (
+                  <div style={{ textAlign: 'right', fontSize: 11, color: myPick ? '#d97706' : '#6b7280', fontWeight: myPick ? 700 : 400 }}>
+                    {teeTxt || '—'}
+                  </div>
+                ) : (<>
+                  {totalCell}
+                  {todayCell}
+                </>)}
               </button>
 
               {/* Expanded scorecard — both desktop + mobile */}
