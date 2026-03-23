@@ -63,22 +63,6 @@ export default function AuthLayout({ children }) {
         <div className="absolute top-0 left-0 w-64 h-64 bg-brand-900/15 rounded-full blur-3xl" />
       </div>
 
-      {/* Floating basketballs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none select-none" aria-hidden>
-        {SEEDS.map(p => (
-          <span
-            key={p.id}
-            style={{
-              position: 'absolute',
-              left: p.left,
-              top: p.top,
-              fontSize: p.fontSize,
-              '--op': p.opacity,
-              animation: `authFloat ${p.duration} ease-in-out ${p.delay} infinite`,
-            }}
-          >🏀</span>
-        ))}
-      </div>
 
       {/* Card */}
       <div className="relative w-full max-w-md">
@@ -93,14 +77,13 @@ export default function AuthLayout({ children }) {
           {/* Logo */}
           <div className="flex flex-col items-center pt-8 pb-6 px-8 border-b border-gray-800/60">
             <Link to="/" className="flex items-center gap-2.5 group mb-1">
-              <span className="text-3xl">🏀</span>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#111', border: '1.5px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ color: '#fff', fontWeight: 900, fontSize: 14, letterSpacing: '-0.03em' }}>TR</span>
+              </div>
               <div className="flex flex-col leading-none">
                 <div style={{ fontSize: '22px', letterSpacing: '-0.02em', lineHeight: 1 }}>
                   <span style={{ color: '#B5D4F4', fontWeight: 300 }}>tourney</span>
                   <span style={{ color: '#378ADD', fontWeight: 800 }}>run</span>
-                </div>
-                <div className="text-[9px] tracking-[0.2em] uppercase mt-0.5" style={{ color: '#666' }}>
-                  Player Pool Fantasy
                 </div>
               </div>
             </Link>

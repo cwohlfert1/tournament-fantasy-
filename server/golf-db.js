@@ -934,4 +934,67 @@ try {
   }
 } catch (e) { console.error('[golf-db] Auto-assign tier players error:', e.message); }
 
+// ── Auto-balance Houston Open league tiers (one-time fix) ─────────────────────
+// If T1 has ≤ 3 players the tier distribution is skewed (odds-range based, not
+// even). Rebalance: sort all pool_tier_players by odds_decimal ASC, divide
+// into 6 equal buckets, update tier_number + pool_tiers JSON config.
+try {
+  const _BAL_LEAGUE_ID = 'ff568722-fbe9-4695-86a8-a31287c22841';
+  const _balLeague = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(_BAL_LEAGUE_ID);
+  if (_balLeague && _balLeague.pool_tournament_id) {
+    const _t1count = db.prepare(
+      'SELECT COUNT(*) as c FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND tier_number = 1'
+    ).get(_BAL_LEAGUE_ID, _balLeague.pool_tournament_id).c;
+
+    if (_t1count <= 3) {
+      console.log('[golf-db] Houston Open tiers skewed — auto-balancing...');
+      const _allPlayers = db.prepare(
+        'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? ORDER BY COALESCE(odds_decimal, 999) ASC'
+      ).all(_BAL_LEAGUE_ID, _balLeague.pool_tournament_id);
+
+      let _balTiersConfig = [];
+      try { _balTiersConfig = JSON.parse(_balLeague.pool_tiers || '[]'); } catch (_e) {}
+      const _tierCount = _balTiersConfig.length || 6;
+      const _total = _allPlayers.length;
+      const _baseSize = Math.floor(_total / _tierCount);
+      const _rem = _total % _tierCount;
+
+      const _newTiers = [];
+      let _off = 0;
+      for (let i = 0; i < _tierCount; i++) {
+        const _size = _baseSize + (i < _rem ? 1 : 0);
+        const _group = _allPlayers.slice(_off, _off + _size);
+        _off += _size;
+        const _oldT = _balTiersConfig.find(t => t.tier === i + 1) || {};
+        _newTiers.push({
+          tier:          i + 1,
+          odds_min:      _group[0]?.odds_display || '',
+          odds_max:      i < _tierCount - 1 ? (_group[_group.length - 1]?.odds_display || '') : '',
+          picks:         _oldT.picks || 1,
+          approxPlayers: _group.length,
+          players:       _group,
+        });
+      }
+
+      const _updTP = db.prepare(
+        'UPDATE pool_tier_players SET tier_number = ? WHERE league_id = ? AND tournament_id = ? AND player_id = ?'
+      );
+      db.transaction(() => {
+        for (const _nt of _newTiers) {
+          for (const _p of _nt.players) {
+            _updTP.run(_nt.tier, _BAL_LEAGUE_ID, _balLeague.pool_tournament_id, _p.player_id);
+          }
+        }
+      })();
+
+      const _newConfig = _newTiers.map(({ tier, odds_min, odds_max, picks, approxPlayers }) =>
+        ({ tier, odds_min, odds_max, picks, approxPlayers }));
+      db.prepare('UPDATE golf_leagues SET pool_tiers = ? WHERE id = ?')
+        .run(JSON.stringify(_newConfig), _BAL_LEAGUE_ID);
+
+      console.log(`[golf-db] Houston Open tiers balanced: ${_tierCount} tiers × ~${_baseSize} players each`);
+    }
+  }
+} catch (e) { console.log('[golf-db] startup task skipped:', e.message); }
+
 module.exports = db;

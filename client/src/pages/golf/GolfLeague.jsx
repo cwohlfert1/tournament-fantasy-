@@ -1063,7 +1063,7 @@ function PoolRosterTab({ leagueId, league }) {
   const countingCount = data?.counting_count;
   const picksPerTeam  = data?.picks_per_team || league.picks_per_team || 8;
 
-  const totalTarget = tiers.reduce((s, t) => s + (t.picks || 0), 0);
+  const totalTarget = picksPerTeam;
   const totalDone   = Object.values(selected).flat().length;
   const canSubmit   = tiers.length > 0 && tiers.every(t => (selected[t.tier] || []).length === (t.picks || 0));
 

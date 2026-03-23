@@ -73,8 +73,8 @@ export default function Register() {
 
       {/* Headline */}
       <div className="text-center mb-7">
-        <h1 className="text-2xl font-black text-white mb-1">Create Your Account</h1>
-        <p className="text-gray-400 text-sm">Join the most exciting tournament fantasy game</p>
+        <h1 className="text-2xl font-black text-white mb-1">Create your TourneyRun account</h1>
+        <p className="text-gray-400 text-sm">Golf pools, fantasy leagues, and more.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -418,6 +418,7 @@ router.get('/leagues/:id', authMiddleware, (req, res) => {
     const isCommissioner = league.commissioner_id === req.user.id;
     const myMember = members.find(m => m.user_id === req.user.id);
     if (!myMember && !isCommissioner) return res.status(403).json({ error: 'Not a member' });
+    try { league.pool_tiers = JSON.parse(league.pool_tiers || '[]'); } catch (_) { league.pool_tiers = []; }
     res.json({ league, members, isCommissioner, myMember });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
