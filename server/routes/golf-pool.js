@@ -495,12 +495,30 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
     const lockTime = league.picks_lock_time || (tourn ? computeLockTime(tourn.start_date) : null);
 
+    // Build tiers with available players so the UI can render the pick sheet
+    let tiersConfig = [];
+    try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
+
+    const tierPlayers = db.prepare(
+      'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? ORDER BY tier_number ASC, world_ranking ASC'
+    ).all(league.id, tid);
+
+    const tiers = tiersConfig.map(t => ({
+      tier:     t.tier,
+      tier_number: t.tier,
+      odds_min: t.odds_min,
+      odds_max: t.odds_max,
+      picks:    t.picks,
+      players:  tierPlayers.filter(p => p.tier_number === t.tier),
+    }));
+
     res.json({
       picks,
       submitted: picks.length > 0,
       picks_locked: !!league.picks_locked,
       lock_time: lockTime,
       tournament: tourn,
+      tiers,
     });
   } catch (err) {
     console.error('[golf-pool] my-roster error:', err);
