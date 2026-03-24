@@ -1167,6 +1167,28 @@ try {
   }
 } catch (e) { console.log('[golf-db] DK odds batch 2 skipped:', e.message); }
 
+// ── Houston Open odds fixups — run every boot (unguarded/idempotent) ─────────────
+// Previous guarded blocks only ran once; this ensures corrections survive Odds API overwrites.
+try {
+  const _HOU_LEAGUE = 'ff568722-fbe9-4695-86a8-a31287c22841';
+  const oddsFixups = [
+    { name: 'Brooks Koepka',  odds: '27:1',  decimal: 28, tier: 2 },
+    { name: 'Jake Knapp',     odds: '22:1',  decimal: 23, tier: 2 },
+    { name: 'Sam Burns',      odds: '27:1',  decimal: 28, tier: 1 },
+    { name: 'Min Woo Lee',    odds: '15:1',  decimal: 16, tier: 1 },
+    { name: 'Chris Gotterup', odds: '20:1',  decimal: 21, tier: 1 },
+  ];
+  const _fixTP = db.prepare('UPDATE pool_tier_players SET odds_display = ?, odds_decimal = ?, tier_number = ? WHERE player_name = ? AND league_id = ?');
+  const _fixGP = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE name = ?');
+  db.transaction(() => {
+    for (const f of oddsFixups) {
+      _fixTP.run(f.odds, f.decimal, f.tier, f.name, _HOU_LEAGUE);
+      _fixGP.run(f.odds, f.decimal, f.name);
+    }
+  })();
+  console.log('[golf-db] Houston Open odds fixups applied for', oddsFixups.length, 'players');
+} catch (e) { console.log('[golf-db] odds fixups skipped:', e.message); }
+
 // Always propagate country from golf_players → pool tables on every boot
 // Runs last so it catches any rows rebuilt by earlier migrations this boot
 try {

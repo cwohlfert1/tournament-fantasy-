@@ -447,6 +447,9 @@ async function syncPoolOdds() {
     return;
   }
 
+  console.log(`[odds-sync] API returned ${Object.keys(playerOdds).length} players. Sample:`,
+    Object.entries(playerOdds).slice(0, 10).map(([n, o]) => `${n}=${o.odds_display}`).join(', '));
+
   let total = 0;
   for (const tourn of upcoming) {
     const leagues = db.prepare(`SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type = 'pool' AND status != 'archived'`).all(tourn.id);
@@ -454,6 +457,7 @@ async function syncPoolOdds() {
       const tierPlayers = db.prepare('SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?').all(league.id, tourn.id);
       const updTP = db.prepare('UPDATE pool_tier_players SET odds_display = ?, odds_decimal = ? WHERE league_id = ? AND tournament_id = ? AND player_id = ?');
       const updGP = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE id = ?');
+      const noMatch = [];
       db.transaction(() => {
         for (const p of tierPlayers) {
           const nameLower = p.player_name.toLowerCase();
@@ -461,24 +465,31 @@ async function syncPoolOdds() {
           const firstInit = nameLower[0];
           // Exact → first initial + last name → unique last name
           let odds = playerOdds[nameLower];
+          let matchedAs = 'exact';
           if (!odds) {
             const key = Object.keys(playerOdds).find(k => {
               const parts = k.split(' ');
               return parts[parts.length - 1] === lastName && parts[0]?.[0] === firstInit;
             });
-            if (key) odds = playerOdds[key];
+            if (key) { odds = playerOdds[key]; matchedAs = `initials(${key})`; }
           }
           if (!odds) {
             const lastMatches = Object.keys(playerOdds).filter(k => k.split(' ').pop() === lastName);
-            if (lastMatches.length === 1) odds = playerOdds[lastMatches[0]];
+            if (lastMatches.length === 1) { odds = playerOdds[lastMatches[0]]; matchedAs = `lastName(${lastMatches[0]})`; }
           }
           if (odds) {
             updTP.run(odds.odds_display, odds.odds_decimal, league.id, tourn.id, p.player_id);
             updGP.run(odds.odds_display, odds.odds_decimal, p.player_id);
             total++;
+            console.log(`[odds-sync] ✓ ${p.player_name} → ${odds.odds_display} (via ${matchedAs})`);
+          } else {
+            noMatch.push(p.player_name);
           }
         }
       })();
+      if (noMatch.length) {
+        console.log(`[odds-sync] ✗ No odds found for ${noMatch.length} players: ${noMatch.join(', ')}`);
+      }
     }
   }
   console.log(`[odds-sync] Updated ${total} player odds across ${upcoming.length} tournament(s)`);
