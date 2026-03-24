@@ -488,6 +488,8 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       ORDER BY pp.tier_number ASC, COALESCE(gs.fantasy_points, 0) DESC
     `).all(req.params.id, tid, req.user.id);
 
+    if (picks.length) console.log('[my-roster] pick[0] country:', picks[0].country, '| player:', picks[0].player_name);
+
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
     const lockTime = league.picks_lock_time || (tourn ? computeLockTime(tourn.start_date) : null);
 
@@ -496,7 +498,10 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
 
     const tierPlayers = db.prepare(`
-      SELECT ptp.*, COALESCE(ptp.country, gp.country) AS country
+      SELECT ptp.id, ptp.league_id, ptp.tournament_id, ptp.player_id, ptp.player_name,
+        ptp.tier_number, ptp.odds_display, ptp.odds_decimal, ptp.world_ranking,
+        ptp.salary, ptp.manually_overridden, ptp.created_at,
+        COALESCE(ptp.country, gp.country) AS country
       FROM pool_tier_players ptp
       LEFT JOIN golf_players gp ON gp.id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ?
