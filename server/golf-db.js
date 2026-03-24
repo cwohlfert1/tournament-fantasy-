@@ -1075,17 +1075,17 @@ try {
 } catch (e) { console.log('[golf-db] startup task skipped:', e.message); }
 
 // ── Populate 2-letter ISO country codes for golf players ──────────────────────
-// Runs after every reseed to ensure pool_tier_players / pool_picks have flags
+// Sets country on golf_players every boot (idempotent) so reseed can't wipe it.
 try {
   const COUNTRY_MAP = [
-    ['US', ['Scottie Scheffler','Sam Burns','Ryan Gerard','Harris English','Michael Brennan','Pierceson Coody','Wyndham Clark','Cole Hammer','Nick Dunlap','Austin Eckroat','Tony Finau','Patrick Fishburn','Steven Fisk','David Ford','Rickie Fowler','Brice Garnett','Lucas Glover','Chris Gotterup','Max Greyserman','Ben Griffin','Harry Hall','Joe Highsmith','Lee Hodges','Charley Hoffman','Tom Hoge','Billy Horschel','Beau Hossler','Mason Howell','Mark Hubbard','Jeffrey Kang','Johnny Keefer','Michael Kim','Chris Kirk','Kurt Kitayama','Patton Kizzire','Jake Knapp','Brooks Koepka','Hank Lebioda','Peter Malnati','Denny McCarthy','Matt McCarty','Max McGreevy','Mac Meissner','Keith Mitchell','William Mouw','Trey Mullinax','Andrew Putnam','Chad Ramey','Davis Riley','Patrick Rodgers','Casey Russell','Isaiah Salinda','Gordon Sargent','Adam Schenk','Neal Shipley','Alex Smalley','Austin Smotherman','Sam Stevens','Sahith Theegala','Davis Thompson','Michael Thorbjornsen','John VanDerLaan','Vince Whaley','Aaron Wise','Gary Woodland','Dylan Wu','Zach Bauchou','Chandler Blanchet','Bronson Burgoon','Brian Campbell','Ricky Castillo','Bud Cauley','Davis Chatfield','Luke Clanton','Eric Cole','Kevin Roy','Danny Walker','Jimmy Stanger','Rico Hoey','Aaron Rai']],
+    ['US', ['Scottie Scheffler','Sam Burns','Ryan Gerard','Harris English','Michael Brennan','Pierceson Coody','Wyndham Clark','Cole Hammer','Nick Dunlap','Austin Eckroat','Tony Finau','Patrick Fishburn','Steven Fisk','David Ford','Rickie Fowler','Brice Garnett','Lucas Glover','Chris Gotterup','Max Greyserman','Ben Griffin','Harry Hall','Joe Highsmith','Lee Hodges','Charley Hoffman','Tom Hoge','Billy Horschel','Beau Hossler','Mason Howell','Mark Hubbard','Jeffrey Kang','Johnny Keefer','Michael Kim','Chris Kirk','Kurt Kitayama','Patton Kizzire','Jake Knapp','Brooks Koepka','Hank Lebioda','Peter Malnati','Denny McCarthy','Matt McCarty','Max McGreevy','Mac Meissner','Keith Mitchell','William Mouw','Trey Mullinax','Andrew Putnam','Chad Ramey','Davis Riley','Patrick Rodgers','Casey Russell','Isaiah Salinda','Gordon Sargent','Adam Schenk','Neal Shipley','Alex Smalley','Austin Smotherman','Sam Stevens','Sahith Theegala','Davis Thompson','Michael Thorbjornsen','John VanDerLaan','Vince Whaley','Aaron Wise','Gary Woodland','Dylan Wu','Zach Bauchou','Chandler Blanchet','Bronson Burgoon','Brian Campbell','Ricky Castillo','Bud Cauley','Davis Chatfield','Luke Clanton','Eric Cole','Kevin Roy','Danny Walker','Jimmy Stanger','Rico Hoey','Aaron Rai','Doug Ghim']],
     ['ZA', ['Christiaan Bezuidenhout','Garrick Higgo','Christo Lamprecht','Aldrich Potgieter','Erik van Rooyen']],
     ['GB', ['Dan Brown','Marco Penge','Jordan Smith','Matt Wallace','Paul Waring','Danny Willett','John Parry','Harry Hall']],
     ['AU', ['Jason Day','Min Woo Lee','Adam Scott','Karl Vilips']],
-    ['DK', ['Nicolai Hojgaard','Rasmus Hojgaard','Thorbjorn Olesen']],
+    ['DK', ['Nicolai Hojgaard','Rasmus Hojgaard','Thorbjorn Olesen','Rasmus Neergaard-Petersen']],
     ['KR', ['Sungjae Im','S.H. Kim','Si Woo Kim','Tom Kim','K.H. Lee']],
     ['CA', ['Mackenzie Hughes','Taylor Pendrith','Adam Svensson','Sudarshan Yellamaraju','A.J. Ewart']],
-    ['CO', ['Nico Echavarria','Marcelo Rozo']],
+    ['CO', ['Nico Echavarria','Marcelo Rozo','Rafael Campos']],
     ['IE', ['Shane Lowry']],
     ['NZ', ['Ryan Fox']],
     ['BE', ['Adrien Dumont de Chassart']],
@@ -1099,8 +1099,6 @@ try {
     ['TW', ['Kevin Yu']],
     ['VE', ['Jhonattan Vegas']],
     ['PH', ['Rico Hoey']],
-    ['PR', ['Rafael Campos']],
-    ['NO', ['Rasmus Neergaard-Petersen']],
   ];
 
   const _updCountry = db.prepare('UPDATE golf_players SET country = ? WHERE name = ?');
@@ -1109,20 +1107,7 @@ try {
       for (const name of names) _updCountry.run(code, name);
     }
   })();
-
-  // Propagate to pool_tier_players and pool_picks
-  db.prepare(`
-    UPDATE pool_tier_players SET country = (
-      SELECT country FROM golf_players WHERE golf_players.id = pool_tier_players.player_id
-    ) WHERE country IS NULL OR length(country) = 3
-  `).run();
-  db.prepare(`
-    UPDATE pool_picks SET country = (
-      SELECT country FROM golf_players WHERE golf_players.id = pool_picks.player_id
-    ) WHERE country IS NULL OR length(country) = 3
-  `).run();
-
-  console.log('[golf-db] Country codes populated and propagated');
+  console.log('[golf-db] Country codes set on golf_players');
 } catch (e) { console.log('[golf-db] country migration skipped:', e.message); }
 
 // ── Manual odds / tier corrections (Houston Open) ─────────────────────────────
@@ -1181,5 +1166,21 @@ try {
     console.log('[golf-db] Houston Open DK odds batch 2 applied for', MANUAL2.length, 'players');
   }
 } catch (e) { console.log('[golf-db] DK odds batch 2 skipped:', e.message); }
+
+// Always propagate country from golf_players → pool tables on every boot
+// Runs last so it catches any rows rebuilt by earlier migrations this boot
+try {
+  db.prepare(`
+    UPDATE pool_tier_players SET country = (
+      SELECT country FROM golf_players WHERE golf_players.id = pool_tier_players.player_id
+    ) WHERE country IS NULL
+  `).run();
+  db.prepare(`
+    UPDATE pool_picks SET country = (
+      SELECT country FROM golf_players WHERE golf_players.id = pool_picks.player_id
+    ) WHERE country IS NULL
+  `).run();
+  console.log('[golf-db] Country propagated to pool tables');
+} catch (e) { console.log('[golf-db] country propagation skipped:', e.message); }
 
 module.exports = db;
