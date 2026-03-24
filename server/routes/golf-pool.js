@@ -475,7 +475,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       SELECT
         pp.id, pp.tier_number, pp.player_id, pp.player_name, pp.salary_used,
         ptp.odds_display, ptp.world_ranking,
-        gp.country,
+        COALESCE(pp.country, gp.country) AS country,
         gs.round1, gs.round2, gs.round3, gs.round4,
         gs.made_cut, gs.finish_position, gs.fantasy_points
       FROM pool_picks pp
@@ -496,7 +496,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
 
     const tierPlayers = db.prepare(`
-      SELECT ptp.*, gp.country
+      SELECT ptp.*, COALESCE(ptp.country, gp.country) AS country
       FROM pool_tier_players ptp
       LEFT JOIN golf_players gp ON gp.id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ?
