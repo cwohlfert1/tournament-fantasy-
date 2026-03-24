@@ -575,6 +575,12 @@ async function syncTournamentField(tournamentId) {
   const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
   if (!tourn) return;
 
+  // Only run WD detection once tournament is active (ESPN has a real field)
+  if (tourn.status === 'scheduled') {
+    console.log(`[field-sync] Skipping ${tourn.name} — status is 'scheduled', not active`);
+    return;
+  }
+
   const leagues = db.prepare(
     "SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type = 'pool' AND status != 'archived'"
   ).all(tournamentId);
@@ -602,6 +608,12 @@ async function syncTournamentField(tournamentId) {
   const espnNames = new Set(espnCompetitors.map(c => norm(c.athlete?.displayName || '')));
 
   console.log(`[field-sync] ${tourn.name}: ${espnNames.size} players in ESPN field`);
+
+  // Require a full field before marking WDs — pre-tournament ESPN returns partial/empty data
+  if (espnNames.size < 50) {
+    console.log(`[field-sync] Field too small (${espnNames.size} players), skipping WD check`);
+    return;
+  }
 
   for (const league of leagues) {
     const tierPlayers = db.prepare(

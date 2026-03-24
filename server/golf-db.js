@@ -1230,6 +1230,19 @@ try {
 try { db.exec('ALTER TABLE pool_tier_players ADD COLUMN is_withdrawn INTEGER DEFAULT 0'); } catch (e) {}
 try { db.exec('ALTER TABLE pool_picks ADD COLUMN is_withdrawn INTEGER DEFAULT 0'); } catch (e) {}
 
+// ── Fix: reset spurious WDs caused by field-sync running before ESPN had data ─
+// Resets all is_withdrawn=1 for HOU league EXCEPT the two real WDs
+try {
+  const _HOU_RESET = 'ff568722-fbe9-4695-86a8-a31287c22841';
+  db.prepare(
+    "UPDATE pool_tier_players SET is_withdrawn=0 WHERE league_id=? AND player_name NOT IN ('Scottie Scheffler','Bud Cauley')"
+  ).run(_HOU_RESET);
+  db.prepare(
+    "UPDATE pool_picks SET is_withdrawn=0 WHERE league_id=? AND player_name NOT IN ('Scottie Scheffler','Bud Cauley')"
+  ).run(_HOU_RESET);
+  console.log('[golf-db] HOU WD reset: cleared spurious is_withdrawn flags (kept Scheffler + Cauley)');
+} catch (e) { console.log('[golf-db] HOU WD reset skipped:', e.message); }
+
 // ── Houston Open WD field update (Scheffler, Cauley → Power, Kuchar) ──────────
 try {
   const _HOU = 'ff568722-fbe9-4695-86a8-a31287c22841';
