@@ -916,7 +916,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
   const tc = ROSTER_TIER_COLORS[tierNum] || ROSTER_TIER_COLORS[4];
   const limit = tierConfig?.picks || 1;
   const remaining = limit - currentSel.length;
-  const sorted = [...players].sort((a, b) => (a.world_ranking || 999) - (b.world_ranking || 999));
+  const sorted = [...players].sort((a, b) => (a.odds_decimal || 999) - (b.odds_decimal || 999));
   const rgbMap = { '#f59e0b': '245,158,11', '#8b5cf6': '139,92,246', '#3b82f6': '59,130,246', '#10b981': '16,185,129' };
   const rgb = rgbMap[tc.accent] || '16,185,129';
 
@@ -1343,7 +1343,7 @@ function PoolRosterTab({ leagueId, league }) {
                     <span style={{ fontSize: 11, color: '#4b5563' }}>{tierPicks.length}/{slotCount}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {tierPicks.map((pick, idx) => {
+                    {[...tierPicks].sort((a, b) => (a.odds_decimal || 999) - (b.odds_decimal || 999)).map((pick, idx) => {
                       const normName = (pick.player_name || '').toLowerCase().replace(/[.']/g, '').trim();
                       const espnData = teeTimeMap[normName];
                       return (
