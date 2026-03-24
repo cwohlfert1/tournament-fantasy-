@@ -23,22 +23,6 @@ function buildStandings(leagueId) {
   ).get(leagueId);
   console.log(`[standings] league=${leagueId} raw picks=${rawCount.cnt} members=${members.length}`);
 
-  // ── Round diagnostics — log once per call so we can verify DB state ──────────
-  const _gRounds = db.prepare("SELECT round_name, COUNT(*) as n FROM games GROUP BY round_name ORDER BY n DESC").all();
-  console.log('[standings] games.round_name dist:', JSON.stringify(_gRounds));
-  const _psRounds = db.prepare("SELECT round, COUNT(*) as n FROM player_stats GROUP BY round ORDER BY n DESC").all();
-  console.log('[standings] player_stats.round dist:', JSON.stringify(_psRounds));
-  const _samplePS = db.prepare("SELECT ps.round, ps.points, g.round_name, g.game_date FROM player_stats ps JOIN games g ON g.id = ps.game_id ORDER BY g.game_date DESC LIMIT 6").all();
-  console.log('[standings] recent player_stats rows:', JSON.stringify(_samplePS));
-
-  const _gameDates = db.prepare("SELECT MIN(game_date) as earliest, MAX(game_date) as latest, COUNT(*) as total FROM games").get();
-  console.log('[standings] games date range:', JSON.stringify(_gameDates));
-  const _r32Games = db.prepare("SELECT COUNT(*) as n, MIN(game_date) as earliest, MAX(game_date) as latest FROM games WHERE round_name LIKE '%Second%' OR round_name LIKE '%32%'").get();
-  console.log('[standings] R32 game count:', JSON.stringify(_r32Games));
-  const _allRoundDates = db.prepare("SELECT round_name, MIN(game_date) as first_date, MAX(game_date) as last_date, COUNT(*) as n FROM games GROUP BY round_name ORDER BY first_date ASC").all();
-  console.log('[standings] rounds with dates:', JSON.stringify(_allRoundDates));
-  const _completedByRound = db.prepare("SELECT g.round_name, COUNT(*) as games, SUM(g.is_completed) as completed FROM games g GROUP BY g.round_name").all();
-  console.log('[standings] completed by round:', JSON.stringify(_completedByRound));
 
   // ── Fetch ALL picks + player info for this league in one batch query ────────
   // Using LEFT JOIN so picks with orphaned player_id still surface (shows up as
