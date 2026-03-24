@@ -769,7 +769,7 @@ function CountryFlag({ cc }) {
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, onRemove }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
@@ -862,6 +862,11 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
           </>
         ) : teeTxt ? (
           <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600, textAlign: 'right' }}>{teeTxt}</span>
+        ) : (!isCUT && !isWD && !isPending && onRemove) ? (
+          <button
+            onClick={e => { e.stopPropagation(); onRemove(); }}
+            style={{ width: 44, height: 44, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', cursor: 'pointer', color: '#9ca3af', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: -6 }}
+          >×</button>
         ) : !isCUT && !isWD && !isPending ? (
           <span style={{ fontSize: 12, color: '#4b5563' }}>—</span>
         ) : null}
@@ -1034,11 +1039,13 @@ function PoolRosterTab({ leagueId, league }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [localSubmitted, setLocalSubmitted] = useState(null); // null = use server value
 
   async function load() {
     try {
       const r = await api.get(`/golf/leagues/${leagueId}/my-roster`);
       setData(r.data);
+      setLocalSubmitted(null);
     } catch { setData(null); }
     setLoading(false);
     api.get(`/golf/leagues/${leagueId}/pga-live`).then(r => {
@@ -1066,7 +1073,7 @@ function PoolRosterTab({ leagueId, league }) {
 
   const picks        = data?.picks || [];
   const picksLocked  = data?.picks_locked ?? !!league.picks_locked;
-  const submitted    = data?.submitted;
+  const submitted    = localSubmitted !== null ? localSubmitted : data?.submitted;
   const tiers        = data?.tiers || [];
   const lockTime     = data?.lock_time;
   const tourn        = data?.tournament;
@@ -1089,6 +1096,20 @@ function PoolRosterTab({ leagueId, league }) {
       return { ...prev, [tierNum]: [...curr, playerId] };
     });
     setNames(prev => ({ ...prev, [playerId]: playerName }));
+  }
+
+  function handleRemoveSubmittedPick(pick) {
+    const remaining = (data?.picks || []).filter(p => p.player_id !== pick.player_id);
+    const newSelected = {};
+    const newNames = {};
+    for (const p of remaining) {
+      if (!newSelected[p.tier_number]) newSelected[p.tier_number] = [];
+      newSelected[p.tier_number].push(p.player_id);
+      newNames[p.player_id] = p.player_name;
+    }
+    setSelected(newSelected);
+    setNames(newNames);
+    setLocalSubmitted(false);
   }
 
   async function handleConfirmSubmit() {
@@ -1272,7 +1293,7 @@ function PoolRosterTab({ leagueId, league }) {
                     ? <><Trophy size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Tournament complete</span></>
                     : picksLocked
                       ? <><Lock size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Picks locked</span></>
-                      : <><Check style={{ width: 14, height: 14, color: '#00e87a' }} /><span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Picks submitted ✓</span></>
+                      : <><Check style={{ width: 14, height: 14, color: '#00e87a' }} /><span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Picks submitted ✓ · Tap × to change a pick</span></>
                 }
               </div>
               {!picksLocked && lockTime && <PicksCountdown lockTime={lockTime} />}
@@ -1304,6 +1325,7 @@ function PoolRosterTab({ leagueId, league }) {
                           espnCut={espnData?.isCut}
                           isDropped={pick.is_dropped}
                           isPending={pick.is_pending}
+                          onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' ? () => handleRemoveSubmittedPick(pick) : undefined}
                         />
                       );
                     })}
