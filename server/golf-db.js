@@ -1191,17 +1191,20 @@ try {
 
 // Always propagate country from golf_players → pool tables on every boot
 // Runs last so it catches any rows rebuilt by earlier migrations this boot
+try { db.exec('ALTER TABLE pool_tier_players ADD COLUMN country TEXT'); } catch (e) {}
+try { db.exec('ALTER TABLE pool_picks ADD COLUMN country TEXT'); } catch (e) {}
 try {
+  const _HOU_LEAGUE = 'ff568722-fbe9-4695-86a8-a31287c22841';
   db.prepare(`
     UPDATE pool_tier_players SET country = (
       SELECT country FROM golf_players WHERE golf_players.id = pool_tier_players.player_id
-    ) WHERE country IS NULL
-  `).run();
+    ) WHERE country IS NULL AND league_id = ?
+  `).run(_HOU_LEAGUE);
   db.prepare(`
     UPDATE pool_picks SET country = (
       SELECT country FROM golf_players WHERE golf_players.id = pool_picks.player_id
-    ) WHERE country IS NULL
-  `).run();
+    ) WHERE country IS NULL AND league_id = ?
+  `).run(_HOU_LEAGUE);
   console.log('[golf-db] Country propagated to pool tables');
 } catch (e) { console.log('[golf-db] country propagation skipped:', e.message); }
 
