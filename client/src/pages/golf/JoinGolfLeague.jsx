@@ -4,7 +4,6 @@ import { Flag, ArrowRight, Users, Calendar } from 'lucide-react';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import GolfPaymentModal, { wasGateDismissed } from '../../components/golf/GolfPaymentModal';
 
 function fmtDateRange(start, end) {
   if (!start) return '';
@@ -33,9 +32,6 @@ export default function JoinGolfLeague() {
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState('');
 
-  const [hasSeasonPass, setHasSeasonPass] = useState(false);
-  const [gateChecked, setGateChecked]     = useState(false);
-  const [showGate, setShowGate]           = useState(false);
 
   // Capture ref code from URL
   useEffect(() => {
@@ -58,15 +54,6 @@ export default function JoinGolfLeague() {
       .finally(() => setPreviewLoading(false));
   }, [code]);
 
-  // Check payment status only when authenticated
-  useEffect(() => {
-    if (!user) { setGateChecked(true); return; }
-    api.get('/golf/payments/status')
-      .then(r => setHasSeasonPass(r.data.hasSeasonPass || false))
-      .catch(() => {})
-      .finally(() => setGateChecked(true));
-  }, [user]);
-
   async function doJoin() {
     setJoinLoading(true);
     setJoinError('');
@@ -81,10 +68,6 @@ export default function JoinGolfLeague() {
 
   function handleJoinSubmit(e) {
     e.preventDefault();
-    if (!hasSeasonPass && !wasGateDismissed('season_pass', '')) {
-      setShowGate(true);
-      return;
-    }
     doJoin();
   }
 
@@ -196,12 +179,6 @@ export default function JoinGolfLeague() {
                 />
               </div>
 
-              {gateChecked && hasSeasonPass && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4ade80', fontSize: 12 }}>
-                  <span>✓</span> 2026 Season Pass active
-                </div>
-              )}
-
               {joinError && (
                 <div className="bg-red-900/40 border border-red-700 text-red-300 rounded-lg p-3 text-sm">
                   {joinError}
@@ -210,7 +187,7 @@ export default function JoinGolfLeague() {
 
               <button
                 type="submit"
-                disabled={joinLoading || !gateChecked}
+                disabled={joinLoading}
                 className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-xl transition-all shadow-lg shadow-green-500/20"
               >
                 {joinLoading ? 'Joining…' : <><span>Join League</span><ArrowRight className="w-4 h-4" /></>}
@@ -220,15 +197,6 @@ export default function JoinGolfLeague() {
         </div>
       )}
 
-      {/* Season Pass gate modal */}
-      {showGate && (
-        <GolfPaymentModal
-          type="season_pass"
-          meta={{}}
-          onClose={() => setShowGate(false)}
-          onAlreadyPaid={() => { setHasSeasonPass(true); setShowGate(false); doJoin(); }}
-        />
-      )}
     </div>
   );
 }
