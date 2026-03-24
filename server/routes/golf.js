@@ -441,7 +441,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
 
       const standings = members.map(m => {
         const picks = tid ? db.prepare(`
-          SELECT pp.player_id, pp.player_name, pp.tier_number,
+          SELECT pp.player_id, pp.player_name, pp.tier_number, pp.country,
                  gs.fantasy_points, gs.round1, gs.round2, gs.round3, gs.round4,
                  gs.finish_position, gs.made_cut
           FROM pool_picks pp
@@ -460,7 +460,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
           const dropResult = applyDropScoring(picks, dropCount);
           total_points = dropResult.team_score;
           enrichedPicks = dropResult.picks.map(p => ({
-            player_name: p.player_name, tier_number: p.tier_number,
+            player_name: p.player_name, tier_number: p.tier_number, country: p.country,
             fantasy_points: p.fantasy_points || 0,
             round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
             finish_position: p.finish_position, made_cut: p.made_cut,
@@ -472,7 +472,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         } else {
           total_points = Math.round(picks.reduce((s, p) => s + (p.fantasy_points || 0), 0) * 10) / 10;
           enrichedPicks = picks.map(p => ({
-            player_name: p.player_name, tier_number: p.tier_number,
+            player_name: p.player_name, tier_number: p.tier_number, country: p.country,
             fantasy_points: p.fantasy_points || 0,
             round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
             finish_position: p.finish_position, made_cut: p.made_cut,

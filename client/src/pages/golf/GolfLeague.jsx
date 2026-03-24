@@ -746,28 +746,11 @@ function InitialsAvatar({ name, tier, size = 44 }) {
   );
 }
 
-const GOLF_COUNTRY_MAP = {
-  USA:'us', ENG:'gb', SCO:'gb', WAL:'gb', NIR:'gb', IRL:'ie',
-  AUS:'au', NZL:'nz', RSA:'za', ZIM:'zw', IND:'in', JPN:'jp',
-  KOR:'kr', CHN:'cn', TPE:'tw', THA:'th', MAS:'my', SIN:'sg',
-  PHI:'ph', FIJ:'fj', PNG:'pg', GER:'de', AUT:'at', SWE:'se',
-  NOR:'no', DEN:'dk', FIN:'fi', BEL:'be', NED:'nl', FRA:'fr',
-  ESP:'es', ITA:'it', POR:'pt', CHI:'cl', ARG:'ar', COL:'co',
-  MEX:'mx', CAN:'ca', VEN:'ve', PAR:'py', URU:'uy', BRA:'br',
+// Flag emoji from 2-letter ISO country code ('US' → 🇺🇸)
+const toFlag = code => {
+  if (!code) return '🏌️';
+  return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397));
 };
-
-function CountryFlag({ cc }) {
-  if (!cc) return null;
-  const iso2 = GOLF_COUNTRY_MAP[cc.toUpperCase()] || cc.toLowerCase();
-  return (
-    <img
-      src={`https://flagcdn.com/24x18/${iso2}.png`}
-      alt={cc}
-      style={{ width: 18, height: 13, borderRadius: 2, objectFit: 'cover', flexShrink: 0 }}
-      onError={e => { e.target.style.display = 'none'; }}
-    />
-  );
-}
 
 function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, onRemove }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
@@ -803,7 +786,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc.border}`; }}
     onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
     >
-      <InitialsAvatar name={pick.player_name} tier={tier} />
+      <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{toFlag(pick.country)}</span>
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -815,7 +798,6 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-          {pick.country && <CountryFlag cc={pick.country} />}
           {pick.world_ranking && (
             <span style={{ fontSize: 11, color: '#6b7280' }}>WR #{pick.world_ranking}</span>
           )}
@@ -987,13 +969,10 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
                   opacity: isFull ? 0.3 : 1, transition: 'background 0.1s, border-color 0.1s',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                  <InitialsAvatar name={p.player_name} tier={tierNum} size={36} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <span style={{ fontSize: 24, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {p.country && <CountryFlag cc={p.country} />}
-                      <span style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.player_name}</span>
-                    </div>
+                    <div style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.player_name}</div>
                     {p.world_ranking && <div style={{ color: '#4b5563', fontSize: 11, marginTop: 1 }}>WR #{p.world_ranking}</div>}
                   </div>
                 </div>
@@ -1199,7 +1178,7 @@ function PoolRosterTab({ leagueId, league }) {
                   const pData = (tierCfg.players || []).find(p => p.player_id === playerId);
                   return (
                     <div key={playerId} style={{ border: `1.5px solid ${tc.accent}`, background: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, animation: 'fadeSlideUp 0.2s ease both' }}>
-                      <InitialsAvatar name={pName} tier={tierNum} size={40} />
+                      <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{toFlag(pData?.country)}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pName}</div>
                         {pData?.odds_display && <div style={{ fontSize: 12, color: tc.label, marginTop: 2 }}>{fmtOdds(pData.odds_display)}</div>}
@@ -2509,7 +2488,8 @@ function StandingsTab({ leagueId, league, currentUserId }) {
                     const isMC       = p.is_mc || (p.made_cut === 0);
                     return (
                       <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none', opacity: isDropped ? 0.45 : 1 }}>
-                        <span style={{ flex: 1, color: isDropped ? '#6b7280' : '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isDropped ? 'line-through' : 'none' }}>
+                        <span style={{ flex: 1, color: isDropped ? '#6b7280' : '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isDropped ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                           {p.player_name}
                         </span>
                         {/* Status badges */}
@@ -2542,7 +2522,8 @@ function StandingsTab({ leagueId, league, currentUserId }) {
                   const fpColor = fp > 0 ? '#00e87a' : fp < 0 ? '#ef4444' : '#6b7280';
                   return (
                     <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
-                      <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                         {p.player_name}
                       </span>
                       {isWD ? (

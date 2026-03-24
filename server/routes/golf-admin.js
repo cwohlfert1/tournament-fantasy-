@@ -858,13 +858,14 @@ router.post('/admin/dev/sync-espn-field', superadmin, async (req, res) => {
 
     // ── Step 3: Upsert golf_tournament_fields + golf_players ──────────────────
     const _getGP = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
-    const _insGP = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, is_active, world_ranking) VALUES (?, ?, 1, ?)');
+    const _insGP = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking) VALUES (?, ?, ?, 1, ?)');
     const _insTF = db.prepare(`
       INSERT OR REPLACE INTO golf_tournament_fields
         (id, tournament_id, player_name, player_id, espn_player_id, world_ranking, odds_display, odds_decimal)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const _updGP = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE id = ?');
+    const _updGPCountry = db.prepare('UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)');
 
     db.prepare('DELETE FROM golf_tournament_fields WHERE tournament_id = ?').run(tournament_id);
 
@@ -874,14 +875,18 @@ router.post('/admin/dev/sync-espn-field', superadmin, async (req, res) => {
         const name    = c.athlete?.displayName || c.athlete?.fullName;
         const espnId  = String(c.athlete?.id || '');
         const ranking = c.athlete?.ranking ? parseInt(c.athlete.ranking) : null;
+        const country = c.athlete?.flag?.alt || c.athlete?.country || null;
         if (!name) continue;
 
         let gp = _getGP.get(name);
         if (!gp) {
-          _insGP.run(uuidv4(), name, 1, ranking || 200);
+          _insGP.run(uuidv4(), name, country, 1, ranking || 200);
           gp = _getGP.get(name);
         }
         if (!gp) continue;
+
+        // Update country if we have it and the stored value isn't already a 2-letter code
+        if (country) _updGPCountry.run(country, gp.id);
 
         const playerOdds = oddsMap[espnId] || null;
         _insTF.run(
