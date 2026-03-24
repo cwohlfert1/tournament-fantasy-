@@ -500,7 +500,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       FROM pool_tier_players ptp
       LEFT JOIN golf_players gp ON gp.id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ?
-      ORDER BY ptp.tier_number ASC, ptp.world_ranking ASC
+      ORDER BY ptp.tier_number ASC, ptp.odds_decimal ASC, ptp.world_ranking ASC
     `).all(league.id, tid);
 
     const tiers = tiersConfig.map(t => ({

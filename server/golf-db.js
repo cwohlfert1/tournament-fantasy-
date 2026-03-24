@@ -1177,6 +1177,7 @@ try {
     { name: 'Sam Burns',      odds: '27:1',  decimal: 28, tier: 1 },
     { name: 'Min Woo Lee',    odds: '15:1',  decimal: 16, tier: 1 },
     { name: 'Chris Gotterup', odds: '20:1',  decimal: 21, tier: 1 },
+    { name: 'Gary Woodland',  odds: '115:1', decimal: 116, tier: 2 },
   ];
   const _fixTP = db.prepare('UPDATE pool_tier_players SET odds_display = ?, odds_decimal = ?, tier_number = ? WHERE player_name = ? AND league_id = ?');
   const _fixGP = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE name = ?');
