@@ -1239,19 +1239,35 @@ try {
   const _gpScheff = db.prepare("SELECT id, name FROM golf_players WHERE name = 'Scottie Scheffler'").get();
   console.log('[golf-db] golf_players Scheffler:', JSON.stringify(_gpScheff));
 
+  // Step 1: propagate from golf_players → pool_tier_players (by name)
   const r1 = db.prepare(`
     UPDATE pool_tier_players SET country = (
       SELECT country FROM golf_players WHERE golf_players.name = pool_tier_players.player_name
         AND golf_players.country IS NOT NULL
     ) WHERE country IS NULL AND league_id = ?
   `).run(_HOU_LEAGUE);
+
+  // Step 2: propagate from pool_tier_players → pool_picks (by player_name within same league)
+  // More reliable than golf_players join since ptp.country is already populated via fixups
   const r2 = db.prepare(`
+    UPDATE pool_picks SET country = (
+      SELECT ptp.country FROM pool_tier_players ptp
+      WHERE ptp.player_name = pool_picks.player_name
+        AND ptp.league_id = pool_picks.league_id
+        AND ptp.country IS NOT NULL
+      LIMIT 1
+    ) WHERE country IS NULL AND league_id = ?
+  `).run(_HOU_LEAGUE);
+
+  // Step 3: fallback — propagate from golf_players → pool_picks for any still-null rows
+  const r3 = db.prepare(`
     UPDATE pool_picks SET country = (
       SELECT country FROM golf_players WHERE golf_players.name = pool_picks.player_name
         AND golf_players.country IS NOT NULL
     ) WHERE country IS NULL AND league_id = ?
   `).run(_HOU_LEAGUE);
-  console.log(`[golf-db] Country propagated — ptp: ${r1.changes}, picks: ${r2.changes}`);
+
+  console.log(`[golf-db] Country propagated — ptp: ${r1.changes}, picks-via-ptp: ${r2.changes}, picks-via-gp: ${r3.changes}`);
 } catch (e) { console.log('[golf-db] country propagation skipped:', e.message); }
 
 // ── Direct country fallback for players that don't match via golf_players.name ──
