@@ -868,6 +868,57 @@ router.post('/admin/dev/sync-espn-field', superadmin, async (req, res) => {
       }
     }
 
+    // ── Step 2c: The Odds API — primary source if ESPN odds empty ─────────────
+    // ESPN publishes futures ~3-4 days before tee time; The Odds API has them earlier.
+    // We always try this — if it has data it overwrites ESPN odds for matched players.
+    const ODDS_API_KEY = process.env.ODDS_API_KEY;
+    if (ODDS_API_KEY) {
+      try {
+        const oddsApiUrl = `https://api.the-odds-api.com/v4/sports/golf_pga_tour/odds?apiKey=${ODDS_API_KEY}&regions=us&markets=outrights&oddsFormat=american`;
+        const oddsApiData = await espnFetch(oddsApiUrl);
+        const PREF_BOOKS = ['draftkings', 'fanduel', 'betmgm', 'caesars', 'pointsbetus'];
+        let apiOddsCount = 0;
+        for (const event of (oddsApiData || [])) {
+          let outcomes = null;
+          for (const bookKey of PREF_BOOKS) {
+            const book = (event.bookmakers || []).find(b => b.key === bookKey);
+            if (book) {
+              outcomes = book.markets?.find(m => m.key === 'outrights')?.outcomes;
+              if (outcomes?.length) break;
+            }
+          }
+          // Fall back to first available bookmaker
+          if (!outcomes) {
+            for (const book of (event.bookmakers || [])) {
+              outcomes = book.markets?.find(m => m.key === 'outrights')?.outcomes;
+              if (outcomes?.length) break;
+            }
+          }
+          if (!outcomes) continue;
+          for (const o of outcomes) {
+            const american = o.price;
+            if (!o.name || !american || american < -5000) continue;
+            const ratio = american > 0 ? american / 100 : 100 / Math.abs(american);
+            const nice = ratio < 5   ? Math.round(ratio * 4) / 4 :
+                         ratio < 20  ? Math.round(ratio * 2) / 2 :
+                         ratio < 100 ? Math.round(ratio / 5) * 5 :
+                                       Math.round(ratio / 25) * 25;
+            const oddsObj = { odds_display: `${nice}:1`, odds_decimal: nice + 1 };
+            const fNameLower = (o.name || '').toLowerCase().trim();
+            nameOddsMap[fNameLower] = oddsObj;
+            const lastName = fNameLower.split(' ').pop();
+            lastNameCount[lastName] = (lastNameCount[lastName] || 0) + 1;
+            lastNameOddsMap[lastName] = lastNameCount[lastName] === 1 ? oddsObj : null;
+            apiOddsCount++;
+          }
+          break; // one event per API call
+        }
+        console.log(`[admin] The Odds API: ${apiOddsCount} player odds loaded`);
+      } catch (oddsApiErr) {
+        console.warn('[admin] The Odds API non-fatal:', oddsApiErr.message);
+      }
+    }
+
     // ── Step 3: Upsert golf_tournament_fields + golf_players ──────────────────
     const _getGP = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
     const _insGP = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking) VALUES (?, ?, ?, 1, ?)');
@@ -1334,6 +1385,19 @@ router.post('/profile/complete', authMiddleware, (req, res) => {
     `).run(req.user.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /admin/dev/sync-odds ─────────────────────────────────────────────────
+// Manually trigger an odds sync from The Odds API for all upcoming pool leagues.
+router.post('/admin/dev/sync-odds', superadmin, async (req, res) => {
+  try {
+    const { syncPoolOdds } = require('../golfSyncService');
+    await syncPoolOdds();
+    res.json({ ok: true, message: 'Odds sync complete — check server logs for details' });
+  } catch (err) {
+    console.error('[admin] sync-odds error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -1125,19 +1125,33 @@ try {
   console.log('[golf-db] Country codes populated and propagated');
 } catch (e) { console.log('[golf-db] country migration skipped:', e.message); }
 
-// ── Manual odds / tier corrections ────────────────────────────────────────────
-// Koepka was a late ESPN entry and got default 525:1 / T4 — correct to T2
+// ── Manual odds / tier corrections (Houston Open) ─────────────────────────────
+// ESPN odds weren't available at sync time — apply known betting lines manually.
+// Guard: re-runs only if Scheffler still has wrong odds in pool_tier_players.
 try {
   const _HOU_LEAGUE = 'ff568722-fbe9-4695-86a8-a31287c22841';
-  const koepkaGP = db.prepare("SELECT id, odds_display FROM golf_players WHERE name = 'Brooks Koepka'").get();
-  if (koepkaGP && koepkaGP.odds_display !== '28:1') {
-    db.prepare("UPDATE golf_players SET odds_display = '28:1', odds_decimal = 29, world_ranking = 26 WHERE name = 'Brooks Koepka'").run();
-    db.prepare(`
-      UPDATE pool_tier_players SET tier_number = 2, odds_display = '28:1', odds_decimal = 29
-      WHERE player_name = 'Brooks Koepka' AND league_id = ?
-    `).run(_HOU_LEAGUE);
-    console.log('[golf-db] Koepka odds corrected to 28:1, moved to T2');
+  const _scheff = db.prepare("SELECT odds_display FROM pool_tier_players WHERE player_name = 'Scottie Scheffler' AND league_id = ?").get(_HOU_LEAGUE);
+  if (_scheff && _scheff.odds_display !== '8:1') {
+    const MANUAL = [
+      { name: 'Scottie Scheffler', tier: 1, odds_display: '8:1',  odds_decimal: 9,  world_ranking: 1  },
+      { name: 'Sam Burns',         tier: 1, odds_display: '18:1', odds_decimal: 19, world_ranking: 19 },
+      { name: 'Jake Knapp',        tier: 1, odds_display: '22:1', odds_decimal: 23, world_ranking: 37 },
+      { name: 'Brooks Koepka',     tier: 2, odds_display: '28:1', odds_decimal: 29, world_ranking: 26 },
+      { name: 'Rickie Fowler',     tier: 2, odds_display: '30:1', odds_decimal: 31, world_ranking: 50 },
+      { name: 'Wyndham Clark',     tier: 3, odds_display: '35:1', odds_decimal: 36, world_ranking: 16 },
+      { name: 'Tony Finau',        tier: 3, odds_display: '40:1', odds_decimal: 41, world_ranking: 55 },
+      { name: 'Adam Scott',        tier: 3, odds_display: '40:1', odds_decimal: 41, world_ranking: 64 },
+    ];
+    const _updTP  = db.prepare('UPDATE pool_tier_players SET tier_number = ?, odds_display = ?, odds_decimal = ? WHERE player_name = ? AND league_id = ?');
+    const _updGP  = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ?, world_ranking = ? WHERE name = ?');
+    db.transaction(() => {
+      for (const m of MANUAL) {
+        _updTP.run(m.tier, m.odds_display, m.odds_decimal, m.name, _HOU_LEAGUE);
+        _updGP.run(m.odds_display, m.odds_decimal, m.world_ranking, m.name);
+      }
+    })();
+    console.log('[golf-db] Houston Open manual odds applied for', MANUAL.length, 'players');
   }
-} catch (e) { console.log('[golf-db] Koepka fix skipped:', e.message); }
+} catch (e) { console.log('[golf-db] manual odds migration skipped:', e.message); }
 
 module.exports = db;

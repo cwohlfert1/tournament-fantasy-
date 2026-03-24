@@ -379,8 +379,114 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   return { synced, notMatched, espnEventName: event.name || event.shortName, isCompleted };
 }
 
+// ── Odds API helper ─────────────────────────────────────────────────────────────
+function americanToOdds(american) {
+  if (!american || american < -5000) return null;
+  const ratio = american > 0 ? american / 100 : 100 / Math.abs(american);
+  const nice = ratio < 5   ? Math.round(ratio * 4) / 4 :
+               ratio < 20  ? Math.round(ratio * 2) / 2 :
+               ratio < 100 ? Math.round(ratio / 5) * 5 :
+                             Math.round(ratio / 25) * 25;
+  return { odds_display: `${nice}:1`, odds_decimal: nice + 1 };
+}
+
+async function syncPoolOdds() {
+  const apiKey = process.env.ODDS_API_KEY;
+  if (!apiKey) return; // silently skip — key not configured yet
+
+  // Find upcoming tournaments with pool leagues starting within 7 days
+  const upcoming = db.prepare(`
+    SELECT DISTINCT gt.id, gt.name FROM golf_tournaments gt
+    JOIN golf_leagues gl ON gl.pool_tournament_id = gt.id AND gl.format_type = 'pool' AND gl.status != 'archived'
+    WHERE gt.status IN ('scheduled','active')
+      AND date(gt.start_date) <= date('now', '+7 days')
+    ORDER BY gt.start_date ASC
+  `).all();
+
+  if (!upcoming.length) return;
+
+  let oddsApiData;
+  try {
+    oddsApiData = await fetchJson(`https://api.the-odds-api.com/v4/sports/golf_pga_tour/odds?apiKey=${apiKey}&regions=us&markets=outrights&oddsFormat=american`);
+  } catch (e) {
+    console.warn('[odds-sync] Fetch failed:', e.message);
+    return;
+  }
+
+  if (!Array.isArray(oddsApiData) || !oddsApiData.length) {
+    console.log('[odds-sync] No events returned');
+    return;
+  }
+
+  // Build player name → odds map from preferred bookmaker
+  const PREF_BOOKS = ['draftkings', 'fanduel', 'betmgm', 'caesars', 'pointsbetus'];
+  const playerOdds = {}; // name_lower → { odds_display, odds_decimal }
+  for (const event of oddsApiData) {
+    let outcomes = null;
+    for (const bookKey of PREF_BOOKS) {
+      const book = (event.bookmakers || []).find(b => b.key === bookKey);
+      if (book) { outcomes = book.markets?.find(m => m.key === 'outrights')?.outcomes; if (outcomes?.length) break; }
+    }
+    if (!outcomes) {
+      for (const book of (event.bookmakers || [])) {
+        outcomes = book.markets?.find(m => m.key === 'outrights')?.outcomes;
+        if (outcomes?.length) break;
+      }
+    }
+    if (!outcomes) continue;
+    for (const o of outcomes) {
+      const oddsObj = americanToOdds(o.price);
+      if (!o.name || !oddsObj) continue;
+      playerOdds[o.name.toLowerCase().trim()] = oddsObj;
+    }
+    break; // one event = all PGA outrights
+  }
+
+  if (!Object.keys(playerOdds).length) {
+    console.log('[odds-sync] No player odds parsed');
+    return;
+  }
+
+  let total = 0;
+  for (const tourn of upcoming) {
+    const leagues = db.prepare(`SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type = 'pool' AND status != 'archived'`).all(tourn.id);
+    for (const league of leagues) {
+      const tierPlayers = db.prepare('SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?').all(league.id, tourn.id);
+      const updTP = db.prepare('UPDATE pool_tier_players SET odds_display = ?, odds_decimal = ? WHERE league_id = ? AND tournament_id = ? AND player_id = ?');
+      const updGP = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE id = ?');
+      db.transaction(() => {
+        for (const p of tierPlayers) {
+          const nameLower = p.player_name.toLowerCase();
+          const lastName  = nameLower.split(' ').pop();
+          const firstInit = nameLower[0];
+          // Exact → first initial + last name → unique last name
+          let odds = playerOdds[nameLower];
+          if (!odds) {
+            const key = Object.keys(playerOdds).find(k => {
+              const parts = k.split(' ');
+              return parts[parts.length - 1] === lastName && parts[0]?.[0] === firstInit;
+            });
+            if (key) odds = playerOdds[key];
+          }
+          if (!odds) {
+            const lastMatches = Object.keys(playerOdds).filter(k => k.split(' ').pop() === lastName);
+            if (lastMatches.length === 1) odds = playerOdds[lastMatches[0]];
+          }
+          if (odds) {
+            updTP.run(odds.odds_display, odds.odds_decimal, league.id, tourn.id, p.player_id);
+            updGP.run(odds.odds_display, odds.odds_decimal, p.player_id);
+            total++;
+          }
+        }
+      })();
+    }
+  }
+  console.log(`[odds-sync] Updated ${total} player odds across ${upcoming.length} tournament(s)`);
+}
+
 // ── Auto-sync scheduler ─────────────────────────────────────────────────────────
 let _syncInterval = null;
+let _oddsInterval = null;
 let _lastSyncTime = null;
 let _lastSyncResult = null;
 
@@ -457,6 +563,13 @@ function scheduleAutoSync() {
   _syncInterval = setInterval(runAutoSync, 10 * 60 * 1000);
   setTimeout(runAutoSync, 8000);
   console.log('[golf-sync] Scheduled — 10 min intervals, Thu–Sun during active tournaments');
+
+  // Odds sync: run once on startup (after 45s) then every 6 hours
+  // Fetches from The Odds API when ODDS_API_KEY is set and a tournament is within 7 days
+  if (_oddsInterval) clearInterval(_oddsInterval);
+  _oddsInterval = setInterval(syncPoolOdds, 6 * 60 * 60 * 1000);
+  setTimeout(syncPoolOdds, 45000);
+  console.log('[golf-sync] Odds sync scheduled — 6h intervals when ODDS_API_KEY set');
 }
 
 function getSyncStatus() {
@@ -495,4 +608,4 @@ async function backfillCompleted() {
   }
 }
 
-module.exports = { syncTournamentScores, scheduleAutoSync, getSyncStatus, backfillCompleted, setIo };
+module.exports = { syncTournamentScores, scheduleAutoSync, getSyncStatus, backfillCompleted, setIo, syncPoolOdds };
