@@ -65,6 +65,21 @@ function HoleScorecard({ holes, currentRound }) {
   );
 }
 
+// Isolated component so the 5-second tick only re-renders this element,
+// not the entire leaderboard table.
+function FetchAge({ lastFetch }) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!lastFetch) return;
+    setSecs(0);
+    const iv = setInterval(() => setSecs(Math.floor((Date.now() - lastFetch) / 1000)), 5000);
+    return () => clearInterval(iv);
+  }, [lastFetch]);
+  if (!lastFetch) return null;
+  const txt = secs < 60 ? `${secs}s ago` : `${Math.floor(secs / 60)}m ago`;
+  return <span style={{ color: '#374151', fontSize: 10 }}>Updated {txt}</span>;
+}
+
 export default function PGALiveTab({ leagueId, league }) {
   const [data, setData]           = useState(null);
   const [loading, setLoading]     = useState(true);
@@ -73,7 +88,6 @@ export default function PGALiveTab({ leagueId, league }) {
   const [expandedRow, setExpandedRow] = useState(null);
   const pgaRowRefs = useRef({});
   const [lastFetch, setLastFetch] = useState(null);
-  const [secsSince, setSecsSince] = useState(null);
 
   async function load() {
     try {
@@ -96,12 +110,6 @@ export default function PGALiveTab({ leagueId, league }) {
     return () => clearInterval(iv);
   }, [leagueId]); // eslint-disable-line
 
-  useEffect(() => {
-    if (!lastFetch) return;
-    const iv = setInterval(() => setSecsSince(Math.floor((Date.now() - lastFetch) / 1000)), 5000);
-    setSecsSince(0);
-    return () => clearInterval(iv);
-  }, [lastFetch]);
 
   if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading leaderboard…</div>;
 
@@ -174,8 +182,6 @@ export default function PGALiveTab({ leagueId, league }) {
                      : { text: `+${val}`,  color: '#ef4444' };
   };
 
-  const ageTxt = secsSince == null ? '' : secsSince < 60 ? `${secsSince}s ago` : `${Math.floor(secsSince / 60)}m ago`;
-
   return (
     <div className="space-y-3">
 
@@ -200,7 +206,7 @@ export default function PGALiveTab({ leagueId, league }) {
                 Live
               </span>
             ) : null}
-            {ageTxt && <span style={{ color: '#374151', fontSize: 10 }}>Updated {ageTxt}</span>}
+            <FetchAge lastFetch={lastFetch} />
           </div>
         </div>
       </div>

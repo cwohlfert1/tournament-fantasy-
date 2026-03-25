@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { Flag, Trophy } from 'lucide-react';
 import api from '../../../api';
 
@@ -94,6 +94,83 @@ function computeRanks(standings, scoringStyle) {
   });
 }
 
+const LeaderboardRow = memo(function LeaderboardRow({
+  s, rankInfo, expandContent, canExpand,
+  currentUserId, expanded, setExpanded, rowRefs,
+  hasPrize, prizeTotal, p1, p2, p3, isTotalStrokes, hasScores,
+}) {
+  const isMe   = s.user_id === currentUserId;
+  const isOpen = expanded === s.user_id;
+  const pts    = s.season_points ?? 0;
+  const myPrize = hasPrize ? prizeForRank(rankInfo.rank, prizeTotal, p1, p2, p3) : null;
+  const ptColor = isTotalStrokes
+    ? (pts < 0 ? '#22c55e' : pts > 0 ? '#ef4444' : '#9ca3af')
+    : (pts > 0 ? '#22c55e' : pts < 0 ? '#ef4444' : '#9ca3af');
+  const isBot  = /^bot[\s_]?\d/i.test(s.username || '');
+
+  return (
+    <div ref={el => { rowRefs.current[s.user_id] = el; }} style={{ borderLeft: `3px solid ${isMe ? '#22c55e' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <button
+        onClick={e => {
+          if (!canExpand) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setExpanded(isOpen ? null : s.user_id);
+          setTimeout(() => {
+            rowRefs.current[s.user_id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 10);
+        }}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 11px 11px', background: isMe ? 'rgba(0,232,122,0.04)' : 'transparent', border: 'none', cursor: canExpand ? 'pointer' : 'default', textAlign: 'left' }}
+        onMouseEnter={e => { if (canExpand) e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.07)' : 'rgba(255,255,255,0.03)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.04)' : 'transparent'; }}
+      >
+        <RankBadge rank={rankInfo.rank} isTied={rankInfo.tied} />
+        <AvatarCircle name={s.team_name} isMe={isMe} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+            <span style={{ color: isMe ? '#22c55e' : '#fff', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {s.team_name}
+            </span>
+            {isBot && (
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: '#1f2937', border: '1px solid #374151', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.05em', flexShrink: 0 }}>BOT</span>
+            )}
+          </div>
+          <div style={{ color: '#4b5563', fontSize: 11, marginTop: 1 }}>{s.username}</div>
+        </div>
+        {hasPrize && (
+          <div style={{ textAlign: 'right', minWidth: 44, flexShrink: 0 }}>
+            {myPrize ? (
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>${myPrize.toLocaleString()}</span>
+            ) : (
+              <span style={{ fontSize: 11, color: '#374151' }}>—</span>
+            )}
+          </div>
+        )}
+        <div style={{ textAlign: 'right', minWidth: 50, flexShrink: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, color: hasScores ? ptColor : '#6b7280', fontVariantNumeric: 'tabular-nums' }}>
+            {hasScores
+              ? isTotalStrokes
+                ? pts === 0 ? 'E' : (pts < 0 ? '' : '+') + Math.round(pts)
+                : (pts > 0 ? '+' : '') + pts.toFixed(1)
+              : '—'}
+          </div>
+          <div style={{ color: '#4b5563', fontSize: 10 }}>{isTotalStrokes ? '' : 'pts'}</div>
+        </div>
+        {canExpand && (
+          <svg style={{ width: 12, height: 12, color: '#4b5563', flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        )}
+      </button>
+      {isOpen && expandContent && (
+        <div style={{ background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          {expandContent}
+        </div>
+      )}
+    </div>
+  );
+});
+
 function prizeForRank(rank, total, p1, p2, p3) {
   if (!total) return null;
   if (rank === 1) return Math.round(total * p1 / 100);
@@ -124,7 +201,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
       const myRow = (data.standings || []).find(s => s.user_id === currentUserId);
       if (myRow) setExpanded(currentUserId);
     }
-  }, [!!data, currentUserId]); // eslint-disable-line
+  }, [data, currentUserId]); // eslint-disable-line
 
   if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading standings…</div>;
 
@@ -155,80 +232,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
   const scoringStyle = data?.scoring_style || 'fantasy_points';
   const isTotalStrokes = scoringStyle === 'total_strokes';
-  const ranks = computeRanks(standings, scoringStyle);
-
-  function LeaderboardRow({ s, i, rankInfo, expandContent, canExpand }) {
-    const isMe   = s.user_id === currentUserId;
-    const isOpen = expanded === s.user_id;
-    const pts    = s.season_points ?? 0;
-    const myPrize = hasPrize ? prizeForRank(rankInfo.rank, prizeTotal, p1, p2, p3) : null;
-    const ptColor = isTotalStrokes
-      ? (pts < 0 ? '#22c55e' : pts > 0 ? '#ef4444' : '#9ca3af')
-      : (pts > 0 ? '#22c55e' : pts < 0 ? '#ef4444' : '#9ca3af');
-    const isBot  = /^bot[\s_]?\d/i.test(s.username || '');
-
-    return (
-      <div ref={el => { rowRefs.current[s.user_id] = el; }} style={{ borderLeft: `3px solid ${isMe ? '#22c55e' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <button
-          onClick={e => {
-            if (!canExpand) return;
-            e.preventDefault();
-            e.stopPropagation();
-            setExpanded(isOpen ? null : s.user_id);
-            setTimeout(() => {
-              rowRefs.current[s.user_id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 10);
-          }}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 11px 11px', background: isMe ? 'rgba(0,232,122,0.04)' : 'transparent', border: 'none', cursor: canExpand ? 'pointer' : 'default', textAlign: 'left' }}
-          onMouseEnter={e => { if (canExpand) e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.07)' : 'rgba(255,255,255,0.03)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.04)' : 'transparent'; }}
-        >
-          <RankBadge rank={rankInfo.rank} isTied={rankInfo.tied} />
-          <AvatarCircle name={s.team_name} isMe={isMe} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
-              <span style={{ color: isMe ? '#22c55e' : '#fff', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {s.team_name}
-              </span>
-              {isBot && (
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: '#1f2937', border: '1px solid #374151', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.05em', flexShrink: 0 }}>BOT</span>
-              )}
-            </div>
-            <div style={{ color: '#4b5563', fontSize: 11, marginTop: 1 }}>{s.username}</div>
-          </div>
-          {hasPrize && (
-            <div style={{ textAlign: 'right', minWidth: 44, flexShrink: 0 }}>
-              {myPrize ? (
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>${myPrize.toLocaleString()}</span>
-              ) : (
-                <span style={{ fontSize: 11, color: '#374151' }}>—</span>
-              )}
-            </div>
-          )}
-          <div style={{ textAlign: 'right', minWidth: 50, flexShrink: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: hasScores ? ptColor : '#6b7280', fontVariantNumeric: 'tabular-nums' }}>
-              {hasScores
-                ? isTotalStrokes
-                  ? pts === 0 ? 'E' : (pts < 0 ? '' : '+') + Math.round(pts)
-                  : (pts > 0 ? '+' : '') + pts.toFixed(1)
-                : '—'}
-            </div>
-            <div style={{ color: '#4b5563', fontSize: 10 }}>{isTotalStrokes ? '' : 'pts'}</div>
-          </div>
-          {canExpand && (
-            <svg style={{ width: 12, height: 12, color: '#4b5563', flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          )}
-        </button>
-        {isOpen && expandContent && (
-          <div style={{ background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-            {expandContent}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const ranks = useMemo(
+    () => computeRanks(standings, scoringStyle),
+    [standings, scoringStyle],
+  );
 
   // ── Pool leaderboard
   if (isPool) {
@@ -409,6 +416,9 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
               rankInfo={ranks[i]}
               canExpand={!!s.submitted && (s.picks?.length > 0)}
               expandContent={s.picks?.length > 0 ? <PoolExpandContent picks={s.picks} /> : null}
+              currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
+              hasPrize={hasPrize} prizeTotal={prizeTotal} p1={p1} p2={p2} p3={p3}
+              isTotalStrokes={isTotalStrokes} hasScores={hasScores}
             />
           ))}
         </div>
@@ -470,6 +480,9 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
             rankInfo={ranks[i]}
             canExpand={true}
             expandContent={<TourneyExpandContent s={s} />}
+            currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
+            hasPrize={hasPrize} prizeTotal={prizeTotal} p1={p1} p2={p2} p3={p3}
+            isTotalStrokes={isTotalStrokes} hasScores={hasScores}
           />
         ))}
       </div>
