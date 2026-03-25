@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useDocTitle } from '../hooks/useDocTitle';
 import api from '../api';
 
 // ── CSS Animations ────────────────────────────────────────────────────────────
@@ -371,6 +372,9 @@ function ReferralSection() {
 
 export default function HubLanding() {
   useHubFavicon();
+  useDocTitle('TourneyRun | Fantasy Sports Leagues', {
+    description: 'Run fantasy leagues for golf office pools and basketball. Invite your crew, set your buy-in, and keep 100% of the prize pool.',
+  });
   const { user } = useAuth();
 
   useEffect(() => {

@@ -199,7 +199,10 @@ function TournamentBadge({ status, isMajor }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function GolfLanding() {
-  useDocTitle('Fantasy Golf & Office Pools | TourneyRun');
+  useDocTitle('Fantasy Golf & Office Pools | TourneyRun', {
+    description: 'Run golf office pools for the Masters and every PGA tournament. Pick players by tier, track live leaderboards, and keep 100% of your prize pool.',
+    image: 'https://www.tourneyrun.app/golf-og-image.png',
+  });
   const { user } = useAuth();
   const howItWorksRef = useRef(null);
   const [tournaments, setTournaments] = useState([]);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Disclaimer from '../components/Disclaimer';
+import { useDocTitle } from '../hooks/useDocTitle';
 
 function fmt(n) {
   return n % 1 === 0 ? `$${n}` : `$${n.toFixed(2)}`;
@@ -10,6 +11,9 @@ function fmt(n) {
 const STRIPE_ENABLED = import.meta.env.VITE_STRIPE_ENABLED === 'true';
 
 export default function JoinLeague() {
+  useDocTitle('Join a League | TourneyRun', {
+    description: "You've been invited to join a fantasy basketball league on TourneyRun. Enter your invite code to claim your spot.",
+  });
   const navigate = useNavigate();
   const [form, setForm] = useState({ invite_code: '', team_name: '', venmo_handle: '', zelle_handle: '' });
   const [error, setError] = useState('');

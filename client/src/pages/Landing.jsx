@@ -431,7 +431,9 @@ function BracketMockup() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Landing() {
-  useDocTitle('College Basketball Fantasy | TourneyRun');
+  useDocTitle('College Basketball Fantasy | TourneyRun', {
+    description: 'Run a college basketball fantasy league with your crew. Smart drafts, live tournament scores, and prize pools that pay out instantly.',
+  });
   const { user } = useAuth();
   const navigate = useNavigate();
 

@@ -16,7 +16,10 @@ function fmtDateRange(start, end) {
 }
 
 export default function JoinGolfLeague() {
-  useDocTitle('Join Golf League | TourneyRun');
+  useDocTitle('Join Golf League | TourneyRun', {
+    description: "You've been invited to join a golf pool on TourneyRun. Pick your players by tier and compete for the prize pool.",
+    image: 'https://www.tourneyrun.app/golf-og-image.png',
+  });
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

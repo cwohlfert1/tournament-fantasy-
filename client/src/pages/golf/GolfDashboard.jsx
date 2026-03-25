@@ -277,7 +277,9 @@ function SectionHeader({ label, count }) {
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 export default function GolfDashboard() {
-  useDocTitle('Golf Dashboard | TourneyRun');
+  useDocTitle('Golf Dashboard | TourneyRun', {
+    description: 'View and manage your golf fantasy leagues and office pools on TourneyRun.',
+  });
   const { user } = useAuth();
   const [leagues, setLeagues]           = useState([]);
   const [nextTournament, setNextTournament] = useState(null);

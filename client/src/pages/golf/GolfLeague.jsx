@@ -53,7 +53,13 @@ export default function GolfLeague() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
-  useDocTitle(league ? `${league.name} | Golf` : 'Golf League | TourneyRun');
+  useDocTitle(
+    league ? `${league.name} | Golf` : 'Golf League | TourneyRun',
+    league ? {
+      description: `${league.name} — a golf ${league.format_type === 'pool' ? 'pool' : 'fantasy league'} on TourneyRun. Track standings, manage your picks, and compete for the prize pool.`,
+      image: 'https://www.tourneyrun.app/golf-og-image.png',
+    } : {},
+  );
 
   useEffect(() => {
     api.get(`/golf/leagues/${id}`)
