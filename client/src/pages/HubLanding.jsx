@@ -846,7 +846,7 @@ export default function HubLanding() {
             </h2>
           </div>
 
-          <div className="hub-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, position: 'relative' }}>
+          <div className="hub-steps-grid" style={{ display: 'grid', gap: 16, position: 'relative' }}>
             {/* Connecting dashed line — desktop only */}
             <div className="hidden md:block" style={{
               position: 'absolute', top: 44, left: '20%', right: '20%', height: 1,

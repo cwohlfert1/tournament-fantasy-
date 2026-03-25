@@ -56,7 +56,7 @@ export default function Register() {
   };
 
   const EyeBtn = ({ show, onToggle }) => (
-    <button type="button" onClick={onToggle} className="text-gray-500 hover:text-gray-300 transition-colors text-sm select-none">
+    <button type="button" onClick={onToggle} className="p-2 text-gray-500 hover:text-gray-300 transition-colors text-sm select-none">
       {show ? '🙈' : '👁'}
     </button>
   );

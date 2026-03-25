@@ -295,9 +295,9 @@ try {
 } catch (e) { console.error('[golf-db] Houston Open seed error:', e.message); }
 
 // ── Houston Open 2026 — correct start_date to Thursday 3/26 ──────────────────
-runOnce('fix-houston-open-start-date-2026-03-26', () => {
-  db.prepare("UPDATE golf_tournaments SET start_date = '2026-03-26' WHERE name LIKE '%Houston Open%' AND season_year = 2026").run();
-});
+try {
+  db.prepare("UPDATE golf_tournaments SET start_date = '2026-03-26' WHERE name LIKE '%Houston Open%' AND season_year = 2026 AND start_date != '2026-03-26'").run();
+} catch (e) { console.error('[golf-db] Houston Open date fix error:', e.message); }
 
 // ── COLLIN promo code — owner free code for personal use / testing ─────────────
 try {

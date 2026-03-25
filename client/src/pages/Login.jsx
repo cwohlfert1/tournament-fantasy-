@@ -77,7 +77,7 @@ export default function Login() {
             required
             autoComplete="current-password"
             rightSlot={
-              <button type="button" onClick={() => setShowPw(s => !s)} className="text-gray-500 hover:text-gray-300 transition-colors text-sm select-none">
+              <button type="button" onClick={() => setShowPw(s => !s)} className="p-2 text-gray-500 hover:text-gray-300 transition-colors text-sm select-none">
                 {showPw ? '🙈' : '👁'}
               </button>
             }
@@ -89,7 +89,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setShowForgotJoke(true)}
-              className="text-xs text-green-400 hover:text-green-300 transition-colors"
+              className="py-2 text-xs text-green-400 hover:text-green-300 transition-colors"
             >
               Forgot password?
             </button>
