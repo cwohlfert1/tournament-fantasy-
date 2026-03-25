@@ -12,5 +12,11 @@ export default defineConfig({
         ws: true
       }
     }
-  }
+  },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['./src/test-setup.js'],
+    css: false,
+  },
 })
