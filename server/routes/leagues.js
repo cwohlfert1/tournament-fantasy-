@@ -6,6 +6,11 @@ const { isClean, NAME_BLOCKED_MSG } = require('../contentFilter');
 
 const router = express.Router();
 
+// Single source of truth for the free-access invite code.
+// Referenced in BOTH the payment-handle validation check and the payment bypass —
+// having two separate constants was a P0 bug waiting to cause a drift.
+const FREE_ACCESS_CODE = 'G7V9XM6W';
+
 // POST /api/leagues — create league
 router.post('/', authMiddleware, (req, res) => {
   try {
@@ -39,6 +44,11 @@ router.post('/', authMiddleware, (req, res) => {
       return res.status(401).json({ error: 'Session expired — please log in again.' });
     }
 
+    const buyIn = Math.max(0, parseFloat(buy_in_amount) || 0);
+    if (buyIn > 10000) {
+      return res.status(400).json({ error: 'Buy-in amount cannot exceed $10,000' });
+    }
+
     const p1 = Math.max(0, parseInt(payout_first) || 0);
     const p2 = Math.max(0, parseInt(payout_second) || 0);
     const p3 = Math.max(0, parseInt(payout_third) || 0);
@@ -52,7 +62,7 @@ router.post('/', authMiddleware, (req, res) => {
     db.prepare(`
       INSERT INTO leagues (id, name, commissioner_id, invite_code, status, max_teams, total_rounds, pick_time_limit, auto_start_on_full, draft_start_time, buy_in_amount, payment_instructions, payout_first, payout_second, payout_third, payout_bonus)
       VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, name, req.user.id, invite_code, max_teams, total_rounds, pick_time_limit, auto_start_on_full ? 1 : 0, draft_start_time || null, Math.max(0, parseFloat(buy_in_amount) || 0), payment_instructions || '', p1, p2, p3, Math.max(0, parseFloat(payout_bonus) || 0));
+    `).run(id, name, req.user.id, invite_code, max_teams, total_rounds, pick_time_limit, auto_start_on_full ? 1 : 0, draft_start_time || null, buyIn, payment_instructions || '', p1, p2, p3, Math.max(0, parseFloat(payout_bonus) || 0));
 
     // Create scoring settings
     db.prepare(`
@@ -85,8 +95,7 @@ router.post('/join', authMiddleware, (req, res) => {
     if (!invite_code || !team_name) {
       return res.status(400).json({ error: 'Invite code and team name are required' });
     }
-    const FREE_CODE_CHECK = 'G7V9XM6W';
-    if (invite_code.toUpperCase() !== FREE_CODE_CHECK && !venmo_handle.trim() && !zelle_handle.trim()) {
+    if (invite_code.toUpperCase() !== FREE_ACCESS_CODE && !venmo_handle.trim() && !zelle_handle.trim()) {
       return res.status(400).json({ error: 'Please provide at least one payment handle (Venmo or Zelle)' });
     }
     if (!isClean(team_name)) return res.status(400).json({ error: NAME_BLOCKED_MSG });
@@ -125,8 +134,7 @@ router.post('/join', authMiddleware, (req, res) => {
     `).run(uuidv4(), league.id, req.user.id, team_name, venmo_handle.trim(), zelle_handle.trim());
 
     // Free access code — skip payment entirely
-    const FREE_CODE = 'G7V9XM6W';
-    if (invite_code.toUpperCase() === FREE_CODE) {
+    if (invite_code.toUpperCase() === FREE_ACCESS_CODE) {
       db.prepare(`
         INSERT OR IGNORE INTO member_payments (id, league_id, user_id, amount, status)
         VALUES (?, ?, ?, 0, 'free')
