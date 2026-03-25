@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Flag, DollarSign, Trophy, Settings, Check, Zap } from 'lucide-react';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
+import { isMastersPromoActive, getPromoPrice } from '../../utils/mastersPromo';
 
 // ── Format definitions ────────────────────────────────────────────────────────
 
@@ -1262,7 +1263,16 @@ export default function CreateGolfLeague() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(0,232,122,0.05)', border: '1px solid rgba(0,232,122,0.18)', borderRadius: 8, padding: '11px 14px' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12"/></svg>
               <span style={{ fontSize: 13, color: '#d1fae5', lineHeight: 1.4 }}>
-                <span style={{ fontWeight: 700, color: '#4ade80' }}>Platform fee: {tier.priceLabel}</span>
+                <span style={{ fontWeight: 700, color: '#4ade80' }}>
+                  Platform fee:{' '}
+                  {isMastersPromoActive() ? (
+                    <>
+                      <span style={{ textDecoration: 'line-through', color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>${tier.price.toFixed(2)}</span>
+                      {' '}${getPromoPrice(tier.price).toFixed(2)}/tournament
+                      <span style={{ color: '#fb923c', fontWeight: 600, fontSize: 12, marginLeft: 6 }}>Masters Launch Pricing · ends April 10</span>
+                    </>
+                  ) : tier.priceLabel}
+                </span>
                 {' · '}Zero prize pool fees{' · '}Your group keeps every dollar
               </span>
             </div>

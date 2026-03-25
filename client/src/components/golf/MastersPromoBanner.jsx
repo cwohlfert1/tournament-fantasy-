@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-export const MASTERS_PROMO_END = new Date('2026-04-10');
+import { MASTERS_PROMO_END } from '../../utils/mastersPromo';
 
 const TIERS = [
   { orig: '$12.99', promo: '$9.99'  },
