@@ -1343,4 +1343,47 @@ try {
   })();
 } catch (e) { console.log('[golf-db] country fallback fixups skipped:', e.message); }
 
+// ── One-time: restore Jon Wohlfert to Houston Open pool league ────────────────
+const { runOnce } = require('./db');
+runOnce('restore-jon-wohlfert-houston-open-2026', () => {
+  const HOU_LEAGUE = 'ff568722-fbe9-4695-86a8-a31287c22841';
+
+  // Find Jon's account by username or email
+  const jon = db.prepare(`
+    SELECT id, username, email, role
+    FROM users
+    WHERE lower(username) LIKE '%jon%'
+       OR lower(username) LIKE '%wohlfert%'
+       OR lower(email)    LIKE '%wohlfert%'
+    LIMIT 1
+  `).get();
+
+  if (!jon) {
+    console.log('[migration] restore-jon-wohlfert: no matching user found — skipping');
+    // Don't throw — let runOnce record it as done so it doesn't retry forever
+    return;
+  }
+
+  // Unban if banned
+  if (jon.role === 'banned') {
+    db.prepare("UPDATE users SET role = 'user' WHERE id = ?").run(jon.id);
+    console.log(`[migration] restore-jon-wohlfert: unbanned ${jon.username}`);
+  }
+
+  // Add to league (no-op if already a member)
+  const alreadyMember = db.prepare(
+    'SELECT id FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?'
+  ).get(HOU_LEAGUE, jon.id);
+
+  if (!alreadyMember) {
+    db.prepare(`
+      INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, joined_at)
+      VALUES (lower(hex(randomblob(16))), ?, ?, ?, datetime('now'))
+    `).run(HOU_LEAGUE, jon.id, jon.username);
+    console.log(`[migration] restore-jon-wohlfert: added ${jon.username} (${jon.email}) to league ${HOU_LEAGUE}`);
+  } else {
+    console.log(`[migration] restore-jon-wohlfert: ${jon.username} already a member`);
+  }
+});
+
 module.exports = db;
