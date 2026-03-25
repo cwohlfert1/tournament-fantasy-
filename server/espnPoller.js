@@ -3,6 +3,10 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { buildStandings } = require('./standingsBuilder');
 const { postEliminations, checkAndPostRankChanges } = require('./wallUtils');
+const { sendLeagueStandingsEmail } = require('./mailer');
+
+// Track which rounds we've already emailed standings for (in-memory, per process)
+const _standingsEmailedRounds = new Set();
 
 const SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard';
 const SUMMARY_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=';
@@ -401,6 +405,78 @@ function pushGamesUpdate(io) {
   }
 }
 
+// ── Round-complete standings emails ──────────────────────────────────────────
+// Called after each poll. Checks if any round just became fully complete (all
+// games in that round are_completed=1, none are is_live). If so, emails every
+// active league member their league's standings — once per round per process.
+async function maybeEmailRoundStandings() {
+  try {
+    // Find all distinct round names that have at least one game
+    const roundNames = db.prepare(`
+      SELECT DISTINCT round_name FROM games
+      WHERE round_name IS NOT NULL AND round_name <> ''
+    `).all().map(r => r.round_name);
+
+    for (const roundName of roundNames) {
+      if (_standingsEmailedRounds.has(roundName)) continue;
+
+      const total = db.prepare(
+        'SELECT COUNT(*) AS c FROM games WHERE round_name = ?'
+      ).get(roundName)?.c ?? 0;
+      const completed = db.prepare(
+        'SELECT COUNT(*) AS c FROM games WHERE round_name = ? AND is_completed = 1'
+      ).get(roundName)?.c ?? 0;
+      const live = db.prepare(
+        'SELECT COUNT(*) AS c FROM games WHERE round_name = ? AND is_live = 1'
+      ).get(roundName)?.c ?? 0;
+
+      if (total === 0 || completed < total || live > 0) continue;
+
+      // Round is fully complete — mark it and send emails
+      _standingsEmailedRounds.add(roundName);
+      console.log(`[email] ${roundName} complete — sending standings emails`);
+
+      const leagues = db.prepare("SELECT id, name FROM leagues WHERE status IN ('drafting', 'active')").all();
+      for (const league of leagues) {
+        try {
+          const payload = buildStandings(league.id);
+          if (!payload?.standings?.length) continue;
+
+          const members = db.prepare(`
+            SELECT lm.user_id, u.email, u.username
+            FROM league_members lm
+            JOIN users u ON u.id = lm.user_id
+            WHERE lm.league_id = ?
+          `).all(league.id);
+
+          const standingsList = payload.standings.map(s => ({
+            username:     s.username,
+            team_name:    s.team_name,
+            total_points: s.total_points,
+            aliveCount:   s.aliveCount,
+            totalPlayers: s.totalPlayers,
+          }));
+
+          for (const member of members) {
+            if (!member.email) continue;
+            sendLeagueStandingsEmail(member.email, {
+              username:   member.username,
+              leagueName: league.name,
+              roundName,
+              standings:  standingsList,
+              leagueId:   league.id,
+            }).catch(err => console.error(`[email] Standings email failed for ${member.email}:`, err.message));
+          }
+        } catch (err) {
+          console.error(`[email] Standings email error for league ${league.id}:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[email] maybeEmailRoundStandings error:', err.message);
+  }
+}
+
 // ── Socket.io push ───────────────────────────────────────────────────────────
 function pushStandingsToLeagues(io) {
   if (!io) return;
@@ -646,6 +722,7 @@ async function pollESPN(io) {
 
   if (stats.scoresUpdated > 0) pushStandingsToLeagues(io);
   pushGamesUpdate(io);
+  if (stats.eliminationsRecorded > 0) maybeEmailRoundStandings();
 
   console.log(
     `[ESPN ${ts}] games=${stats.gamesChecked} scores=${stats.scoresUpdated} elims=${stats.eliminationsRecorded}`
