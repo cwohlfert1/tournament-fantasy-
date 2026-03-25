@@ -238,13 +238,13 @@ function LeagueCard({ league, userId, picksStatus, past = false }) {
             if (submitted) return (
               <button
                 onClick={e => { e.preventDefault(); navigate(target); }}
-                style={{ width: '100%', background: 'transparent', border: '1.5px solid #00e87a', color: '#00e87a', fontSize: 13, fontWeight: 700, padding: '8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
+                style={{ width: '100%', background: 'transparent', border: '1.5px solid #22c55e', color: '#22c55e', fontSize: 13, fontWeight: 700, padding: '8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
               >✅ View / Edit Picks</button>
             );
             return (
               <button
                 onClick={e => { e.preventDefault(); navigate(target); }}
-                style={{ width: '100%', background: '#00e87a', border: 'none', color: '#001a0d', fontSize: 13, fontWeight: 700, padding: '8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
+                style={{ width: '100%', background: '#22c55e', border: 'none', color: '#001a0d', fontSize: 13, fontWeight: 700, padding: '8px', borderRadius: 8, cursor: 'pointer', marginBottom: 6 }}
               >✏️ Make Picks</button>
             );
           })()}
@@ -289,20 +289,11 @@ export default function GolfDashboard() {
     Promise.all([
       api.get('/golf/leagues'),
       api.get('/golf/tournaments'),
-    ]).then(([lr, tr]) => {
+      api.get('/golf/leagues/my-rosters'),
+    ]).then(([lr, tr, rr]) => {
       const leaguesList = lr.data.leagues || [];
       setLeagues(leaguesList);
-      // Fetch picks status for each active pool league
-      leaguesList
-        .filter(l => l.format_type === 'pool' && l.pool_tournament_id)
-        .forEach(l => {
-          api.get(`/golf/leagues/${l.id}/my-roster`)
-            .then(r => setPoolPicksMap(prev => ({
-              ...prev,
-              [l.id]: { submitted: r.data.submitted, picks_locked: r.data.picks_locked },
-            })))
-            .catch(() => {});
-        });
+      setPoolPicksMap(rr.data || {});
       const tournaments = tr.data.tournaments || [];
       const live = tournaments.find(t => t.status === 'active');
       if (live) { setNextTournament(live); return; }
@@ -341,9 +332,9 @@ export default function GolfDashboard() {
           </Link>
           <Link
             to="/golf/create"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#00e87a', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '10px 24px', borderRadius: 8, textDecoration: 'none', transition: 'background 0.15s, transform 0.15s', letterSpacing: '0.01em' }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#00cc6a'; e.currentTarget.style.transform = 'scale(1.01)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#00e87a'; e.currentTarget.style.transform = 'scale(1)'; }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#22c55e', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '10px 24px', borderRadius: 8, textDecoration: 'none', transition: 'background 0.15s, transform 0.15s', letterSpacing: '0.01em' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.transform = 'scale(1.01)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#22c55e'; e.currentTarget.style.transform = 'scale(1)'; }}
           >
             <Plus className="w-4 h-4" /> Create Custom League
           </Link>

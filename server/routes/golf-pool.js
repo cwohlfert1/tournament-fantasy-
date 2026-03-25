@@ -457,6 +457,30 @@ router.get('/leagues/:id/picks/all', authMiddleware, (req, res) => {
   }
 });
 
+// ── GET /leagues/my-rosters ───────────────────────────────────────────────────
+// Returns { [leagueId]: { submitted, picks_locked } } for all user's pool leagues
+
+router.get('/leagues/my-rosters', authMiddleware, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT gl.id, gl.picks_locked,
+        CASE WHEN pp.user_id IS NOT NULL THEN 1 ELSE 0 END AS submitted
+      FROM golf_leagues gl
+      JOIN golf_league_members glm ON glm.golf_league_id = gl.id AND glm.user_id = ?
+      LEFT JOIN pool_picks pp ON pp.league_id = gl.id AND pp.user_id = ?
+        AND pp.tournament_id = gl.pool_tournament_id
+      WHERE gl.format_type = 'pool' AND gl.pool_tournament_id IS NOT NULL
+      GROUP BY gl.id
+    `).all(req.user.id, req.user.id);
+    const result = {};
+    for (const r of rows) result[r.id] = { submitted: !!r.submitted, picks_locked: !!r.picks_locked };
+    res.json(result);
+  } catch (err) {
+    console.error('[golf-pool] my-rosters error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── GET /leagues/:id/my-roster ────────────────────────────────────────────────
 
 router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {

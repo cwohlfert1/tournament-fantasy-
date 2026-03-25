@@ -54,7 +54,7 @@ function TickerRow() {
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, whiteSpace: 'nowrap' }}>
       {items.map(({ Icon, text }, i) => (
         <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 32, color: '#6b7280', fontSize: 12, fontWeight: 500, letterSpacing: '0.03em' }}>
-          <Icon size={12} color="#00e87a" strokeWidth={2} />
+          <Icon size={12} color="#22c55e" strokeWidth={2} />
           {text}
           <span style={{ marginLeft: 16, color: '#374151' }}>·</span>
         </span>
@@ -249,7 +249,7 @@ export default function GolfLanding() {
           </div>
           <h1 style={{ fontSize: 'clamp(48px,10vw,80px)', fontWeight: 900, lineHeight: 1.05, color: '#fff', marginBottom: 16, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
             FANTASY GOLF.<br />
-            <span style={{ color: '#00e87a' }}>DONE RIGHT.</span>
+            <span style={{ color: '#22c55e' }}>DONE RIGHT.</span>
           </h1>
           <p className="text-gray-400 text-lg sm:text-xl max-w-xl mx-auto mb-12 leading-relaxed">
             Stop texting scores. Stop updating spreadsheets. Run your pool in one place — from $9.99/tournament.
@@ -327,7 +327,7 @@ export default function GolfLanding() {
 
             {/* Table */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 390 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#040a05', borderBottom: '1px solid #0a1209' }}>
                     {['Pos','Player','R1','R2','R3','R4','Total','Today'].map((h, ci) => (
@@ -614,11 +614,11 @@ export default function GolfLanding() {
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div>
               <div style={{ display: 'inline-block', background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
-                <span style={{ color: '#00e87a', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⛳ Office Pool</span>
+                <span style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⛳ Office Pool</span>
               </div>
               <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Run your office pool.<br />
-                <span style={{ color: '#00e87a' }}>Without the spreadsheet.</span>
+                <span style={{ color: '#22c55e' }}>Without the spreadsheet.</span>
               </h2>
               <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: 1.7, marginBottom: 24 }}>
                 The easiest way to run a tournament pool with your friends, coworkers, or group chat.
@@ -632,14 +632,14 @@ export default function GolfLanding() {
                   'Free to join — commissioner pays one flat fee',
                 ].map(item => (
                   <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, color: '#d1d5db', fontSize: 14, lineHeight: 1.5 }}>
-                    <span style={{ color: '#00e87a', flexShrink: 0, marginTop: 1 }}>✓</span>
+                    <span style={{ color: '#22c55e', flexShrink: 0, marginTop: 1 }}>✓</span>
                     {item}
                   </li>
                 ))}
               </ul>
               <Link
                 to="/golf/create?format=pool"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#00e87a', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none', transition: 'background 0.15s' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#22c55e', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none', transition: 'background 0.15s' }}
               >
                 Run an Office Pool <ArrowRight size={16} />
               </Link>
@@ -653,12 +653,12 @@ export default function GolfLanding() {
                   { name: 'FairwayMike',  pts: 31.5, picks: ['Knapp 🇺🇸','Gotterup 🇺🇸'],          rank: 3 },
                 ].map(({ name, pts, picks, rank }) => (
                   <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: rank === 1 ? 'rgba(0,232,122,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${rank === 1 ? 'rgba(0,232,122,0.18)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 10, marginBottom: 6 }}>
-                    <span style={{ color: rank === 1 ? '#00e87a' : '#4b5563', fontWeight: 800, fontSize: 13, width: 20 }}>{rank}</span>
+                    <span style={{ color: rank === 1 ? '#22c55e' : '#4b5563', fontWeight: 800, fontSize: 13, width: 20 }}>{rank}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: rank === 1 ? '#fff' : '#d1d5db', fontWeight: 700, fontSize: 13 }}>{name}</div>
                       <div style={{ color: '#4b5563', fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{picks.join(' · ')}</div>
                     </div>
-                    <span style={{ color: '#00e87a', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{pts}</span>
+                    <span style={{ color: '#22c55e', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>{pts}</span>
                   </div>
                 ))}
               </div>
@@ -682,7 +682,7 @@ export default function GolfLanding() {
               </div>
               <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 DFS without<br />
-                <span style={{ color: '#00e87a' }}>the complexity.</span>
+                <span style={{ color: '#22c55e' }}>the complexity.</span>
               </h2>
               <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: 1.7, marginBottom: 24 }}>
                 New tournament, new picks. No salary cap math, no complicated rules. Just pick your golfers and compete.
@@ -696,14 +696,14 @@ export default function GolfLanding() {
                   'Perfect for Masters, US Open, The Open',
                 ].map(item => (
                   <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, color: '#d1d5db', fontSize: 14, lineHeight: 1.5 }}>
-                    <span style={{ color: '#00e87a', flexShrink: 0, marginTop: 1 }}>✓</span>
+                    <span style={{ color: '#22c55e', flexShrink: 0, marginTop: 1 }}>✓</span>
                     {item}
                   </li>
                 ))}
               </ul>
               <Link
                 to="/golf/create?format=pool"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#00e87a', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#22c55e', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none' }}
               >
                 Start a Pool <ArrowRight size={16} />
               </Link>
@@ -722,7 +722,7 @@ export default function GolfLanding() {
                     <div style={{ color: '#f1f5f9', fontWeight: picked ? 700 : 400, fontSize: 13 }}>{name}</div>
                     <div style={{ color: '#4b5563', fontSize: 11 }}>DK {odds}</div>
                   </div>
-                  {picked && <span style={{ background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.25)', borderRadius: 4, padding: '2px 7px', color: '#00e87a', fontSize: 10, fontWeight: 700 }}>PICKED</span>}
+                  {picked && <span style={{ background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.25)', borderRadius: 4, padding: '2px 7px', color: '#22c55e', fontSize: 10, fontWeight: 700 }}>PICKED</span>}
                 </div>
               ))}
             </div>
@@ -736,11 +736,11 @@ export default function GolfLanding() {
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div>
               <div style={{ display: 'inline-block', background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
-                <span style={{ color: '#00e87a', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>🏌️ Season Long</span>
+                <span style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>🏌️ Season Long</span>
               </div>
               <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Season-long fantasy golf.<br />
-                <span style={{ color: '#00e87a' }}>Draft once. Win all year.</span>
+                <span style={{ color: '#22c55e' }}>Draft once. Win all year.</span>
               </h2>
               <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: 1.7, marginBottom: 24 }}>
                 One draft. Trash talk from January through Augusta. 13 events, one champion.
@@ -754,14 +754,14 @@ export default function GolfLanding() {
                   'Season-long leaderboard with automatic scoring',
                 ].map(item => (
                   <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, color: '#d1d5db', fontSize: 14, lineHeight: 1.5 }}>
-                    <span style={{ color: '#00e87a', flexShrink: 0, marginTop: 1 }}>✓</span>
+                    <span style={{ color: '#22c55e', flexShrink: 0, marginTop: 1 }}>✓</span>
                     {item}
                   </li>
                 ))}
               </ul>
               <Link
                 to="/golf/create"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#00e87a', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#22c55e', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none' }}
               >
                 Create a League <ArrowRight size={16} />
               </Link>
@@ -775,12 +775,12 @@ export default function GolfLanding() {
                 { name: 'MajorMoney',     pts: 267.0, change: '▼1', rank: 4 },
               ].map(({ name, pts, change, rank }) => (
                 <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: rank === 1 ? 'rgba(0,232,122,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${rank === 1 ? 'rgba(0,232,122,0.18)' : 'rgba(255,255,255,0.05)'}`, borderRadius: 10, marginBottom: 6 }}>
-                  <span style={{ color: rank === 1 ? '#00e87a' : '#4b5563', fontWeight: 800, fontSize: 13, width: 20 }}>{rank}</span>
+                  <span style={{ color: rank === 1 ? '#22c55e' : '#4b5563', fontWeight: 800, fontSize: 13, width: 20 }}>{rank}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: rank === 1 ? '#fff' : '#d1d5db', fontWeight: 700, fontSize: 13 }}>{name}</div>
                   </div>
                   <span style={{ color: change.includes('▲') ? '#4ade80' : change === '—' ? '#4b5563' : '#f87171', fontSize: 11, marginRight: 8 }}>{change}</span>
-                  <span style={{ color: '#00e87a', fontWeight: 800, fontSize: 14 }}>{pts}</span>
+                  <span style={{ color: '#22c55e', fontWeight: 800, fontSize: 14 }}>{pts}</span>
                 </div>
               ))}
               <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -944,7 +944,7 @@ export default function GolfLanding() {
         <div className="space-y-3 max-w-2xl mx-auto mb-10">
           {PAIN_POINTS.map(({ Icon, before, after }) => (
             <div key={before} className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 flex items-start gap-4">
-              <Icon size={18} color="#00e87a" strokeWidth={1.5} className="shrink-0 mt-0.5" />
+              <Icon size={18} color="#22c55e" strokeWidth={1.5} className="shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <span className="text-gray-500 text-sm line-through">{before}</span>
@@ -962,7 +962,7 @@ export default function GolfLanding() {
         <div style={{ maxWidth: 480, margin: '0 auto 32px', background: 'rgba(0,232,122,0.04)', border: '1.5px solid rgba(0,232,122,0.2)', borderRadius: 16, padding: '20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 20 }}>💰</span>
-            <span style={{ color: '#00e87a', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TourneyRun Commissioner Fee</span>
+            <span style={{ color: '#22c55e', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TourneyRun Commissioner Fee</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
             <span style={{ color: '#fff', fontWeight: 900, fontSize: 32, lineHeight: 1 }}>$9.99</span>
@@ -1418,7 +1418,7 @@ export default function GolfLanding() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           }} className="md:hidden">
             <span style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, lineHeight: 1.3, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <Flag size={13} color="#00e87a" strokeWidth={2} />
+              <Flag size={13} color="#22c55e" strokeWidth={2} />
               Masters in {days} day{days === 1 ? '' : 's'}
             </span>
             <Link

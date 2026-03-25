@@ -137,9 +137,9 @@ export default function Register() {
               label: (
                 <>
                   I agree to the{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#00e87a', textDecoration: 'underline' }}>Terms of Service</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'underline' }}>Terms of Service</a>
                   {' '}and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#00e87a', textDecoration: 'underline' }}>Privacy Policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'underline' }}>Privacy Policy</a>
                 </>,
               ),
             },
@@ -157,7 +157,7 @@ export default function Register() {
                 type="checkbox"
                 checked={checks[key]}
                 onChange={e => setChecks(c => ({ ...c, [key]: e.target.checked }))}
-                style={{ accentColor: '#00e87a', marginTop: 2, flexShrink: 0, width: 15, height: 15 }}
+                style={{ accentColor: '#22c55e', marginTop: 2, flexShrink: 0, width: 15, height: 15 }}
               />
               <span style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>{label}</span>
             </label>
@@ -168,7 +168,7 @@ export default function Register() {
           type="submit"
           disabled={loading || !allChecked}
           className="w-full py-3 rounded-xl font-black text-base text-black transition-all duration-200 hover:scale-[1.02] hover:shadow-lg disabled:opacity-50 disabled:scale-100"
-          style={{ background: 'linear-gradient(135deg, #00e87a 0%, #00c96a 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #22c55e 0%, #00c96a 100%)' }}
         >
           {loading ? 'Creating account…' : 'Create Account →'}
         </button>

@@ -66,7 +66,7 @@ export default function AuthLayout({ children }) {
             <Link to="/" className="flex items-center gap-2.5 group mb-1" style={{ textDecoration: 'none' }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
-                background: 'linear-gradient(135deg, #00e87a 0%, #00c96a 100%)',
+                background: 'linear-gradient(135deg, #22c55e 0%, #00c96a 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
                 <span style={{ color: '#000', fontWeight: 900, fontSize: 14, letterSpacing: '-0.03em' }}>TR</span>
@@ -74,7 +74,7 @@ export default function AuthLayout({ children }) {
               <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
                 <div style={{ fontSize: '22px', letterSpacing: '-0.02em', lineHeight: 1 }}>
                   <span style={{ color: '#ffffff', fontWeight: 300 }}>tourney</span>
-                  <span style={{ color: '#00e87a', fontWeight: 800 }}>run</span>
+                  <span style={{ color: '#22c55e', fontWeight: 800 }}>run</span>
                 </div>
               </div>
             </Link>

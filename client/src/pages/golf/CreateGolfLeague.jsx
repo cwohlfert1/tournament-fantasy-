@@ -140,7 +140,7 @@ function PoolTierSelector({ maxTeams, poolTier, onChange }) {
         style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           padding: '14px 10px', borderRadius: 10, textAlign: 'center', cursor: 'pointer',
-          border: isSelected ? '2px solid #00e87a' : '2px solid rgba(255,255,255,0.08)',
+          border: isSelected ? '2px solid #22c55e' : '2px solid rgba(255,255,255,0.08)',
           background: isSelected ? 'rgba(0,232,122,0.06)' : 'rgba(255,255,255,0.02)',
           transition: 'border-color 0.15s, background 0.15s',
         }}
@@ -1260,7 +1260,7 @@ export default function CreateGolfLeague() {
           const tier = POOL_TIERS.find(t => t.maxTeams === form.max_teams && t.tier === form.pool_tier) || POOL_TIERS[0];
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(0,232,122,0.05)', border: '1px solid rgba(0,232,122,0.18)', borderRadius: 8, padding: '11px 14px' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00e87a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12"/></svg>
               <span style={{ fontSize: 13, color: '#d1fae5', lineHeight: 1.4 }}>
                 <span style={{ fontWeight: 700, color: '#4ade80' }}>Platform fee: {tier.priceLabel}</span>
                 {' · '}Zero prize pool fees{' · '}Your group keeps every dollar
@@ -1313,9 +1313,9 @@ export default function CreateGolfLeague() {
         <button
           type="submit"
           disabled={loading}
-          style={{ width: '100%', background: loading ? 'rgba(0,232,122,0.4)' : '#00e87a', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 8, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'background 0.15s, transform 0.15s', letterSpacing: '0.01em' }}
-          onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = '#00cc6a'; e.currentTarget.style.transform = 'scale(1.01)'; } }}
-          onMouseLeave={e => { if (!loading) { e.currentTarget.style.background = '#00e87a'; e.currentTarget.style.transform = 'scale(1)'; } }}
+          style={{ width: '100%', background: loading ? 'rgba(0,232,122,0.4)' : '#22c55e', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 8, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'background 0.15s, transform 0.15s', letterSpacing: '0.01em' }}
+          onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.transform = 'scale(1.01)'; } }}
+          onMouseLeave={e => { if (!loading) { e.currentTarget.style.background = '#22c55e'; e.currentTarget.style.transform = 'scale(1)'; } }}
         >
           {loading ? 'Creating League...' : (
             { pool: 'Launch Office Pool →', dk: 'Launch DFS League →', tourneyrun: 'Launch Fantasy League →' }[selectedFmt?.key] ?? `Create ${selectedFmt?.title} League →`

@@ -198,13 +198,13 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
           <div style={{ background: 'rgba(0,232,122,0.04)', border: '1px solid rgba(0,232,122,0.25)', borderRadius: 16, padding: '20px' }}>
             <div className="flex items-center gap-2 mb-2">
               <span style={{ fontSize: 16 }}>✅</span>
-              <span style={{ color: '#00e87a', fontWeight: 700, fontSize: 14 }}>Picks Submitted</span>
+              <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 14 }}>Picks Submitted</span>
               {league.pool_tournament_name && <span className="text-gray-500 text-xs ml-auto">{league.pool_tournament_name}</span>}
             </div>
             <p className="text-gray-400 text-sm mb-4">You're locked in! You can still edit your picks before tee time.</p>
             <button
               onClick={() => navigate(picksTarget)}
-              style={{ width: '100%', background: 'transparent', border: '1.5px solid #00e87a', color: '#00e87a', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s' }}
+              style={{ width: '100%', background: 'transparent', border: '1.5px solid #22c55e', color: '#22c55e', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,232,122,0.08)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
             >✅ View / Edit Picks →</button>
@@ -213,17 +213,17 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
         return (
           <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 16, padding: '20px' }}>
             <div className="flex items-center gap-2 mb-2">
-              <Flag className="w-4 h-4" style={{ color: '#00e87a' }} />
-              <span style={{ color: '#00e87a', fontWeight: 700, fontSize: 14 }}>Make Your Picks</span>
+              <Flag className="w-4 h-4" style={{ color: '#22c55e' }} />
+              <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 14 }}>Make Your Picks</span>
               {league.pool_tournament_name && <span className="text-gray-500 text-xs ml-auto">{league.pool_tournament_name}</span>}
             </div>
             <p className="text-gray-400 text-sm mb-1">Pick {league.picks_per_team || 8} golfers before tee time Thursday.</p>
             <p className="text-gray-600 text-xs mb-4">Picks can be changed until the tournament starts.</p>
             <button
               onClick={() => navigate(picksTarget)}
-              style={{ width: '100%', background: '#00e87a', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'background 0.15s, transform 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#00cc6a'; e.currentTarget.style.transform = 'scale(1.01)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#00e87a'; e.currentTarget.style.transform = 'scale(1)'; }}
+              style={{ width: '100%', background: '#22c55e', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'background 0.15s, transform 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.transform = 'scale(1.01)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#22c55e'; e.currentTarget.style.transform = 'scale(1)'; }}
             >📋 Make Your Picks →</button>
           </div>
         );
@@ -261,9 +261,9 @@ function OverviewTab({ league, members, user, isComm, navigate }) {
             <>
               <button
                 onClick={() => navigate(`/golf/league/${league.id}/draft`)}
-                style={{ width: '100%', background: '#00e87a', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'background 0.15s, transform 0.15s', marginBottom: 8 }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#00cc6a'; e.currentTarget.style.transform = 'scale(1.01)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#00e87a'; e.currentTarget.style.transform = 'scale(1)'; }}
+                style={{ width: '100%', background: '#22c55e', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'background 0.15s, transform 0.15s', marginBottom: 8 }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.transform = 'scale(1.01)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#22c55e'; e.currentTarget.style.transform = 'scale(1)'; }}
               >
                 Go to Draft Room →
               </button>
@@ -430,7 +430,7 @@ function TieredPickSheet({ leagueId, league }) {
         {/* Confirmed banner */}
         <div style={{ background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.25)', borderRadius: 16, padding: '28px 20px', textAlign: 'center' }}>
           <div style={{ fontSize: 44, marginBottom: 10 }}>✅</div>
-          <div style={{ color: '#00e87a', fontWeight: 800, fontSize: 22, marginBottom: 6 }}>Your picks are in!</div>
+          <div style={{ color: '#22c55e', fontWeight: 800, fontSize: 22, marginBottom: 6 }}>Your picks are in!</div>
           <div style={{ color: '#6b7280', fontSize: 14 }}>{tournName} · Picks locked</div>
           {tournament?.start_date && (
             <div style={{ color: '#4b5563', fontSize: 13, marginTop: 4 }}>
@@ -455,7 +455,7 @@ function TieredPickSheet({ leagueId, league }) {
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {names.map(name => (
-                    <span key={name} style={{ background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', color: '#00e87a', fontSize: 13, fontWeight: 600, padding: '5px 14px', borderRadius: 20 }}>
+                    <span key={name} style={{ background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', color: '#22c55e', fontSize: 13, fontWeight: 600, padding: '5px 14px', borderRadius: 20 }}>
                       {name}
                     </span>
                   ))}
@@ -499,7 +499,7 @@ function TieredPickSheet({ leagueId, league }) {
               ) : countdown ? (
                 <div>
                   <div style={{ color: '#4b5563', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Locks in</div>
-                  <div style={{ color: '#00e87a', fontWeight: 700, fontSize: 16 }}>{countdown}</div>
+                  <div style={{ color: '#22c55e', fontWeight: 700, fontSize: 16 }}>{countdown}</div>
                 </div>
               ) : null}
             </div>
@@ -508,13 +508,13 @@ function TieredPickSheet({ leagueId, league }) {
           {/* Progress bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <span style={{ color: '#9ca3af', fontSize: 12 }}>{totalPicks} of {totalTarget} picks made</span>
-            {allComplete && <span style={{ color: '#00e87a', fontSize: 12, fontWeight: 700 }}>✓ All complete</span>}
+            {allComplete && <span style={{ color: '#22c55e', fontSize: 12, fontWeight: 700 }}>✓ All complete</span>}
           </div>
           <div style={{ height: 5, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
             <div style={{
               height: '100%',
               width: `${totalTarget > 0 ? (totalPicks / totalTarget) * 100 : 0}%`,
-              background: allComplete ? '#00e87a' : '#3b82f6',
+              background: allComplete ? '#22c55e' : '#3b82f6',
               borderRadius: 3,
               transition: 'width 0.3s ease',
             }} />
@@ -552,20 +552,20 @@ function TieredPickSheet({ leagueId, league }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ color: isComplete ? '#00e87a' : colors.accent, fontWeight: 700, fontSize: 14 }}>
+                  <span style={{ color: isComplete ? '#22c55e' : colors.accent, fontWeight: 700, fontSize: 14 }}>
                     {TIER_NAMES[tier.tier] || `Tier ${tier.tier}`}
                   </span>
                   <span style={{ color: '#4b5563', fontSize: 12 }}>· pick {tier.picks}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: isComplete ? '#00e87a' : '#4b5563', fontSize: 13, fontWeight: 600 }}>
+                  <span style={{ color: isComplete ? '#22c55e' : '#4b5563', fontSize: 13, fontWeight: 600 }}>
                     {tierPicks.length}/{tier.picks}
                   </span>
                   {isComplete && (
                     <span style={{
                       background: locked ? 'rgba(239,68,68,0.1)' : 'rgba(0,232,122,0.15)',
                       border: `1px solid ${locked ? 'rgba(239,68,68,0.3)' : 'rgba(0,232,122,0.3)'}`,
-                      color: locked ? '#f87171' : '#00e87a',
+                      color: locked ? '#f87171' : '#22c55e',
                       fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em',
                     }}>
                       {locked ? 'Locked' : '✓ Complete'}
@@ -603,8 +603,8 @@ function TieredPickSheet({ leagueId, league }) {
                       {/* Checkbox circle */}
                       <div style={{
                         width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                        border: `2px solid ${isSelected ? '#00e87a' : 'rgba(255,255,255,0.2)'}`,
-                        background: isSelected ? '#00e87a' : 'transparent',
+                        border: `2px solid ${isSelected ? '#22c55e' : 'rgba(255,255,255,0.2)'}`,
+                        background: isSelected ? '#22c55e' : 'transparent',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         transition: 'all 0.15s',
                       }}>
@@ -654,7 +654,7 @@ function TieredPickSheet({ leagueId, league }) {
                 return n.split(' ').pop();
               });
               return (
-                <span key={tier.tier} style={{ fontSize: 11, color: isComplete ? '#00e87a' : '#4b5563' }}>
+                <span key={tier.tier} style={{ fontSize: 11, color: isComplete ? '#22c55e' : '#4b5563' }}>
                   T{tier.tier}: {lastNames.length > 0 ? lastNames.join(', ') : '—'}{isComplete ? ' ✓' : ''}
                 </span>
               );
@@ -667,7 +667,7 @@ function TieredPickSheet({ leagueId, league }) {
               {totalPicks} of {totalTarget} picks
             </span>
             {locked ? (
-              <div style={{ background: 'rgba(0,232,122,0.15)', border: '1px solid rgba(0,232,122,0.3)', color: '#00e87a', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 8 }}>
+              <div style={{ background: 'rgba(0,232,122,0.15)', border: '1px solid rgba(0,232,122,0.3)', color: '#22c55e', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 8 }}>
                 {submitted ? 'Picks Submitted ✓' : 'Picks Locked'}
               </div>
             ) : (
@@ -675,15 +675,15 @@ function TieredPickSheet({ leagueId, league }) {
                 onClick={handleSubmit}
                 disabled={!allComplete || saving}
                 style={{
-                  background: allComplete && !saving ? '#00e87a' : 'rgba(255,255,255,0.08)',
+                  background: allComplete && !saving ? '#22c55e' : 'rgba(255,255,255,0.08)',
                   color: allComplete && !saving ? '#001a0d' : '#4b5563',
                   fontWeight: 700, fontSize: 14, padding: '10px 24px', borderRadius: 8,
                   border: 'none', cursor: allComplete && !saving ? 'pointer' : 'not-allowed',
                   transition: 'background 0.15s',
                   whiteSpace: 'nowrap',
                 }}
-                onMouseEnter={e => { if (allComplete && !saving) e.currentTarget.style.background = '#00cc6a'; }}
-                onMouseLeave={e => { if (allComplete && !saving) e.currentTarget.style.background = '#00e87a'; }}
+                onMouseEnter={e => { if (allComplete && !saving) e.currentTarget.style.background = '#16a34a'; }}
+                onMouseLeave={e => { if (allComplete && !saving) e.currentTarget.style.background = '#22c55e'; }}
               >
                 {saving ? 'Submitting...' : 'Submit Picks →'}
               </button>
@@ -728,7 +728,7 @@ function fmtScore(val) {
 
 function scoreColor(val) {
   if (val == null) return '#9ca3af';
-  if (val < 0) return '#00e87a';
+  if (val < 0) return '#22c55e';
   if (val > 0) return '#f87171';
   return '#e5e7eb';
 }
@@ -769,7 +769,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
 
   // Drop-scoring display
   const isDropStyle = isDropped || isCUT || isWD || isPreTournWD;
-  const countingBorder = !isDropStyle && hasScores ? '#00e87a' : tc.border;
+  const countingBorder = !isDropStyle && hasScores ? '#22c55e' : tc.border;
 
   return (
     <div style={{
@@ -803,8 +803,8 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
             <span style={{ fontSize: 11, color: '#6b7280' }}>WR #{pick.world_ranking}</span>
           )}
           {isLive && hasScores && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#00e87a' }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#00e87a', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#22c55e' }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
               Live
             </span>
           )}
@@ -819,7 +819,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
         ) : isPending ? (
           <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>PENDING</span>
         ) : hasScores && !isCUT && !isWD ? (
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#00e87a', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>COUNTING</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>COUNTING</span>
         ) : null}
         {isPreTournWD && (
           <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#f87171', letterSpacing: '0.05em' }}>WD</div>
@@ -912,7 +912,7 @@ function PicksCountdown({ lockTime }) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [lockTime]);
-  return <span style={{ fontFamily: 'monospace', fontWeight: 700, color: urgent ? '#f87171' : '#00e87a' }}>{display}</span>;
+  return <span style={{ fontFamily: 'monospace', fontWeight: 700, color: urgent ? '#f87171' : '#22c55e' }}>{display}</span>;
 }
 
 // ── Tier picker bottom-sheet modal ───────────────────────────────────────────
@@ -969,11 +969,11 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             background: 'rgba(255,255,255,0.05)',
-            border: `1.5px solid ${searchFocused ? '#00e87a' : 'rgba(255,255,255,0.1)'}`,
+            border: `1.5px solid ${searchFocused ? '#22c55e' : 'rgba(255,255,255,0.1)'}`,
             borderRadius: 12, padding: '0 14px', height: 44,
             transition: 'border-color 0.15s',
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={searchFocused ? '#00e87a' : '#6b7280'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={searchFocused ? '#22c55e' : '#6b7280'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: 'stroke 0.15s' }}>
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
@@ -988,7 +988,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
               style={{
                 flex: 1, background: 'transparent', border: 'none', outline: 'none',
                 color: '#f1f5f9', fontSize: 14, fontWeight: 500,
-                caretColor: '#00e87a',
+                caretColor: '#22c55e',
               }}
             />
             {query && (
@@ -1054,7 +1054,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
           <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <button
               onClick={onClose}
-              style={{ width: '100%', background: currentSel.length >= limit ? '#00e87a' : '#1f2937', color: currentSel.length >= limit ? '#001a0d' : '#9ca3af', border: 'none', borderRadius: 12, padding: '12px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
+              style={{ width: '100%', background: currentSel.length >= limit ? '#22c55e' : '#1f2937', color: currentSel.length >= limit ? '#001a0d' : '#9ca3af', border: 'none', borderRadius: 12, padding: '12px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}
             >
               {currentSel.length >= limit ? 'Done ✓' : `${currentSel.length}/${limit} selected · Done`}
             </button>
@@ -1283,14 +1283,14 @@ function PoolRosterTab({ leagueId, league }) {
               <div style={{ maxWidth: 640, margin: '0 auto' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <div style={{ flex: 1, background: '#1f2937', borderRadius: 999, height: 4, overflow: 'hidden' }}>
-                    <div style={{ height: 4, borderRadius: 999, background: canSubmit ? '#00e87a' : '#3b82f6', width: totalTarget > 0 ? `${Math.round((totalDone / totalTarget) * 100)}%` : '0%', transition: 'width 0.3s' }} />
+                    <div style={{ height: 4, borderRadius: 999, background: canSubmit ? '#22c55e' : '#3b82f6', width: totalTarget > 0 ? `${Math.round((totalDone / totalTarget) * 100)}%` : '0%', transition: 'width 0.3s' }} />
                   </div>
                   <span style={{ color: '#6b7280', fontSize: 12, flexShrink: 0 }}>{totalDone}/{totalTarget} picks</span>
                 </div>
                 <button
                   onClick={() => canSubmit && setShowConfirm(true)}
                   disabled={!canSubmit}
-                  style={{ width: '100%', padding: '14px 0', background: canSubmit ? '#00e87a' : '#1f2937', color: canSubmit ? '#001a0d' : '#4b5563', border: canSubmit ? 'none' : '1px solid #374151', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'background 0.15s' }}
+                  style={{ width: '100%', padding: '14px 0', background: canSubmit ? '#22c55e' : '#1f2937', color: canSubmit ? '#001a0d' : '#4b5563', border: canSubmit ? 'none' : '1px solid #374151', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: canSubmit ? 'pointer' : 'not-allowed', transition: 'background 0.15s' }}
                 >
                   {canSubmit ? 'Submit Picks →' : `${totalTarget - totalDone} more pick${totalTarget - totalDone !== 1 ? 's' : ''} needed`}
                 </button>
@@ -1328,12 +1328,12 @@ function PoolRosterTab({ leagueId, league }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: (tournStatus === 'active') ? 'rgba(0,232,122,0.06)' : picksLocked ? 'rgba(251,191,36,0.06)' : 'rgba(0,232,122,0.06)', border: `1px solid ${(tournStatus === 'active') ? 'rgba(0,232,122,0.2)' : picksLocked ? 'rgba(251,191,36,0.2)' : 'rgba(0,232,122,0.2)'}`, borderRadius: 12, marginBottom: 20, flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {tournStatus === 'active'
-                  ? <><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#00e87a', display: 'inline-block', animation: 'pulse 1.5s infinite' }} /><span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Live · Scores updating</span></>
+                  ? <><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 1.5s infinite' }} /><span style={{ fontSize: 13, color: '#22c55e', fontWeight: 600 }}>Live · Scores updating</span></>
                   : tournStatus === 'completed'
                     ? <><Trophy size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Tournament complete</span></>
                     : picksLocked
                       ? <><Lock size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Picks locked</span></>
-                      : <><Check style={{ width: 14, height: 14, color: '#00e87a' }} /><span style={{ fontSize: 13, color: '#00e87a', fontWeight: 600 }}>Picks submitted ✓ · Tap × to change a pick</span></>
+                      : <><Check style={{ width: 14, height: 14, color: '#22c55e' }} /><span style={{ fontSize: 13, color: '#22c55e', fontWeight: 600 }}>Picks submitted ✓ · Tap × to change a pick</span></>
                 }
               </div>
               {!picksLocked && lockTime && <PicksCountdown lockTime={lockTime} />}
@@ -1384,7 +1384,7 @@ function PoolRosterTab({ leagueId, league }) {
                   {dropCount > 0 ? `Best ${picksPerTeam - dropCount} of ${picksPerTeam} counting` : `All ${picksPerTeam} counting`}
                 </div>
                 <div>
-                  <span style={{ fontSize: 20, fontWeight: 900, color: teamScore < 0 ? '#00e87a' : teamScore > 0 ? '#ef4444' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: teamScore < 0 ? '#22c55e' : teamScore > 0 ? '#ef4444' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>
                     {teamScore === 0 ? 'E' : (teamScore > 0 ? '+' : '') + teamScore}
                   </span>
                   <span style={{ fontSize: 12, color: '#4b5563', marginLeft: 6 }}>Your score</span>
@@ -1437,7 +1437,7 @@ function PoolRosterTab({ leagueId, league }) {
             {submitError && <p style={{ color: '#f87171', fontSize: 12, marginBottom: 12 }}>{submitError}</p>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowConfirm(false)} disabled={submitting} style={{ flex: 1, background: '#1f2937', border: 'none', color: '#9ca3af', padding: '12px 0', borderRadius: 12, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Go Back</button>
-              <button onClick={handleConfirmSubmit} disabled={submitting} style={{ flex: 1, background: '#00e87a', border: 'none', color: '#001a0d', padding: '12px 0', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+              <button onClick={handleConfirmSubmit} disabled={submitting} style={{ flex: 1, background: '#22c55e', border: 'none', color: '#001a0d', padding: '12px 0', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: submitting ? 'not-allowed' : 'pointer' }}>
                 {submitting ? 'Submitting…' : 'Submit Picks'}
               </button>
             </div>
@@ -2273,7 +2273,7 @@ function AvatarCircle({ name, isMe }) {
   const initials = (name || '?').trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
   return (
     <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMe ? 'rgba(0,232,122,0.15)' : 'rgba(255,255,255,0.06)', border: `1.5px solid ${isMe ? 'rgba(0,232,122,0.35)' : 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: isMe ? '#00e87a' : '#9ca3af', letterSpacing: '0.03em' }}>{initials}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: isMe ? '#22c55e' : '#9ca3af', letterSpacing: '0.03em' }}>{initials}</span>
     </div>
   );
 }
@@ -2409,12 +2409,12 @@ function StandingsTab({ leagueId, league, currentUserId }) {
     const myPrize = hasPrize ? prizeForRank(rankInfo.rank, prizeTotal, p1, p2, p3) : null;
     // total_strokes: to-par (negative = under par = good)
     const ptColor = isTotalStrokes
-      ? (pts < 0 ? '#00e87a' : pts > 0 ? '#ef4444' : '#9ca3af')
-      : (pts > 0 ? '#00e87a' : pts < 0 ? '#ef4444' : '#9ca3af');
+      ? (pts < 0 ? '#22c55e' : pts > 0 ? '#ef4444' : '#9ca3af')
+      : (pts > 0 ? '#22c55e' : pts < 0 ? '#ef4444' : '#9ca3af');
     const isBot  = /^bot[\s_]?\d/i.test(s.username || '');
 
     return (
-      <div ref={el => { rowRefs.current[s.user_id] = el; }} style={{ borderLeft: `3px solid ${isMe ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div ref={el => { rowRefs.current[s.user_id] = el; }} style={{ borderLeft: `3px solid ${isMe ? '#22c55e' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <button
           onClick={e => {
             if (!canExpand) return;
@@ -2438,7 +2438,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
           {/* Name + username */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
-              <span style={{ color: isMe ? '#00e87a' : '#fff', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ color: isMe ? '#22c55e' : '#fff', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {s.team_name}
               </span>
               {isBot && (
@@ -2506,7 +2506,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
     // r is already stored as to-par (e.g. -7, 0, +2)
     const fmtScore = r => {
       if (r == null) return <span style={{ color: '#374151' }}>—</span>;
-      const color = r < 0 ? '#00e87a' : r > 0 ? '#ef4444' : '#9ca3af';
+      const color = r < 0 ? '#22c55e' : r > 0 ? '#ef4444' : '#9ca3af';
       const label = r === 0 ? 'E' : (r > 0 ? `+${r}` : String(r));
       return <span style={{ color }}>{label}</span>;
     };
@@ -2570,7 +2570,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
                               ) : null
                             ))}
                             {/* Player total */}
-                            <span style={{ fontSize: 12, fontWeight: 700, minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: hasRounds && !isDropped ? (playerTotal < 0 ? '#00e87a' : playerTotal > 0 ? '#ef4444' : '#9ca3af') : '#374151' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: hasRounds && !isDropped ? (playerTotal < 0 ? '#22c55e' : playerTotal > 0 ? '#ef4444' : '#9ca3af') : '#374151' }}>
                               {hasRounds ? (playerTotal === 0 ? 'E' : (playerTotal > 0 ? '+' : '') + playerTotal) : '—'}
                             </span>
                           </>
@@ -2580,7 +2580,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
                   }
                   // Fantasy points display (original)
                   const fp = p.fantasy_points || 0;
-                  const fpColor = fp > 0 ? '#00e87a' : fp < 0 ? '#ef4444' : '#6b7280';
+                  const fpColor = fp > 0 ? '#22c55e' : fp < 0 ? '#ef4444' : '#6b7280';
                   return (
                     <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
                       <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -2627,7 +2627,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
               </div>
               <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                 {isLive ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.3)', color: '#00e87a', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.3)', color: '#22c55e', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                     Live
                   </span>
@@ -2658,7 +2658,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
           <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13 }}>⚖️</span>
             <span style={{ color: '#9ca3af', fontSize: 12 }}>
-              Pick {picksPerTeam} · <span style={{ color: '#00e87a', fontWeight: 700 }}>Best {countingPicks} count</span> · Worst {dropCount} dropped · MC auto-dropped
+              Pick {picksPerTeam} · <span style={{ color: '#22c55e', fontWeight: 700 }}>Best {countingPicks} count</span> · Worst {dropCount} dropped · MC auto-dropped
             </span>
           </div>
         )}
@@ -2705,7 +2705,7 @@ function StandingsTab({ leagueId, league, currentUserId }) {
         {weekPts !== null && (
           <div>
             <div style={{ color: '#4b5563', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>This Week</div>
-            <div style={{ color: weekPts > 0 ? '#00e87a' : weekPts < 0 ? '#ef4444' : '#9ca3af', fontSize: 15, fontWeight: 800 }}>
+            <div style={{ color: weekPts > 0 ? '#22c55e' : weekPts < 0 ? '#ef4444' : '#9ca3af', fontSize: 15, fontWeight: 800 }}>
               {weekPts > 0 ? '+' : ''}{weekPts.toFixed(1)}
             </div>
           </div>
@@ -3162,7 +3162,7 @@ function holeSym(strokes, toparStr) {
   const diff = toparStr === 'E' ? 0 : parseInt(toparStr, 10);
   if (isNaN(diff)) return { text: '·', color: '#374151' };
   if (diff <= -2) return { text: '◎', color: '#f59e0b', title: 'Eagle or better' };
-  if (diff === -1) return { text: '●', color: '#00e87a', title: 'Birdie' };
+  if (diff === -1) return { text: '●', color: '#22c55e', title: 'Birdie' };
   if (diff === 0)  return { text: String(strokes), color: '#e5e7eb', title: 'Par' };
   if (diff === 1)  return { text: '□', color: '#f59e0b', title: 'Bogey' };
   return { text: '■', color: '#ef4444', title: 'Double bogey+' };
@@ -3212,7 +3212,7 @@ function HoleScorecard({ holes, currentRound }) {
         <div style={{ display: 'flex', gap: 2 }}>{renderNine(back)}</div>
       </div>
       <div style={{ marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {[['◎', '#f59e0b', 'Eagle+'], ['●', '#00e87a', 'Birdie'], ['#', '#e5e7eb', 'Par (digit)'], ['□', '#f59e0b', 'Bogey'], ['■', '#ef4444', 'Dbl+']].map(([sym, col, lbl]) => (
+        {[['◎', '#f59e0b', 'Eagle+'], ['●', '#22c55e', 'Birdie'], ['#', '#e5e7eb', 'Par (digit)'], ['□', '#f59e0b', 'Bogey'], ['■', '#ef4444', 'Dbl+']].map(([sym, col, lbl]) => (
           <span key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#4b5563' }}>
             <span style={{ color: col, fontWeight: 700, fontSize: 11 }}>{sym}</span>{lbl}
           </span>
@@ -3291,7 +3291,7 @@ function PGALiveTab({ leagueId, league }) {
         {tournament?.start_date && (
           <p className="text-gray-600 text-xs">Starts {tournament.start_date}</p>
         )}
-        <button onClick={load} style={{ color: '#00e87a', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
+        <button onClick={load} style={{ color: '#22c55e', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer' }}>
           Retry
         </button>
       </div>
@@ -3337,7 +3337,7 @@ function PGALiveTab({ leagueId, league }) {
   const fmtPar = val => {
     if (val == null) return { text: '—', color: '#374151' };
     if (val === 0)   return { text: 'E',  color: '#9ca3af' };
-    return val < 0   ? { text: String(val), color: '#00e87a' }
+    return val < 0   ? { text: String(val), color: '#22c55e' }
                      : { text: `+${val}`,  color: '#ef4444' };
   };
 
@@ -3362,7 +3362,7 @@ function PGALiveTab({ leagueId, league }) {
           </div>
           <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
             {isLive ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.3)', color: '#00e87a', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(0,232,122,0.12)', border: '1px solid rgba(0,232,122,0.3)', color: '#22c55e', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 Live
               </span>
@@ -3380,7 +3380,7 @@ function PGALiveTab({ leagueId, league }) {
             { key: 'pool',    label: `My Picks (${myPickNames.length})` },
             { key: 'leaders', label: 'Top 25' },
           ].map(({ key, label }) => (
-            <button key={key} onClick={() => setFilter(key)} style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', transition: 'all 0.15s', background: filter === key ? '#00e87a' : 'transparent', color: filter === key ? '#001a0d' : '#6b7280', border: filter === key ? 'none' : '1px solid #1f2937' }}>
+            <button key={key} onClick={() => setFilter(key)} style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', transition: 'all 0.15s', background: filter === key ? '#22c55e' : 'transparent', color: filter === key ? '#001a0d' : '#6b7280', border: filter === key ? 'none' : '1px solid #1f2937' }}>
               {label}
             </button>
           ))}
@@ -3437,10 +3437,10 @@ function PGALiveTab({ leagueId, league }) {
               {c.flagHref && (
                 <img src={c.flagHref} alt={c.countryAlt} style={{ width: 16, height: 11, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
               )}
-              <span style={{ color: myPick ? '#00e87a' : '#fff', fontWeight: myPick ? 700 : 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ color: myPick ? '#22c55e' : '#fff', fontWeight: myPick ? 700 : 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {c.name}
               </span>
-              {myPick && <span style={{ fontSize: 8, fontWeight: 700, color: '#00e87a', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.05em', flexShrink: 0 }}>PICK</span>}
+              {myPick && <span style={{ fontSize: 8, fontWeight: 700, color: '#22c55e', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.05em', flexShrink: 0 }}>PICK</span>}
               {statusBadge && <span style={{ marginLeft: 2, flexShrink: 0 }}>{statusBadge}</span>}
             </div>
           );
@@ -3475,7 +3475,7 @@ function PGALiveTab({ leagueId, league }) {
           const teeTxt = fmtTeeTime(c.teeTimeRaw, c.startHole);
 
           return (
-            <div key={i} ref={el => { pgaRowRefs.current[i] = el; }} style={{ borderLeft: `3px solid ${myPick ? '#00e87a' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent', opacity: c.isCut || c.isWD ? 0.55 : 1 }}>
+            <div key={i} ref={el => { pgaRowRefs.current[i] = el; }} style={{ borderLeft: `3px solid ${myPick ? '#22c55e' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.04)', background: myPick ? 'rgba(0,232,122,0.025)' : 'transparent', opacity: c.isCut || c.isWD ? 0.55 : 1 }}>
               {/* Desktop row — clickable */}
               <button
                 className="hidden sm:grid"

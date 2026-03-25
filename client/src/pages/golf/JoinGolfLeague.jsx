@@ -151,7 +151,7 @@ export default function JoinGolfLeague() {
             <div className="space-y-2 pt-1">
               <Link
                 to={`/login?then=${returnUrl}`}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', background: '#00e87a', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, textDecoration: 'none' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', background: '#22c55e', color: '#001a0d', fontWeight: 700, fontSize: 14, padding: '12px 24px', borderRadius: 8, textDecoration: 'none' }}
               >
                 Sign In to Join <ArrowRight className="w-4 h-4" />
               </Link>

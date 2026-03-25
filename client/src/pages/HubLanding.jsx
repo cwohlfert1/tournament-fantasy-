@@ -129,7 +129,7 @@ function MyLeaguesDropdown() {
 
   const Chevron = ({ up }) => (
     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0 }}>
-      <path d={up ? 'M1 5L5 1L9 5' : 'M1 1L5 5L9 1'} stroke="#00e87a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={up ? 'M1 5L5 1L9 5' : 'M1 1L5 5L9 1'} stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 
@@ -140,7 +140,7 @@ function MyLeaguesDropdown() {
         style={{
           background: 'rgba(0,232,122,0.1)',
           border: '0.5px solid rgba(0,232,122,0.3)',
-          color: '#00e87a', fontSize: 13, fontWeight: 600,
+          color: '#22c55e', fontSize: 13, fontWeight: 600,
           padding: '8px 18px', borderRadius: 7, cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 7,
           transition: 'background 0.15s',
@@ -159,7 +159,7 @@ function MyLeaguesDropdown() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         }}>
           {[
-            { to: '/golf/dashboard', dot: '#00e87a', label: 'Golf Leagues' },
+            { to: '/golf/dashboard', dot: '#22c55e', label: 'Golf Leagues' },
             { to: '/basketball/dashboard', dot: '#ff8c00', label: 'College Basketball' },
           ].map(({ to, dot, label }) => (
             <Link
@@ -222,16 +222,17 @@ const REFERRAL_STEPS = [
 
 function ReferralSection() {
   const { user, token } = useAuth();
-  const [refLink, setRefLink] = useState('');
-  const [copied, setCopied]   = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [refLink, setRefLink]   = useState('');
+  const [copied, setCopied]     = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [refError, setRefError] = useState(false);
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
     api.get('/auth/referral/my-code')
       .then(r => setRefLink(r.data.link || ''))
-      .catch(() => {})
+      .catch(() => setRefError(true))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -297,6 +298,8 @@ function ReferralSection() {
           {user ? (
             loading ? (
               <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Loading your link…</div>
+            ) : refError ? (
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Couldn't load your referral link. Try refreshing.</div>
             ) : (
               <>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
@@ -385,14 +388,14 @@ export default function HubLanding() {
       <nav style={{
         position: 'sticky', top: 0, zIndex: 100,
         background: '#0a0a14',
-        borderLeft: '3px solid #00e87a',
+        borderLeft: '3px solid #22c55e',
         borderBottom: '0.5px solid rgba(255,255,255,0.07)',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Logo */}
           <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
             <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: '#fff' }}>
-              tourney<span style={{ color: '#00e87a' }}>run</span>
+              tourney<span style={{ color: '#22c55e' }}>run</span>
             </span>
           </Link>
 
@@ -437,7 +440,7 @@ export default function HubLanding() {
                 </Link>
                 <Link to="/register"
                   style={{
-                    background: '#00e87a', color: '#001a0d',
+                    background: '#22c55e', color: '#001a0d',
                     fontSize: 13, fontWeight: 700,
                     padding: '8px 22px', borderRadius: 7, textDecoration: 'none',
                     transition: 'opacity 0.15s',
@@ -511,7 +514,7 @@ export default function HubLanding() {
                 <span style={{ display: 'block', fontSize: 'clamp(3.2rem, 8.5vw, 6rem)', color: '#ffffff' }}>YOUR CREW.</span>
                 <span style={{
                   display: 'block', fontSize: 'clamp(3.2rem, 8.5vw, 6rem)',
-                  background: 'linear-gradient(135deg, #00ff88, #00cc6a, #0d9488)',
+                  background: 'linear-gradient(135deg, #00ff88, #16a34a, #0d9488)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                 }}>WIN FOR REAL.</span>
               </h1>
@@ -527,7 +530,7 @@ export default function HubLanding() {
                   className="hub-btn-hover"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 8,
-                    background: 'linear-gradient(135deg, #00cc6a, #059669)',
+                    background: 'linear-gradient(135deg, #16a34a, #059669)',
                     color: '#fff', fontWeight: 800, fontSize: 15,
                     padding: '15px 30px', borderRadius: 16, textDecoration: 'none',
                     boxShadow: '0 0 36px rgba(0,204,106,0.4)',
@@ -563,7 +566,7 @@ export default function HubLanding() {
                 borderRadius: 22, overflow: 'hidden',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)',
               }}>
-                <div style={{ height: 2, background: 'linear-gradient(90deg, #00ff88, #00cc6a 40%, transparent)' }} />
+                <div style={{ height: 2, background: 'linear-gradient(90deg, #00ff88, #16a34a 40%, transparent)' }} />
                 <div style={{ padding: '22px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -594,7 +597,7 @@ export default function HubLanding() {
                   </div>
                   <Link to={user ? '/golf/dashboard' : '/golf'} style={{
                     display: 'block', marginTop: 16, textAlign: 'center',
-                    background: 'linear-gradient(135deg, #00cc6a, #059669)',
+                    background: 'linear-gradient(135deg, #16a34a, #059669)',
                     color: '#fff', fontWeight: 700, fontSize: 13,
                     padding: '11px 0', borderRadius: 12, textDecoration: 'none',
                     boxShadow: '0 4px 20px rgba(0,204,106,0.25)',
@@ -667,7 +670,7 @@ export default function HubLanding() {
       <section style={{ padding: 'clamp(64px,10vw,100px) 24px', borderTop: '0.5px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#00cc6a', marginBottom: 14 }}>Choose Your Game</div>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#16a34a', marginBottom: 14 }}>Choose Your Game</div>
             <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>
               Two sports. One platform.
             </h2>
@@ -682,12 +685,12 @@ export default function HubLanding() {
               borderRadius: 24, overflow: 'hidden',
               boxShadow: '0 0 60px rgba(0,204,106,0.05)',
             }}>
-              <div style={{ height: 3, background: 'linear-gradient(90deg, #00ff88, #00cc6a 50%, transparent)' }} />
+              <div style={{ height: 3, background: 'linear-gradient(90deg, #00ff88, #16a34a 50%, transparent)' }} />
               <div style={{ padding: 'clamp(24px,4vw,36px)' }}>
                 <div style={{ marginBottom: 20 }}>
                   <span style={{
                     display: 'inline-block', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-                    background: 'rgba(0,204,106,0.12)', color: '#00cc6a', border: '1px solid rgba(0,204,106,0.25)',
+                    background: 'rgba(0,204,106,0.12)', color: '#16a34a', border: '1px solid rgba(0,204,106,0.25)',
                     padding: '4px 12px', borderRadius: 100, marginBottom: 16,
                   }}>FEATURED · 2026 PGA Season Live</span>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>⛳</div>
@@ -699,7 +702,7 @@ export default function HubLanding() {
                 <ul style={{ margin: '0 0 28px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {['Season-long auction draft', 'Masters & major office pools', 'Daily fantasy (DFS)', 'Majors score 1.5×'].map(b => (
                     <li key={b} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.65)' }}>
-                      <span style={{ color: '#00cc6a', fontWeight: 800, flexShrink: 0 }}>✓</span>{b}
+                      <span style={{ color: '#16a34a', fontWeight: 800, flexShrink: 0 }}>✓</span>{b}
                     </li>
                   ))}
                 </ul>
@@ -707,7 +710,7 @@ export default function HubLanding() {
                   className="hub-btn-hover"
                   style={{
                     display: 'block', textAlign: 'center', textDecoration: 'none',
-                    background: 'linear-gradient(135deg, #00cc6a, #059669)',
+                    background: 'linear-gradient(135deg, #16a34a, #059669)',
                     color: '#fff', fontWeight: 800, fontSize: 15,
                     padding: '14px 0', borderRadius: 14,
                     boxShadow: '0 8px 32px rgba(0,204,106,0.3)',
@@ -829,11 +832,11 @@ export default function HubLanding() {
       <section style={{ padding: 'clamp(64px,10vw,100px) 24px', borderTop: '0.5px solid rgba(255,255,255,0.06)', position: 'relative' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 68 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#00cc6a', marginBottom: 14 }}>How It Works</div>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#16a34a', marginBottom: 14 }}>How It Works</div>
             <h2 style={{ margin: 0, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               <span style={{ color: '#fff' }}>Three steps. </span>
               <span style={{
-                background: 'linear-gradient(135deg, #00ff88, #00cc6a)',
+                background: 'linear-gradient(135deg, #00ff88, #16a34a)',
                 WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
               }}>That's it.</span>
             </h2>
@@ -867,7 +870,7 @@ export default function HubLanding() {
                 }}>
                   {icon}
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#00cc6a', letterSpacing: '0.18em', marginBottom: 12 }}>{num}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#16a34a', letterSpacing: '0.18em', marginBottom: 12 }}>{num}</div>
                 <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 800, letterSpacing: '0.06em', color: '#f9fafb' }}>{title}</h3>
                 <p style={{ margin: '0 0 12px', fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.75 }}>{body}</p>
                 <p style={{ margin: 0, fontSize: 12, color: 'rgba(0,204,106,0.6)', lineHeight: 1.65, fontStyle: 'italic' }}>{sub}</p>
@@ -926,17 +929,17 @@ export default function HubLanding() {
             {/* Left — statement */}
             <div>
               <p style={{ margin: '0 0 16px', fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-                From <span style={{ color: '#00e87a' }}>$9.99</span> per tournament.
+                From <span style={{ color: '#22c55e' }}>$9.99</span> per tournament.
               </p>
               <p style={{ margin: '0 0 12px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
                 Zero prize pool fees. Zero subscriptions.
               </p>
               <p style={{ margin: '0 0 32px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
-                Your $100 buy-in? <span style={{ color: '#00e87a', fontWeight: 700 }}>Your crew keeps $100.</span>
+                Your $100 buy-in? <span style={{ color: '#22c55e', fontWeight: 700 }}>Your crew keeps $100.</span>
               </p>
               <Link to="/golf" style={{
                 display: 'inline-block', padding: '12px 28px',
-                background: 'linear-gradient(135deg, #00e87a, #00cc6a)',
+                background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                 color: '#001a0d', fontWeight: 800, fontSize: 14,
                 borderRadius: 10, textDecoration: 'none',
                 letterSpacing: '0.02em',
@@ -991,7 +994,7 @@ export default function HubLanding() {
             <span style={{ fontSize: 18 }}>🏆</span>
             <div>
               <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.02em' }}>
-                <span style={{ color: '#fff', fontWeight: 400 }}>tourney</span><span style={{ color: '#00cc6a', fontWeight: 700 }}>run</span>
+                <span style={{ color: '#fff', fontWeight: 400 }}>tourney</span><span style={{ color: '#16a34a', fontWeight: 700 }}>run</span>
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>© 2026 Player Pool Fantasy</div>
             </div>

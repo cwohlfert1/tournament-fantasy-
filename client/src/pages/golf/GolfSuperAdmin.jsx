@@ -417,9 +417,9 @@ function PlayersTab() {
           {['Elite','Premium','Mid','Value','Sleeper'].map(t => <option key={t}>{t}</option>)}
         </select>
         <button onClick={() => setShowAdd(true)}
-          style={{ background: '#00e87a', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#00cc6a'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#00e87a'; }}>
+          style={{ background: '#22c55e', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#22c55e'; }}>
           + Add Player
         </button>
       </div>
@@ -437,7 +437,7 @@ function PlayersTab() {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={addPlayer} style={{ background: '#00e87a', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = '#00cc6a'; }} onMouseLeave={e => { e.currentTarget.style.background = '#00e87a'; }}>Add</button>
+            <button onClick={addPlayer} style={{ background: '#22c55e', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }} onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; }} onMouseLeave={e => { e.currentTarget.style.background = '#22c55e'; }}>Add</button>
             <button onClick={() => setShowAdd(false)} style={{ background: '#1f2937', color: '#9ca3af', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
           </div>
         </div>
@@ -1134,9 +1134,9 @@ function DevToolsTab() {
           '8 teams: you + 7 bots (Birdie, Eagle, Par…). $1,000 auction budget, 10s timers. Bots auto-nominate and bid. Redirects straight to the draft room.',
           'sandbox',
           <button onClick={() => run('sandbox')} disabled={loading.sandbox}
-            style={{ background: loading.sandbox ? 'rgba(0,232,122,0.4)' : '#00e87a', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: loading.sandbox ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
-            onMouseEnter={e => { if (!loading.sandbox) e.currentTarget.style.background = '#00cc6a'; }}
-            onMouseLeave={e => { if (!loading.sandbox) e.currentTarget.style.background = '#00e87a'; }}>
+            style={{ background: loading.sandbox ? 'rgba(0,232,122,0.4)' : '#22c55e', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: loading.sandbox ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
+            onMouseEnter={e => { if (!loading.sandbox) e.currentTarget.style.background = '#16a34a'; }}
+            onMouseLeave={e => { if (!loading.sandbox) e.currentTarget.style.background = '#22c55e'; }}>
             {loading.sandbox ? 'Creating…' : '+ Test Auction Draft'}
           </button>
         )}
@@ -1149,9 +1149,9 @@ function DevToolsTab() {
               {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
             <button onClick={() => run('sync')} disabled={loading.sync || !selectedT}
-              style={{ background: (loading.sync || !selectedT) ? 'rgba(0,232,122,0.4)' : '#00e87a', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: (loading.sync || !selectedT) ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
-              onMouseEnter={e => { if (!loading.sync && selectedT) e.currentTarget.style.background = '#00cc6a'; }}
-              onMouseLeave={e => { if (!loading.sync && selectedT) e.currentTarget.style.background = '#00e87a'; }}>
+              style={{ background: (loading.sync || !selectedT) ? 'rgba(0,232,122,0.4)' : '#22c55e', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: (loading.sync || !selectedT) ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
+              onMouseEnter={e => { if (!loading.sync && selectedT) e.currentTarget.style.background = '#16a34a'; }}
+              onMouseLeave={e => { if (!loading.sync && selectedT) e.currentTarget.style.background = '#22c55e'; }}>
               {loading.sync ? 'Syncing…' : 'Sync Now'}
             </button>
           </div>

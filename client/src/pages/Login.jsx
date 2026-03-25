@@ -108,7 +108,7 @@ export default function Login() {
           type="submit"
           disabled={loading}
           className="w-full py-3 rounded-xl font-black text-base text-black transition-all duration-200 hover:scale-[1.02] hover:shadow-lg disabled:opacity-50 disabled:scale-100"
-          style={{ background: 'linear-gradient(135deg, #00e87a 0%, #00c96a 100%)', boxShadow: undefined }}
+          style={{ background: 'linear-gradient(135deg, #22c55e 0%, #00c96a 100%)', boxShadow: undefined }}
         >
           {loading ? 'Signing in…' : 'Sign In →'}
         </button>
