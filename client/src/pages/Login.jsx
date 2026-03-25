@@ -89,14 +89,14 @@ export default function Login() {
             <button
               type="button"
               onClick={() => setShowForgotJoke(true)}
-              className="text-xs text-brand-400 hover:text-brand-300 transition-colors"
+              className="text-xs text-green-400 hover:text-green-300 transition-colors"
             >
               Forgot password?
             </button>
           ) : (
             <p className="text-xs text-gray-400 text-right leading-relaxed">
               Forgot your password? Contact your commissioner… just kidding,{' '}
-              <Link to="/forgot-password" className="text-brand-400 hover:text-brand-300 font-semibold transition-colors">
+              <Link to="/forgot-password" className="text-green-400 hover:text-green-300 font-semibold transition-colors">
                 click here to reset it
               </Link>
               .
@@ -107,8 +107,8 @@ export default function Login() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 rounded-xl font-black text-base text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-brand-500/25 disabled:opacity-50 disabled:scale-100"
-          style={{ background: 'linear-gradient(135deg, #378ADD 0%, #2563EB 100%)' }}
+          className="w-full py-3 rounded-xl font-black text-base text-black transition-all duration-200 hover:scale-[1.02] hover:shadow-lg disabled:opacity-50 disabled:scale-100"
+          style={{ background: 'linear-gradient(135deg, #00e87a 0%, #00c96a 100%)', boxShadow: undefined }}
         >
           {loading ? 'Signing in…' : 'Sign In →'}
         </button>
@@ -116,7 +116,7 @@ export default function Login() {
 
       <div className="mt-5 pt-5 border-t border-gray-800 text-center text-sm text-gray-500">
         Don't have an account?{' '}
-        <Link to="/register" className="text-brand-400 hover:text-brand-300 font-semibold transition-colors">
+        <Link to="/register" className="text-green-400 hover:text-green-300 font-semibold transition-colors">
           Create one
         </Link>
       </div>

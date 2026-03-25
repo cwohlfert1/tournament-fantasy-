@@ -47,8 +47,11 @@ export default function Navbar() {
   const isGolf = location.pathname.startsWith('/golf');
   const isHub  = location.pathname === '/';
 
-  // Golf routes render their own GolfNavbar; hub has its own minimal nav
-  if (isGolf || isHub) return null;
+  const isAuth = location.pathname === '/login' || location.pathname === '/register'
+    || location.pathname === '/forgot-password' || location.pathname === '/reset-password';
+
+  // Golf routes render their own GolfNavbar; hub has its own minimal nav; auth pages have no nav
+  if (isGolf || isHub || isAuth) return null;
 
   // Pill link style helper
   const navLink = (path) => {
