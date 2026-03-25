@@ -1185,21 +1185,10 @@ try {
   }
 } catch (e) { console.log('[golf-db] DK odds batch 2 skipped:', e.message); }
 
-// ── One-time cleanup: delete .bot test users created for Valspar testing ──────────
-try {
-  const botUsers = db.prepare("SELECT id FROM users WHERE email LIKE '%.bot'").all();
-  if (botUsers.length) {
-    const ids = botUsers.map(u => u.id);
-    const placeholders = ids.map(() => '?').join(',');
-    db.transaction(() => {
-      db.prepare(`DELETE FROM golf_league_members WHERE user_id IN (${placeholders})`).run(...ids);
-      db.prepare(`DELETE FROM pool_picks WHERE user_id IN (${placeholders})`).run(...ids);
-      db.prepare(`DELETE FROM draft_picks WHERE user_id IN (${placeholders})`).run(...ids);
-      db.prepare("DELETE FROM users WHERE email LIKE '%.bot'").run();
-    })();
-    console.log(`[golf-db] Deleted ${botUsers.length} bot test users`);
-  }
-} catch (e) { console.log('[golf-db] bot user cleanup skipped:', e.message); }
+// NOTE: bot user cleanup migration was here and was REMOVED.
+// It ran on every boot and accidentally deleted real user accounts (Max, Drew, Jon)
+// whose picks could not be recovered. Any future test-data cleanup must be a
+// one-time manual SQL script — never an automated boot migration.
 
 // ── Houston Open odds fixups — run every boot (unguarded/idempotent) ─────────────
 // Previous guarded blocks only ran once; this ensures corrections survive Odds API overwrites.
