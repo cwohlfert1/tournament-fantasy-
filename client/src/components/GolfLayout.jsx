@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import GolfNavbar from './GolfNavbar';
 import GolfProfileOnboarding from './golf/GolfProfileOnboarding';
@@ -44,21 +44,43 @@ export default function GolfLayout() {
   const location = useLocation();
   const [showOnboarding, setShowOnboarding]   = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  // Track which user we've already checked so the API call fires once per
+  // login session, not on every pathname change within the golf section.
+  const checkedForUser = useRef(null);
 
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname) ||
                        location.pathname.startsWith('/golf/admin');
+
+  console.count('[GolfLayout] render');
 
   useEffect(() => {
     injectGolfMeta();
   }, []);
 
   useEffect(() => {
-    if (!user || isPublicPath) {
+    console.count('[GolfLayout] profile-effect fired');
+    console.log('[GolfLayout] profile-effect deps:', { userId: user?.id, pathname: location.pathname });
+    if (!user) {
+      console.log('[GolfLayout] profile-effect: no user, early return');
+      checkedForUser.current = null;
       setOnboardingChecked(true);
       return;
     }
+    if (isPublicPath) {
+      console.log('[GolfLayout] profile-effect: public path, early return');
+      setOnboardingChecked(true);
+      return;
+    }
+    if (checkedForUser.current === user.id) {
+      console.log('[GolfLayout] profile-effect: already checked for user', user.id, ', early return');
+      setOnboardingChecked(true);
+      return;
+    }
+    console.count('[GolfLayout] /golf/profile/status FETCH');
+    checkedForUser.current = user.id;
     api.get('/golf/profile/status')
       .then(r => {
+        console.log('[GolfLayout] profile/status resolved');
         if (!r.data.profileComplete) setShowOnboarding(true);
         setOnboardingChecked(true);
       })

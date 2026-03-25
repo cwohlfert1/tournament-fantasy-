@@ -4,19 +4,23 @@ import api from '../api';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  console.count('[AuthProvider] render');
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.count('[AuthProvider] init-effect fired');
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (savedToken && savedUser) {
+      console.count('[AuthProvider] setUser(localStorage)');
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
       api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
       // Refresh user data (including role) from server in the background
       api.get('/auth/me').then(res => {
+        console.count('[AuthProvider] /auth/me resolved → setUser(fresh)');
         const fresh = res.data.user;
         setUser(fresh);
         localStorage.setItem('user', JSON.stringify(fresh));

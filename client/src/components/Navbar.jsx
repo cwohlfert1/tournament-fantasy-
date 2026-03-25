@@ -105,9 +105,16 @@ export default function Navbar({ variant }) {
   const isAuthPage  = path === '/login' || path === '/register' ||
                       path === '/forgot-password' || path === '/reset-password';
 
-  // ── Live games polling (basketball only, when logged in) ──────────────────
+  console.count(`[Navbar variant=${variant || 'bball'}] render`);
+
+  // ── Live games polling (basketball only, when logged in, not on golf routes) ─
   useEffect(() => {
-    if (!user || isGolf) return;
+    console.count('[Navbar] games-effect fired');
+    console.log('[Navbar] games-effect deps:', { userId: user?.id, isGolf, isGolfRoute, path });
+    if (!user || isGolf || isGolfRoute) {
+      console.log('[Navbar] games-effect: early return (guard)');
+      return;
+    }
     let cancelled = false;
     const check = async () => {
       try {
@@ -118,7 +125,7 @@ export default function Navbar({ variant }) {
     check();
     const id = setInterval(check, 60_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [user, isGolf]);
+  }, [user, isGolf, isGolfRoute]);
 
   if (!isGolf && (isGolfRoute || isHub || isAuthPage)) return null;
 
