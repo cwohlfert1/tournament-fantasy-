@@ -268,6 +268,101 @@ router.delete('/admin/users/:id', superadmin, (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Recovery: restore deleted golf league members ────────────────────────────
+// POST /api/golf-admin/admin/leagues/:id/recover-members
+// Finds users who:
+//   (a) have pool_picks for this league but are NOT in golf_league_members, OR
+//   (b) are banned and have a username/email matching known missing names
+// Re-adds them to golf_league_members and unbans them.
+router.post('/admin/leagues/:id/recover-members', superadmin, (req, res) => {
+  try {
+    const leagueId = req.params.id;
+
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+
+    const currentMemberIds = new Set(
+      db.prepare('SELECT user_id FROM golf_league_members WHERE golf_league_id = ?')
+        .all(leagueId).map(r => r.user_id)
+    );
+
+    // Strategy 1: users who have pool_picks for this league but aren't members
+    const pickOrphans = db.prepare(`
+      SELECT DISTINCT pp.user_id, u.username, u.email, u.role
+      FROM pool_picks pp
+      JOIN users u ON u.id = pp.user_id
+      WHERE pp.league_id = ?
+    `).all(leagueId).filter(u => !currentMemberIds.has(u.user_id));
+
+    // Strategy 2: recently banned users matching known missing names
+    const nameHints = ['max', 'cady', 'drew', 'bartlett', 'jon', 'wohlfert'];
+    const bannedCandidates = db.prepare(`
+      SELECT id AS user_id, username, email, role
+      FROM users
+      WHERE role = 'banned'
+      AND (${nameHints.map(() => "lower(username) LIKE ?").join(' OR ')})
+    `).all(...nameHints.map(n => `%${n}%`))
+      .filter(u => !currentMemberIds.has(u.user_id));
+
+    // Deduplicate
+    const toRestore = new Map();
+    for (const u of [...pickOrphans, ...bannedCandidates]) {
+      toRestore.set(u.user_id, u);
+    }
+
+    const restored = [];
+    const restore = db.transaction(() => {
+      for (const [userId, u] of toRestore) {
+        // Unban if banned
+        if (u.role === 'banned') {
+          db.prepare("UPDATE users SET role = 'user' WHERE id = ?").run(userId);
+        }
+        // Re-add to golf_league_members
+        const existingMember = db.prepare(
+          'SELECT id FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?'
+        ).get(leagueId, userId);
+        if (!existingMember) {
+          db.prepare(`
+            INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, joined_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+          `).run(uuidv4(), leagueId, userId, u.username);
+        }
+        restored.push({ user_id: userId, username: u.username, email: u.email, was_banned: u.role === 'banned' });
+      }
+    });
+    restore();
+
+    // Also list all current members + diagnostic info for the response
+    const allMembers = db.prepare(`
+      SELECT glm.user_id, glm.team_name, glm.joined_at, u.username, u.email, u.role
+      FROM golf_league_members glm
+      JOIN users u ON u.id = glm.user_id
+      WHERE glm.golf_league_id = ?
+      ORDER BY glm.joined_at
+    `).all(leagueId);
+
+    // All users with pool_picks for forensics
+    const allPickUsers = db.prepare(`
+      SELECT DISTINCT pp.user_id, u.username, u.email, COUNT(*) as picks
+      FROM pool_picks pp
+      LEFT JOIN users u ON u.id = pp.user_id
+      WHERE pp.league_id = ?
+      GROUP BY pp.user_id
+    `).all(leagueId);
+
+    console.log(`[recovery] league ${leagueId}: restored ${restored.length} members`);
+    res.json({
+      restored,
+      current_members: allMembers,
+      pool_pick_users: allPickUsers,
+      invite_code: league.invite_code,
+    });
+  } catch (err) {
+    console.error('[recovery] error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Players ───────────────────────────────────────────────────────────────────
 
 router.get('/admin/players', superadmin, (req, res) => {
