@@ -4,7 +4,7 @@ import { ArrowLeft, Save, Search, Trophy, Flag, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import BallLoader from '../../components/BallLoader';
+import GolfLoader from '../../components/golf/GolfLoader';
 
 // Client-side preview of commissioner pts formula
 function previewPts(s, par, isMajor) {
@@ -168,7 +168,7 @@ export default function GolfScoreEntry() {
     !search || p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) return <BallLoader />;
+  if (loading) return <GolfLoader />;
   if (!league) return null;
 
   return (

@@ -4,7 +4,7 @@ import { Ticket, Plus, Flag, ChevronRight, Users, Calendar, Trophy, ChevronDown 
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import BallLoader from '../../components/BallLoader';
+import GolfLoader from '../../components/golf/GolfLoader';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -311,7 +311,7 @@ export default function GolfDashboard() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <BallLoader />;
+  if (loading) return <GolfLoader />;
 
   const isActiveLeague = l =>
     ACTIVE_STATUSES.has(l.status) &&

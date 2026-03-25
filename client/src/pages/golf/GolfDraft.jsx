@@ -4,7 +4,7 @@ import { Flag, Zap, Star, Award, ArrowLeft, ChevronRight, Search } from 'lucide-
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import BallLoader from '../../components/BallLoader';
+import GolfLoader from '../../components/golf/GolfLoader';
 
 const TIER_LABEL = {
   800: { label: 'Elite', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
@@ -84,7 +84,7 @@ export default function GolfDraft() {
     setPicking(null);
   }
 
-  if (loading) return <BallLoader />;
+  if (loading) return <GolfLoader />;
   if (!state) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">

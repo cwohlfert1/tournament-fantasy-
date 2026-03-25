@@ -4,7 +4,7 @@ import { Star, Flag, Trophy, ArrowLeft, Search, ChevronDown, ChevronUp, Zap, Che
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import BallLoader from '../../components/BallLoader';
+import GolfLoader from '../../components/golf/GolfLoader';
 
 // ── Tier helpers ────────────────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ export default function GolfAuctionDraft() {
     setBidding(false);
   }
 
-  if (loading) return <BallLoader />;
+  if (loading) return <GolfLoader />;
   if (!state) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">

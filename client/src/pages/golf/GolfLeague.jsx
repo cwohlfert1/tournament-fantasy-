@@ -4,7 +4,7 @@ import { Flag, Trophy, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
-import BallLoader from '../../components/BallLoader';
+import GolfLoader from '../../components/golf/GolfLoader';
 import socket, { connectSocket } from '../../socket';
 import { Badge } from '../../components/ui';
 
@@ -142,7 +142,7 @@ export default function GolfLeague() {
     return () => { socket.off('pool_standings_update', onStandingsUpdate); };
   }, [league?.format_type, id, user]); // eslint-disable-line
 
-  if (loading) return <BallLoader />;
+  if (loading) return <GolfLoader />;
 
   if (loadError) {
     return (

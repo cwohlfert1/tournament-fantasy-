@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Lock, Trophy, ChevronRight } from 'lucide-react';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
-import BallLoader from '../../../components/BallLoader';
+import GolfLoader from '../../../components/golf/GolfLoader';
 
 const ROSTER_TIER_COLORS = {
   1: { bg: 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'rgba(245,158,11,0.3)', accent: '#f59e0b', label: '#fbbf24' },
@@ -466,7 +466,7 @@ export default function PoolRosterTab({ leagueId, league }) {
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-      <BallLoader />
+      <GolfLoader />
     </div>
   );
 
