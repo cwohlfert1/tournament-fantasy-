@@ -41,7 +41,6 @@ function getTabs(league, isComm) {
 }
 
 export default function GolfLeague() {
-  console.count('[GolfLeague] render');
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -64,11 +63,8 @@ export default function GolfLeague() {
   );
 
   useEffect(() => {
-    console.count('[GolfLeague] leagues-effect fired');
-    console.log('[GolfLeague] leagues-effect dep: id =', id);
     api.get(`/golf/leagues/${id}`)
       .then(r => {
-        console.log('[GolfLeague] leagues/[id] resolved → setLeague+setMembers');
         setLeague(r.data.league);
         setMembers(r.data.members || []);
       })
@@ -86,29 +82,15 @@ export default function GolfLeague() {
   }, [id]);
 
   useEffect(() => {
-    console.count('[GolfLeague] roster-effect fired');
-    console.log('[GolfLeague] roster-effect deps:', { id, format_type: league?.format_type, tournament_id: league?.pool_tournament_id });
-    if (!league || league.format_type !== 'pool' || !league.pool_tournament_id) {
-      console.log('[GolfLeague] roster-effect: early return (guard)');
-      return;
-    }
-    console.count('[GolfLeague] /my-roster FETCH');
+    if (!league || league.format_type !== 'pool' || !league.pool_tournament_id) return;
     api.get(`/golf/leagues/${id}/my-roster`)
-      .then(r => {
-        console.log('[GolfLeague] my-roster resolved → setPicksStatus');
-        setPicksStatus({ submitted: r.data.submitted, picks_locked: r.data.picks_locked });
-      })
+      .then(r => setPicksStatus({ submitted: r.data.submitted, picks_locked: r.data.picks_locked }))
       .catch(() => {});
   }, [id, league?.format_type, league?.pool_tournament_id]); // eslint-disable-line
 
   // Live standings push for pool leagues
   useEffect(() => {
-    console.count('[GolfLeague] socket-effect fired');
-    console.log('[GolfLeague] socket-effect deps:', { format_type: league?.format_type, id, userId: user?.id, userRef: user });
-    if (!league || league.format_type !== 'pool' || !user) {
-      console.log('[GolfLeague] socket-effect: early return (guard)');
-      return;
-    }
+    if (!league || league.format_type !== 'pool' || !user) return;
     const token = localStorage.getItem('token');
     if (!token) return;
     connectSocket(token);

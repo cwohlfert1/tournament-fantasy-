@@ -4,29 +4,28 @@ import api from '../api';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  console.count('[AuthProvider] render');
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Read user + token synchronously so components never see a null-then-populated flash.
+  // Also sets the Authorization header before any child effects can fire API calls.
+  const [user, setUser] = useState(() => {
+    try {
+      const token = localStorage.getItem('token');
+      const saved = localStorage.getItem('user');
+      if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.count('[AuthProvider] init-effect fired');
     const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      console.count('[AuthProvider] setUser(localStorage)');
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-      api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`;
-      // Refresh user data (including role) from server in the background
-      api.get('/auth/me').then(res => {
-        console.count('[AuthProvider] /auth/me resolved → setUser(fresh)');
-        const fresh = res.data.user;
-        setUser(fresh);
-        localStorage.setItem('user', JSON.stringify(fresh));
-      }).catch(() => {});
-    }
-    setLoading(false);
+    if (!savedToken) return;
+    // Refresh user data (including role) from server in the background
+    api.get('/auth/me').then(res => {
+      const fresh = res.data.user;
+      setUser(fresh);
+      localStorage.setItem('user', JSON.stringify(fresh));
+    }).catch(() => {});
   }, []);
 
   const login = async (email, password) => {

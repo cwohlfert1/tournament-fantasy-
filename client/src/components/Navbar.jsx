@@ -105,16 +105,9 @@ export default function Navbar({ variant }) {
   const isAuthPage  = path === '/login' || path === '/register' ||
                       path === '/forgot-password' || path === '/reset-password';
 
-  console.count(`[Navbar variant=${variant || 'bball'}] render`);
-
   // ── Live games polling (basketball only, when logged in, not on golf routes) ─
   useEffect(() => {
-    console.count('[Navbar] games-effect fired');
-    console.log('[Navbar] games-effect deps:', { userId: user?.id, isGolf, isGolfRoute, path });
-    if (!user || isGolf || isGolfRoute) {
-      console.log('[Navbar] games-effect: early return (guard)');
-      return;
-    }
+    if (!user || isGolf || isGolfRoute) return;
     let cancelled = false;
     const check = async () => {
       try {

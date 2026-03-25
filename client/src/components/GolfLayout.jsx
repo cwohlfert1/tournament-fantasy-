@@ -51,36 +51,27 @@ export default function GolfLayout() {
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname) ||
                        location.pathname.startsWith('/golf/admin');
 
-  console.count('[GolfLayout] render');
-
   useEffect(() => {
     injectGolfMeta();
   }, []);
 
   useEffect(() => {
-    console.count('[GolfLayout] profile-effect fired');
-    console.log('[GolfLayout] profile-effect deps:', { userId: user?.id, pathname: location.pathname });
     if (!user) {
-      console.log('[GolfLayout] profile-effect: no user, early return');
       checkedForUser.current = null;
       setOnboardingChecked(true);
       return;
     }
     if (isPublicPath) {
-      console.log('[GolfLayout] profile-effect: public path, early return');
       setOnboardingChecked(true);
       return;
     }
     if (checkedForUser.current === user.id) {
-      console.log('[GolfLayout] profile-effect: already checked for user', user.id, ', early return');
       setOnboardingChecked(true);
       return;
     }
-    console.count('[GolfLayout] /golf/profile/status FETCH');
     checkedForUser.current = user.id;
     api.get('/golf/profile/status')
       .then(r => {
-        console.log('[GolfLayout] profile/status resolved');
         if (!r.data.profileComplete) setShowOnboarding(true);
         setOnboardingChecked(true);
       })
