@@ -85,10 +85,10 @@ function PrizeBreakdown({ league }) {
 
 function NextTournamentBanner({ tournament }) {
   if (!tournament) return null;
-  const isLive    = tournament.status === 'active';
-  const start     = new Date(tournament.start_date);
-  const end       = new Date(tournament.end_date);
+  const start     = new Date(tournament.start_date + 'T12:00:00');
+  const end       = new Date(tournament.end_date + 'T12:00:00');
   const now       = new Date();
+  const isLive    = now >= start && now <= end;
   const daysUntil = Math.ceil((start - now) / 86400000);
   const fmt       = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const dateRange = `${fmt(start)} – ${fmt(end)}, 2026`;
@@ -295,10 +295,15 @@ export default function GolfDashboard() {
       setLeagues(leaguesList);
       setPoolPicksMap(rr.data || {});
       const tournaments = tr.data.tournaments || [];
-      const live = tournaments.find(t => t.status === 'active');
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const live = tournaments.find(t => {
+        if (!t.start_date || !t.end_date) return false;
+        return today >= new Date(t.start_date + 'T12:00:00') && today <= new Date(t.end_date + 'T12:00:00');
+      });
       if (live) { setNextTournament(live); return; }
       const upcoming = tournaments
-        .filter(t => t.status === 'scheduled')
+        .filter(t => t.start_date && new Date(t.start_date + 'T12:00:00') > today)
         .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
       setNextTournament(upcoming[0] || null);
     }).catch(() => {}).finally(() => setLoading(false));
