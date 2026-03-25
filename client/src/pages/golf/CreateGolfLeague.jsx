@@ -318,7 +318,7 @@ function TierConfigEditor({ tiers, onChange }) {
               <input
                 type="text"
                 className="input py-1 text-xs w-20 shrink-0 tier-odds-input"
-                placeholder="8:1"
+                placeholder="1:1"
                 value={t.odds_min}
                 onChange={e => updateTier(i, 'odds_min', e.target.value)}
               />
@@ -454,10 +454,10 @@ const DEFAULT_FORM = {
   comm_pro_price: 12.99,
   pick_sheet_format: 'tiered',
   pool_tiers: [
-    { tier: 1, odds_min: '8:1',   odds_max: '75:1',  picks: 1, approxPlayers: 8  },
-    { tier: 2, odds_min: '75:1',  odds_max: '125:1', picks: 2, approxPlayers: 14 },
-    { tier: 3, odds_min: '150:1', odds_max: '250:1', picks: 2, approxPlayers: 18 },
-    { tier: 4, odds_min: '275:1', odds_max: '',       picks: 2, approxPlayers: null },
+    { tier: 1, odds_min: '1:1',   odds_max: '25:1',  picks: 1, approxPlayers: 8  },
+    { tier: 2, odds_min: '26:1',  odds_max: '50:1',  picks: 2, approxPlayers: 14 },
+    { tier: 3, odds_min: '51:1',  odds_max: '100:1', picks: 2, approxPlayers: 18 },
+    { tier: 4, odds_min: '101:1', odds_max: '',       picks: 2, approxPlayers: null },
   ],
   pool_drop_count: 0,
   pool_salary_cap: 50000,
