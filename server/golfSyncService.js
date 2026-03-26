@@ -392,6 +392,18 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
       fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
   `);
 
+  // Upsert ESPN name → canonical player mapping so future syncs can find players
+  // even if their display name changes (diacritics, periods, etc.)
+  const espnPlayerUpsert = db.prepare(`
+    INSERT INTO golf_espn_players (espn_name, display_name, country_code, normalized_name, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(espn_name) DO UPDATE SET
+      display_name    = excluded.display_name,
+      country_code    = excluded.country_code,
+      normalized_name = excluded.normalized_name,
+      updated_at      = CURRENT_TIMESTAMP
+  `);
+
   // Log first 3 competitors before transaction so we can diagnose parsing issues
   if (!silent && competitors.length > 0) {
     const sample = competitors.slice(0, 3).map(comp => {
@@ -412,6 +424,9 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
         notMatched.push(name);
         continue;
       }
+
+      // Persist ESPN display name → canonical player mapping for future syncs
+      espnPlayerUpsert.run(name, player.name, player.country, norm(name));
 
       const fp = calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, !!tournament.is_major);
       // made_cut stored as: 1=confirmed made cut, 0=missed/WD/DQ, NULL=unknown (R1/R2 in progress)

@@ -81,4 +81,48 @@ function matchPlayerName(espnName, players, tournamentName) {
   return null;
 }
 
-module.exports = { normalizePlayerName, matchPlayerName };
+/**
+ * Validate and normalize a parsed competitor object (from parseCompetitor).
+ * Returns the same shape with corrections applied plus a `warnings` array.
+ *
+ * Checks:
+ *   1. country_code must be exactly 2 letters — warns if missing or wrong length.
+ *   2. name is normalized via normalizePlayerName.
+ *   3. Round scores of 0 are coerced to null (0 is invalid; unplayed rounds are null).
+ *
+ * @param {{ name?: string, country_code?: string, r1?: number|null, r2?: number|null, r3?: number|null, r4?: number|null }} player
+ * @returns {object} Validated copy with added `normalized_name` and `warnings` fields.
+ */
+function validatePlayerData(player) {
+  const warnings = [];
+  if (!player || typeof player !== 'object') return { warnings: ['invalid input'] };
+
+  // 1. Normalize name
+  const normalized_name = normalizePlayerName(player.name);
+
+  // 2. Validate country_code
+  let country_code = player.country_code || player.country || null;
+  if (!country_code) {
+    warnings.push(`missing country_code for "${player.name}"`);
+  } else if (country_code.length !== 2) {
+    warnings.push(`country_code "${country_code}" is not 2 letters for "${player.name}" — should be ISO 3166-1 alpha-2`);
+    country_code = null;  // don't store bad value
+  }
+
+  // 3. Coerce 0 round scores → null (0 is not a valid to-par score; null means unplayed)
+  const roundKeys = ['r1', 'r2', 'r3', 'r4'];
+  const rounds = {};
+  for (const k of roundKeys) {
+    const v = player[k];
+    if (v === 0) {
+      warnings.push(`${k} is 0 for "${player.name}" — coerced to null (unplayed)`);
+      rounds[k] = null;
+    } else {
+      rounds[k] = v !== undefined ? v : null;
+    }
+  }
+
+  return { ...player, ...rounds, country_code, normalized_name, warnings };
+}
+
+module.exports = { normalizePlayerName, matchPlayerName, validatePlayerData };

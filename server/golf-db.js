@@ -249,6 +249,23 @@ try {
   `);
 } catch (_) {}
 
+// ── golf_espn_players — persistent ESPN name → canonical mapping ─────────────
+// Maps every ESPN display name seen during sync to the canonical DB name and
+// country.  Survives tournament resets (never wiped).  Upserted on every sync
+// so new players are captured automatically.
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS golf_espn_players (
+      espn_name       TEXT PRIMARY KEY,
+      display_name    TEXT,
+      country_code    TEXT,
+      normalized_name TEXT,
+      created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch (_) {}
+
 // Populate player_master from the authoritative COUNTRY_MAP (defined below).
 // This runs after COUNTRY_MAP is defined — see the try/catch block near line 1107.
 
@@ -1179,6 +1196,27 @@ try {
     })();
     console.log('[golf-db] player_master populated from COUNTRY_MAP');
   } catch (_pmE) { console.log('[golf-db] player_master upsert skipped:', _pmE.message); }
+
+  // Seed golf_espn_players from golf_players + COUNTRY_MAP (runs every boot, idempotent)
+  try {
+    const { normalizePlayerName: _normPN } = require('./utils/playerNameNorm');
+    const _espnUpsert = db.prepare(`
+      INSERT INTO golf_espn_players (espn_name, display_name, country_code, normalized_name, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(espn_name) DO UPDATE SET
+        display_name    = excluded.display_name,
+        country_code    = excluded.country_code,
+        normalized_name = excluded.normalized_name,
+        updated_at      = CURRENT_TIMESTAMP
+    `);
+    const _allGP = db.prepare('SELECT name, country FROM golf_players WHERE is_active = 1').all();
+    db.transaction(() => {
+      for (const p of _allGP) {
+        _espnUpsert.run(p.name, p.name, p.country, _normPN(p.name));
+      }
+    })();
+    console.log(`[golf-db] golf_espn_players seeded: ${_allGP.length} players`);
+  } catch (_epE) { console.log('[golf-db] golf_espn_players seed skipped:', _epE.message); }
 
   // Global 3-letter → 2-letter ISO country code normalization.
   // Runs every boot — safe no-op if already correct.
