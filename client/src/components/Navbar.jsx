@@ -109,8 +109,7 @@ function NotifRow({ notif, onDismiss, onClose }) {
   );
 }
 
-function GolfBellMenu({ userId }) {
-  const { notifications, dismissed, dismiss, markAllRead, unreadCount } = useGolfNotifications(userId);
+function GolfBellMenu({ notifications, dismissed, dismiss, markAllRead, unreadCount }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -285,6 +284,7 @@ export default function Navbar({ variant }) {
   };
 
   const initials = userInitials(user);
+  const golfNotif = useGolfNotifications(isGolf && user ? user.id : null);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -348,7 +348,7 @@ export default function Navbar({ variant }) {
                   {isGolf ? 'Golf Admin' : 'Admin'}
                 </Link>
               )}
-              {isGolf && <GolfBellMenu userId={user.id} />}
+              {isGolf && <GolfBellMenu {...golfNotif} />}
               <div style={{ width: '0.5px', height: 18, background: theme.divider, flexShrink: 0 }} />
               <Link
                 to="/profile"
@@ -408,20 +408,48 @@ export default function Navbar({ variant }) {
           )}
         </div>
 
-        {/* ── Mobile hamburger ── */}
-        <button
-          className="md:hidden p-2 rounded-lg transition-colors"
-          style={{ color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }}
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {menuOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
+        {/* ── Mobile: bell (golf + logged in) + hamburger ── */}
+        <div className="md:hidden flex items-center" style={{ gap: 2 }}>
+          {isGolf && user && (
+            <button
+              onClick={() => setMenuOpen(true)}
+              aria-label="Notifications"
+              style={{
+                position: 'relative', background: 'none', border: 'none',
+                cursor: 'pointer', padding: '5px 6px', borderRadius: 8,
+                color: golfNotif.unreadCount > 0 ? '#4ade80' : '#6b7280',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <BellSVG />
+              {golfNotif.unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 2, right: 2,
+                  minWidth: 15, height: 15, borderRadius: 999,
+                  background: '#ef4444', color: '#fff',
+                  fontSize: 9, fontWeight: 800, lineHeight: 1, padding: '0 3px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 0 1.5px #0a1a0f',
+                }}>
+                  {golfNotif.unreadCount > 9 ? '9+' : golfNotif.unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+          <button
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* ── Mobile menu ── */}
@@ -439,6 +467,24 @@ export default function Navbar({ variant }) {
                 </span>
                 <span>{user.display_name || user.username}</span>
               </Link>
+              {isGolf && (
+                <button
+                  onClick={() => { golfNotif.markAllRead(); setMenuOpen(false); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: golfNotif.unreadCount > 0 ? '#4ade80' : '#6b7280' }}
+                >
+                  <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                    <BellSVG />
+                    {golfNotif.unreadCount > 0 && (
+                      <span style={{ position: 'absolute', top: -3, right: -4, minWidth: 14, height: 14, borderRadius: 999, background: '#ef4444', color: '#fff', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
+                        {golfNotif.unreadCount > 9 ? '9+' : golfNotif.unreadCount}
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {golfNotif.unreadCount > 0 ? `Notifications (${golfNotif.unreadCount} unread)` : 'Notifications'}
+                  </span>
+                </button>
+              )}
               {navLinks.map(({ to, label, live }) => (
                 <Link
                   key={to}
