@@ -747,4 +747,83 @@ router.post('/leagues/:id/picks/remind', authMiddleware, (req, res) => {
   }
 });
 
+// ── POST /leagues/:id/commissioner/add-picks ──────────────────────────────────
+// Allows the commissioner to insert picks on behalf of specified users.
+// Body: { picks: [{ username, player_name, tier_number }] }
+// Returns a summary of what was inserted vs skipped.
+
+router.post('/leagues/:id/commissioner/add-picks', authMiddleware, async (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (league.format_type !== 'pool') return res.status(400).json({ error: 'Pool leagues only' });
+
+    const tid = league.pool_tournament_id;
+    if (!tid) return res.status(400).json({ error: 'No tournament linked' });
+
+    const { picks: picksToAdd = [] } = req.body;
+    if (!Array.isArray(picksToAdd) || picksToAdd.length === 0) {
+      return res.status(400).json({ error: 'picks array required' });
+    }
+
+    const results = [];
+
+    for (const { username, player_name, tier_number } of picksToAdd) {
+      if (!username || !player_name) {
+        results.push({ username, player_name, status: 'skipped', reason: 'missing username or player_name' });
+        continue;
+      }
+
+      // Find user
+      const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) ||
+                   db.prepare('SELECT * FROM users WHERE LOWER(username) = LOWER(?)').get(username);
+      if (!user) {
+        results.push({ username, player_name, status: 'skipped', reason: 'user not found' });
+        continue;
+      }
+
+      // Find player in pool_tier_players
+      const normN = n => (n || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+      const target = normN(player_name);
+      const allPTP = db.prepare(
+        'SELECT ptp.*, gp.name AS gp_name FROM pool_tier_players ptp LEFT JOIN golf_players gp ON gp.id = ptp.player_id WHERE ptp.league_id = ? AND ptp.tournament_id = ?'
+      ).all(req.params.id, tid);
+      const poolPlayer = allPTP.find(p =>
+        normN(p.player_name).includes(target) || normN(p.gp_name || '').includes(target)
+      );
+      if (!poolPlayer) {
+        results.push({ username, player_name, status: 'skipped', reason: 'player not in pool tier list' });
+        continue;
+      }
+
+      const actualTier = tier_number || poolPlayer.tier_number;
+
+      // Check if already picked
+      const existing = db.prepare(
+        'SELECT 1 FROM pool_picks WHERE league_id = ? AND tournament_id = ? AND user_id = ? AND player_id = ?'
+      ).get(req.params.id, tid, user.id, poolPlayer.player_id);
+      if (existing) {
+        results.push({ username, player_name: poolPlayer.player_name, status: 'skipped', reason: 'already has this pick' });
+        continue;
+      }
+
+      db.prepare(`
+        INSERT OR IGNORE INTO pool_picks (id, league_id, tournament_id, user_id, player_id, player_name, tier_number, salary_used)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+      `).run(uuidv4(), req.params.id, tid, user.id, poolPlayer.player_id, poolPlayer.player_name || poolPlayer.gp_name, actualTier);
+
+      results.push({ username, player_name: poolPlayer.player_name, tier: actualTier, status: 'inserted' });
+    }
+
+    const inserted = results.filter(r => r.status === 'inserted').length;
+    console.log(`[golf-pool] commissioner add-picks: ${inserted} inserted, ${results.length - inserted} skipped`);
+
+    res.json({ ok: true, inserted, results });
+  } catch (err) {
+    console.error('[golf-pool] commissioner add-picks error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
