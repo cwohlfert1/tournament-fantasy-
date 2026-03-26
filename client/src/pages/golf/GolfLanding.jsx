@@ -4,15 +4,9 @@ import { useDocTitle } from '../../hooks/useDocTitle';
 import { useState, useEffect, useRef } from 'react';
 import api from '../../api';
 import MastersPromoBanner from '../../components/golf/MastersPromoBanner';
-import { ArrowRight, Plus, MessageCircle, CheckCircle, XCircle, Trophy, Calendar, DollarSign, Star, Flag, BarChart2, Clipboard, Mail, FileText } from 'lucide-react';
+import { ArrowRight, Plus, MessageCircle, CheckCircle, XCircle, Trophy, DollarSign, Star, Flag, BarChart2, Clipboard, Mail, FileText } from 'lucide-react';
 
-// ── Keyframes ─────────────────────────────────────────────────────────────────
-const STYLES = `
-@keyframes marqueeGolf {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-`;
+const STYLES = ``;
 
 // ── Intersection Observer fade-in hook ────────────────────────────────────────
 function useFadeIn(threshold = 0.1) {
@@ -35,47 +29,6 @@ function Section({ children, className = '', style = {} }) {
   return (
     <div className={className} style={style}>
       {children}
-    </div>
-  );
-}
-
-// ── Ticker ────────────────────────────────────────────────────────────────────
-const TICKER_ITEMS = [
-  { Icon: Flag,        text: 'Masters in 3 weeks' },
-  { Icon: Trophy,      text: '13 PGA Tour events' },
-  { Icon: Calendar,    text: 'Draft before Thursday' },
-  { Icon: DollarSign,  text: 'One draft all season' },
-  { Icon: Star,        text: 'Majors count 1.5×' },
-  { Icon: Trophy,      text: 'Real scoring, real stakes' },
-];
-
-function TickerRow() {
-  const items = [...TICKER_ITEMS, ...TICKER_ITEMS]; // double for seamless loop
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0, whiteSpace: 'nowrap' }}>
-      {items.map(({ Icon, text }, i) => (
-        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginRight: 32, color: '#6b7280', fontSize: 12, fontWeight: 500, letterSpacing: '0.03em' }}>
-          <Icon size={12} color="#22c55e" strokeWidth={2} />
-          {text}
-          <span style={{ marginLeft: 16, color: '#374151' }}>·</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function Ticker() {
-  return (
-    <div className="border-b border-gray-800 overflow-hidden select-none" style={{ background: '#0a0f0a', height: 36 }}>
-      <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
-        <div style={{ animation: 'marqueeGolf 30s linear infinite', display: 'flex', whiteSpace: 'nowrap', willChange: 'transform' }}>
-          {[0, 1].map(i => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', paddingRight: 48 }}>
-              <TickerRow />
-            </span>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -239,8 +192,6 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* S1: Ticker                                                           */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <Ticker />
-
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* S2: Hero                                                             */}
       {/* ──────────────────────────────────────────────────────────────────── */}

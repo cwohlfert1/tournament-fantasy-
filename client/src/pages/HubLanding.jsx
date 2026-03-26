@@ -32,10 +32,6 @@ const HUB_CSS = `
     0%,100% { transform: translateY(0px); }
     50%      { transform: translateY(-10px); }
   }
-  @keyframes hub-ticker {
-    0%   { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
-  }
   @keyframes hub-fadeup {
     from { opacity:0; transform:translateY(28px); }
     to   { opacity:1; transform:translateY(0); }
@@ -185,31 +181,6 @@ function MyLeaguesDropdown() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Ticker ────────────────────────────────────────────────────────────────────
-
-const TICKER_EVENTS = [
-  '🏆 FairwayFred just created Masters Pool 2026',
-  '⛳ BogeyBoys joined Golf Degens 2026',
-  '🏀 ThreeAndOut joined CBB Fantasy League',
-  '💰 BigDrive just won $340 in the Augusta Pool',
-  '⛳ FairwayFred drafted Rory McIlroy #1 overall',
-  '🏀 MarchMadnessKing finalized their bracket draft',
-  '🏆 SunriseSix started The Sunday Night Pool',
-  '⛳ ChipIt joined The Masters Office Pool 2026',
-  '🏀 CinderellaRun created March Madness League',
-];
-
-function Ticker() {
-  const content = [...TICKER_EVENTS, ...TICKER_EVENTS].join('   ·   ');
-  return (
-    <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', padding: '14px 0', borderTop: '0.5px solid rgba(255,255,255,0.05)', borderBottom: '0.5px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-      <span style={{ display: 'inline-block', animation: 'hub-ticker 80s linear infinite', color: 'rgba(255,255,255,0.25)', fontSize: 12, fontWeight: 600, letterSpacing: '0.03em' }}>
-        {content}&nbsp;&nbsp;&nbsp;·&nbsp;&nbsp;&nbsp;{content}
-      </span>
     </div>
   );
 }
@@ -989,9 +960,6 @@ export default function HubLanding() {
 
       {/* ──────────────────── REFERRAL ─────────────────────────────────────── */}
       <ReferralSection />
-
-      {/* ──────────────────── TICKER ───────────────────────────────────────── */}
-      <Ticker />
 
       {/* ──────────────────── FOOTER ───────────────────────────────────────── */}
       <footer style={{ borderTop: '0.5px solid rgba(255,255,255,0.06)', padding: '32px 24px' }}>

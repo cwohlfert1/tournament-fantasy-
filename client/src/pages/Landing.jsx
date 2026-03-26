@@ -16,10 +16,6 @@ const STYLES = `
   0%, 100% { opacity: 0.18; transform: scale(1);    }
   50%       { opacity: 0.38; transform: scale(1.12); }
 }
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
 @keyframes countUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0);   }
@@ -474,55 +470,6 @@ export default function Landing() {
   return (
     <div className="overflow-x-hidden bg-gray-950">
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
-
-      {/* ── Announcement ticker ── */}
-      <div style={{
-        background: '#0a0f0a',
-        borderBottom: '0.5px solid rgba(255,255,255,0.06)',
-        height: 36,
-        overflow: 'hidden',
-        position: 'relative',
-      }}>
-        <div aria-hidden style={{
-          position: 'absolute', top: 0, left: 0, bottom: 0, width: 80, zIndex: 2,
-          background: 'linear-gradient(to right, #0a0f0a, transparent)',
-          pointerEvents: 'none',
-        }} />
-        <div aria-hidden style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: 80, zIndex: 2,
-          background: 'linear-gradient(to left, #0a0f0a, transparent)',
-          pointerEvents: 'none',
-        }} />
-        <div aria-hidden style={{
-          position: 'absolute', top: '50%', left: 18, transform: 'translateY(-50%)',
-          width: 6, height: 6, borderRadius: '50%', background: '#f97316', zIndex: 3,
-        }} />
-        <div style={{
-          display: 'flex', alignItems: 'center', height: '100%',
-          width: 'max-content',
-          animation: 'marquee 35s linear infinite',
-        }}>
-          {[0, 1].map(i => (
-            <span key={i} style={{
-              display: 'inline-flex', alignItems: 'center',
-              paddingLeft: 48, paddingRight: 0,
-              fontSize: 12, fontWeight: 400, letterSpacing: '0.3px', whiteSpace: 'nowrap',
-              color: '#94a3b8',
-            }}>
-              🏀 The 2026 Tournament starts Thursday March 19th at 12PM ET
-              <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 14px', fontSize: 14 }}>·</span>
-              Draft day is coming
-              <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 10px', fontSize: 14 }}>·</span>
-              Secure your spot before your friends do
-              <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 14px', fontSize: 14 }}>·</span>
-              $5 platform fee per team
-              <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 10px', fontSize: 14 }}>·</span>
-              Prize pool managed by your league
-              <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 14px', fontSize: 14 }}>·</span>
-            </span>
-          ))}
-        </div>
-      </div>
 
       {/* ── Hero ── */}
       <section
