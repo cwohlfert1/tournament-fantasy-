@@ -1006,6 +1006,71 @@ router.get('/admin/sync/status', authMiddleware, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/golf/leagues/:id/blast — commissioner sends mass email to all members
+// ---------------------------------------------------------------------------
+router.post('/leagues/:id/blast', authMiddleware, async (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not commissioner' });
+
+    const { message } = req.body;
+    if (!message || !message.trim()) return res.status(400).json({ error: 'Message is required' });
+
+    const members = db.prepare(
+      'SELECT u.email, u.username FROM golf_league_members glm JOIN users u ON glm.user_id = u.id WHERE glm.golf_league_id = ?'
+    ).all(req.params.id);
+
+    const { sendEmail } = require('../mailer');
+    const baseUrl = (process.env.CLIENT_URL || 'https://tourneyrun.app').replace(/\/$/, '');
+    const leagueUrl = `${baseUrl}/golf/league/${req.params.id}`;
+    const safeMessage = message.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    await Promise.all(members.map(m =>
+      sendEmail({
+        from: 'TourneyRun Golf <noreply@tourneyrun.app>',
+        to: m.email,
+        subject: `📣 Message from your ${league.name} commissioner`,
+        html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#050f08;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#050f08;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+        <tr><td style="background:linear-gradient(90deg,transparent,#22c55e,transparent);height:2px;border-radius:2px;"></td></tr>
+        <tr><td style="background:#0a1a0f;border:1px solid #14532d55;border-top:none;border-radius:0 0 16px 16px;padding:36px 36px 32px;">
+          <div style="text-align:center;margin-bottom:24px;">
+            <span style="font-size:20px;font-weight:300;color:#86efac;">tourney</span><span style="font-size:20px;font-weight:800;color:#22c55e;">run</span>
+            <div style="font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#166534;margin-top:3px;">Golf Fantasy</div>
+          </div>
+          <p style="margin:0 0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:#4ade80;">Message from your commissioner</p>
+          <h1 style="margin:0 0 16px;font-size:18px;font-weight:800;color:#ffffff;">${league.name}</h1>
+          <div style="background:#071510;border:1px solid #14532d55;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+            <p style="margin:0;font-size:15px;color:#d1d5db;line-height:1.7;white-space:pre-wrap;">${safeMessage}</p>
+          </div>
+          <div style="text-align:center;margin-bottom:24px;">
+            <a href="${leagueUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:10px;">
+              View League →
+            </a>
+          </div>
+          <p style="margin:0;font-size:11px;color:#166534;text-align:center;">TourneyRun · tourneyrun.app</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+      }).catch(err => console.warn(`[golf] blast email failed for ${m.email}:`, err.message))
+    ));
+
+    res.json({ ok: true, sent: members.length });
+  } catch (err) {
+    console.error('[golf] blast error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PATCH /api/golf/leagues/:id/settings — commissioner edits buy-in + payouts
 // ---------------------------------------------------------------------------
 router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
