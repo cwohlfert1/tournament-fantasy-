@@ -5,7 +5,7 @@ import GolfPaymentModal from '../../../components/golf/GolfPaymentModal';
 import { POOL_TIERS } from '../../../utils/poolPricing';
 
 // ── Blast confirmation modal ──────────────────────────────────────────────────
-function BlastModal({ leagueId, initialMsg, onClose }) {
+function BlastModal({ leagueId, memberCount, initialMsg, onClose }) {
   const [msg, setMsg]       = useState(initialMsg);
   const [sending, setSending] = useState(false);
   const [sentCount, setSentCount] = useState(null);
@@ -67,7 +67,7 @@ function BlastModal({ leagueId, initialMsg, onClose }) {
                 opacity: sending || !msg.trim() ? 0.5 : 1,
               }}
             >
-              {sending ? 'Sending…' : 'Send to all members'}
+              {sending ? 'Sending…' : `Send to all ${memberCount ?? ''} members`}
             </button>
             <button
               onClick={onClose}
@@ -285,6 +285,30 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
     return `Hey! Just a reminder to pay your ${amount} buy-in for ${leagueName}.\n\n${methodsLine}\n\nPlease pay as soon as possible so the prize pool is accurate. Thanks!`;
   }
 
+  function leaderboardMsg() {
+    const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
+    return `Standings are updated in ${leagueName}! Check where you stand and who you need to beat.\n\u2192 ${url}`;
+  }
+
+  function winnerMsg() {
+    const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
+    const sorted = [...members].sort((a, b) => Number(b.season_points || 0) - Number(a.season_points || 0));
+    const w1 = sorted[0]?.team_name || '[1st place]';
+    const w2 = sorted[1]?.team_name || '[2nd place]';
+    const prize1 = prizePool > 0 ? `$${(prizePool * p1pct / 100).toFixed(0)}` : '[prize]';
+    const prize2 = prizePool > 0 ? `$${(prizePool * p2pct / 100).toFixed(0)}` : '[prize]';
+    return `That's a wrap on ${leagueName}!\n\u{1F3C6} 1st place: ${w1} \u2014 ${prize1}\n\u{1F948} 2nd place: ${w2} \u2014 ${prize2}\n\nThanks everyone for playing \u2014 see you at the next tournament!\n\u2192 ${url}`;
+  }
+
+  function inviteMsg() {
+    const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
+    const tournament = league?.pool_tournament_name || 'the upcoming tournament';
+    const spotsLeft = Math.max(0, (league?.max_teams || 0) - members.length);
+    const spotsLine = spotsLeft > 0 ? `${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} left.` : '';
+    const codeLine = league?.invite_code ? `\nInvite code: ${league.invite_code}` : '';
+    return `We're running a golf pool for ${tournament}!\n${spotsLine} Join here:${codeLine}\n\u2192 ${url}`;
+  }
+
   // ── Handlers ────────────────────────────────────────────────────────────────
   async function handleUpgrade() {
     setUpgrading(true);
@@ -345,29 +369,18 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
   // ── Quick-send button styles ─────────────────────────────────────────────────
   const quickBtnBase = {
-    border: 'none', borderRadius: 8, padding: '7px 12px',
-    fontWeight: 700, fontSize: 12, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+    border: 'none', borderRadius: 8, padding: '8px 10px',
+    fontWeight: 700, fontSize: 11, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 4, textAlign: 'center', lineHeight: 1.3,
   };
   const quickBtns = [
-    {
-      label: '📣 Picks Reminder',
-      msg: picksReminderMsg,
-      style: { ...quickBtnBase, background: 'rgba(22,163,74,0.15)', color: '#4ade80',
-        border: '1px solid rgba(22,163,74,0.35)' },
-    },
-    {
-      label: '👋 Welcome & Rules',
-      msg: welcomeMsg,
-      style: { ...quickBtnBase, background: 'rgba(59,130,246,0.12)', color: '#93c5fd',
-        border: '1px solid rgba(59,130,246,0.35)' },
-    },
-    {
-      label: '💰 Pay Your Buy-In',
-      msg: payReminderMsg,
-      style: { ...quickBtnBase, background: 'rgba(245,158,11,0.12)', color: '#fbbf24',
-        border: '1px solid rgba(245,158,11,0.35)' },
-    },
+    { label: '⛳ Picks Reminder',    msg: picksReminderMsg, style: { ...quickBtnBase, background: 'rgba(22,163,74,0.15)',   color: '#4ade80',  border: '1px solid rgba(22,163,74,0.35)'   } },
+    { label: '👋 Welcome & Rules',   msg: welcomeMsg,       style: { ...quickBtnBase, background: 'rgba(59,130,246,0.12)',  color: '#93c5fd',  border: '1px solid rgba(59,130,246,0.35)'  } },
+    { label: '💰 Pay Your Buy-In',   msg: payReminderMsg,   style: { ...quickBtnBase, background: 'rgba(245,158,11,0.12)', color: '#fbbf24',  border: '1px solid rgba(245,158,11,0.35)'  } },
+    { label: '📊 Leaderboard Update',msg: leaderboardMsg,   style: { ...quickBtnBase, background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',  border: '1px solid rgba(139,92,246,0.35)'  } },
+    { label: '🎉 Winner Announcement',msg: winnerMsg,       style: { ...quickBtnBase, background: 'rgba(234,179,8,0.12)',  color: '#fde047',  border: '1px solid rgba(234,179,8,0.35)'   } },
+    { label: '📣 Invite More Players',msg: inviteMsg,       style: { ...quickBtnBase, background: 'rgba(20,184,166,0.12)', color: '#5eead4',  border: '1px solid rgba(20,184,166,0.35)'  } },
   ];
 
   return (
@@ -376,6 +389,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       {blastModal && (
         <BlastModal
           leagueId={leagueId}
+          memberCount={members.length}
           initialMsg={blastModal}
           onClose={() => setBlastModal(null)}
         />
@@ -621,8 +635,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
               </div>
             </div>
 
-            {/* Quick-send template buttons */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+            {/* Quick-send template buttons — 3×2 grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 16 }}>
               {quickBtns.map(({ label, msg, style }) => (
                 <button key={label} style={style} onClick={() => setBlastModal(msg())}>
                   {label}
