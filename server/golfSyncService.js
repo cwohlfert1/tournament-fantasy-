@@ -121,9 +121,16 @@ function parseCompetitor(comp) {
     return null;
   }
 
-  // Linescores — detect format by checking if any item has a nested `linescores` array
+  // Linescores — detect format.
+  // Historical (post-tournament / ESPN replay) format: each entry has a numeric `period`
+  // field (1-4) and optionally a nested `linescores` array of hole scores.
+  // Live scoreboard format: a flat indexed array — ls[0]=R1, ls[1]=R2, etc.
+  // NOTE: Live entries may also have a nested `linescores` property (hole data) but NO
+  // `period` field. Using Array.isArray(l.linescores) as the detector caused false
+  // positives for live-format players → pRound(1) returned null because l.period was
+  // undefined. Only treat as historical when entries carry explicit period numbers.
   const ls = comp.linescores || [];
-  const isHistorical = ls.some(l => Array.isArray(l.linescores));
+  const isHistorical = ls.some(l => typeof l.period === 'number');
 
   let r1 = null, r2 = null, r3 = null, r4 = null;
   if (isHistorical) {

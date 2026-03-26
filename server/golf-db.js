@@ -552,13 +552,20 @@ const GOLF_PLAYERS = [
   // Houston Open field players not in OWGR top 150 — added here so they survive reseeds
   // and the sync can always match their ESPN names without relying on the field-seed code.
   { name: 'Sudarshan Yellamaraju',          country: 'CAN', world_ranking: 200, salary: 200 },
+  { name: 'Brooks Koepka',                  country: 'USA', world_ranking: 201, salary: 200 },
+  { name: 'Karl Vilips',                    country: 'AUS', world_ranking: 202, salary: 200 },
+  { name: 'Gary Woodland',                  country: 'USA', world_ranking: 203, salary: 200 },
 ];
 
-// Force-replace players whenever the list changes (check count + sentinel player)
+// Force-replace players when base set is incomplete.
+// Use < (not !==) so field-seed code adding extra players beyond the base list doesn't
+// trigger a spurious reseed on every deploy (which wipes golf_scores).
+// Sentinel checks ensure key players from recent array additions are present.
 try {
   const existingCount = db.prepare('SELECT COUNT(*) as c FROM golf_players').get().c;
   const hasGotterup = db.prepare("SELECT COUNT(*) as c FROM golf_players WHERE name = 'Chris Gotterup'").get().c;
-  if (existingCount !== GOLF_PLAYERS.length || hasGotterup === 0) {
+  const hasYellamaraju = db.prepare("SELECT COUNT(*) as c FROM golf_players WHERE name = 'Sudarshan Yellamaraju'").get().c;
+  if (existingCount < GOLF_PLAYERS.length || hasGotterup === 0 || hasYellamaraju === 0) {
     db.transaction(() => {
       // Remove roster/lineup/draft/core refs before dropping players
       db.prepare('DELETE FROM golf_weekly_lineups').run();

@@ -138,6 +138,32 @@ describe('parseCompetitor', () => {
     const result = parseCompetitor(comp);
     expect(result.madeCut).toBe(true);
   });
+
+  test('live-format with nested hole linescores (no period field) returns correct r1 — regression for isHistorical false-positive', () => {
+    // Reproduces the Brooks Koepka / Karl Vilips / Gary Woodland bug:
+    // ESPN live scoreboard returns entries with a nested `linescores` array (hole data)
+    // but NO `period` field. The old detector (Array.isArray(l.linescores)) saw these
+    // as "historical" and called pRound(1) which looks for l.period===1 → not found →
+    // returns null even though r1 is clearly -1 in displayValue.
+    const comp = {
+      displayName: 'Brooks Koepka',
+      linescores: [
+        // Live format: each entry is a round score with optional nested hole data.
+        // Crucially, there is NO `period` field — only historical format has that.
+        { displayValue: '-1', linescores: [{ displayValue: '4' }, { displayValue: '3' }] },
+        { displayValue: '--', linescores: [] },
+        { displayValue: '--', linescores: [] },
+        { displayValue: '--', linescores: [] },
+      ],
+      status: {},
+      order: null,
+    };
+    const result = parseCompetitor(comp);
+    expect(result.r1).toBe(-1);   // must parse from displayValue, not period lookup
+    expect(result.r2).toBeNull(); // '--' → null
+    expect(result.r3).toBeNull();
+    expect(result.r4).toBeNull();
+  });
 });
 
 // ── normalizePlayerName — diacritic matching ──────────────────────────────────
