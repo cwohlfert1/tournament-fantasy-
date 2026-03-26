@@ -521,14 +521,15 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     }));
 
     const dropCount = league.pool_drop_count ?? 2;
-    const isTotalStrokes = league.scoring_style === 'total_strokes';
+    // All three names mean the same stroke-based logic — keep in sync with golf.js
+    const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
 
     let enrichedPicks = picks;
     let teamScore = null;
     let countingCount = null;
     let droppedCount = null;
 
-    if (isTotalStrokes && picks.length > 0) {
+    if (isStrokeBased && picks.length > 0) {
       const dropResult = applyDropScoring(picks, dropCount);
       enrichedPicks  = dropResult.picks;
       teamScore      = dropResult.team_score;

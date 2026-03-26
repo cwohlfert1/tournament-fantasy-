@@ -1,8 +1,24 @@
 /**
+ * SCORING STYLE: STROKE PLAY (scoring_style = 'stroke_play' | 'total_score' | 'total_strokes')
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * WHAT IT DOES: Sums round1-4 to-par values per player, drops N worst, totals the rest.
+ * WINNING:      LOWEST team score wins (-10 beats +2).
+ * FORMULA:      player_total = r1 + r2 + r3 + r4 (nulls excluded, not treated as 0)
+ *               team_score   = sum of counting players' totals
+ *
+ * made_cut values:
+ *   0    = confirmed missed cut / WD / DQ → player auto-drops (no scores needed)
+ *   1    = confirmed made cut
+ *   null = unknown (tournament in progress, cut not yet determined, R1/R2)
+ *          → treat same as active/pending, NOT as missed cut
+ *
+ * NO bonuses, NO cut penalties, NO multipliers — just raw to-par strokes.
+ * Even par (0) = 0 pts. -4 means 4 under par (good). +2 means 2 over par (bad).
+ *
  * Apply "Best X of Y" drop scoring to a team's picks.
  *
  * Categories:
- *   MC/WD   = made_cut === 0 (missed cut or withdrew)
+ *   MC/WD   = made_cut === 0 (missed cut or withdrew) — ONLY explicit 0, not null
  *   ACTIVE  = has round scores AND not cut/WD
  *   PENDING = no round scores yet AND not cut (hasn't teed off)
  *

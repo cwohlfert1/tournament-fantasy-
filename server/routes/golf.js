@@ -476,21 +476,29 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
           ORDER BY pp.tier_number ASC
         `).all(tid, req.params.id, tid, m.user_id) : [];
 
-        // 'stroke_play' and 'total_strokes' both rank by sum of round scores (lower = better).
-        // 'stroke_play' was the name used at league creation; 'total_strokes' was used in
-        // older Beta migrations. Treat them identically.
-        const isStrokeBased = ['total_strokes', 'stroke_play'].includes(league.scoring_style);
+        // All three names mean the same thing: sum of to-par round scores, lowest wins.
+        //   'stroke_play'  — current UI creation name
+        //   'total_score'  — second UI option (also stroke-based, same logic)
+        //   'total_strokes'— Beta migration legacy name
+        // If a new name is ever added to CreateGolfLeague.jsx, add it here too.
+        const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
         const dropCount = league.pool_drop_count ?? 2;
 
         let total_points;
         let enrichedPicks;
 
         if (isStrokeBased) {
+          // STROKE PLAY — lower team score wins.
+          // Score = sum of round1-4 to-par values across counting players (drop worst N).
+          // fantasy_points per player = player_total (r1+r2+r3+r4), NOT the TourneyRun
+          // DB value. Even par = 0. -4 means 4 under par. No bonuses, no cut penalties.
           const dropResult = applyDropScoring(picks, dropCount);
           total_points = dropResult.team_score;
           enrichedPicks = dropResult.picks.map(p => ({
             player_name: p.player_name, tier_number: p.tier_number, country: p.country,
-            fantasy_points: p.fantasy_points || 0,
+            // Use player_total (sum of rounds) as the per-player score for stroke play.
+            // p.fantasy_points from the DB holds the TourneyRun calculation — ignore it here.
+            fantasy_points: p.player_total,
             round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
             finish_position: p.finish_position, made_cut: p.made_cut,
             player_total: p.player_total,
@@ -499,6 +507,11 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
             is_mc: p.is_mc,
           }));
         } else {
+          // TOURNEYRUN / DK STYLE — higher fantasy_points wins.
+          // fantasy_points per player is pre-computed by calcFantasyPts() in golfSyncService
+          // and stored in golf_scores.fantasy_points. Formula: -1.5 pts per stroke-to-par,
+          // plus finish position bonuses (+30/+12/+8/+3), +2 made cut, -5 missed cut.
+          // Majors multiply total by 1.5×. Team total = sum of all picks' fantasy_points.
           total_points = Math.round(picks.reduce((s, p) => s + (p.fantasy_points || 0), 0) * 10) / 10;
           enrichedPicks = picks.map(p => ({
             player_name: p.player_name, tier_number: p.tier_number, country: p.country,
@@ -518,9 +531,9 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         };
       });
 
-      // Stroke-based scoring (stroke_play / total_strokes): sort ascending — lowest score wins.
+      // Stroke-based scoring: sort ascending (lowest score wins).
       const scoringStyle = league.scoring_style || 'fantasy_points';
-      const isStrokeSort = ['total_strokes', 'stroke_play'].includes(scoringStyle);
+      const isStrokeSort = ['stroke_play', 'total_score', 'total_strokes'].includes(scoringStyle);
       if (isStrokeSort) {
         const withScores    = standings.filter(s => s.submitted);
         const withoutScores = standings.filter(s => !s.submitted);

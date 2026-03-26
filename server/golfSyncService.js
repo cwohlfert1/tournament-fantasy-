@@ -38,8 +38,11 @@ function calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, isMajor) {
     else if (finishPos <= 10)  pts += 8;
     else if (finishPos <= 25)  pts += 3;
   }
-  if (madeCut) pts += 2;
-  else pts -= 5;
+  // Only apply cut adjustment when the outcome is confirmed.
+  // madeCut=null means tournament in progress — no bonus, no penalty yet.
+  if (madeCut === true) pts += 2;
+  else if (madeCut === false) pts -= 5;
+  // madeCut === null → still playing, no cut adjustment applied
   if (isMajor) pts *= 1.5;
   return Math.round(pts * 10) / 10;
 }
@@ -150,11 +153,19 @@ function parseCompetitor(comp) {
 
   let r1 = null, r2 = null, r3 = null, r4 = null;
   if (isHistorical) {
-    // Period-keyed round objects (period 1-4), may have nested hole linescores
-    r1 = parsePar(ls.find(l => l.period === 1));
-    r2 = parsePar(ls.find(l => l.period === 2));
-    r3 = parsePar(ls.find(l => l.period === 3));
-    r4 = parsePar(ls.find(l => l.period === 4));
+    // Period-keyed round objects (period 1-4), may have nested hole linescores.
+    // ESPN includes placeholder period entries (linescores: []) for rounds not yet
+    // played. Skip those — an empty linescores array means no holes completed.
+    const pRound = (period) => {
+      const entry = ls.find(l => l.period === period);
+      if (!entry) return null;
+      if (Array.isArray(entry.linescores) && entry.linescores.length === 0) return null;
+      return parsePar(entry);
+    };
+    r1 = pRound(1);
+    r2 = pRound(2);
+    r3 = pRound(3);
+    r4 = pRound(4);
   } else {
     // Simple indexed array (live scoreboard) — ls[0]=R1, ls[1]=R2, etc.
     r1 = parsePar(ls[0]);
@@ -170,14 +181,27 @@ function parseCompetitor(comp) {
   const r3v = valid(r3) ? r3 : null;
   const r4v = valid(r4) ? r4 : null;
 
-  // Cut status
+  // Cut status — three possible values:
+  //   true  = confirmed made cut (R3/R4 data present, or ESPN status confirms)
+  //   false = confirmed missed/WD/DQ
+  //   null  = unknown — tournament in progress, cut not yet determined (R1/R2 only)
+  // IMPORTANT: null is NOT the same as false. Only store 0 (missed cut) when we
+  // have explicit confirmation. During R1/R2, all players are still in the field.
   let madeCut;
   const statusName = (comp.status?.type?.name || comp.status?.type?.id || '').toUpperCase();
   if (statusName) {
-    madeCut = !statusName.includes('CUT') && !statusName.includes('WD') && !statusName.includes('DQ');
+    if (statusName.includes('CUT') || statusName.includes('WD') || statusName.includes('DQ')) {
+      madeCut = false;
+    } else {
+      madeCut = true;
+    }
+  } else if (r3v !== null || r4v !== null) {
+    // No status string, but player has R3/R4 data → they made the cut
+    madeCut = true;
   } else {
-    // Historical: derive from rounds played — cut players only have 2 rounds
-    madeCut = r3v !== null || r4v !== null;
+    // No status string, no R3/R4 — tournament is in progress, cut outcome unknown.
+    // Use null (not false) so applyDropScoring does NOT auto-drop these players.
+    madeCut = null;
   }
 
   // Finish position — scoreboard uses `order`, dated scoreboard uses `sortOrder`
@@ -416,7 +440,9 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
       }
 
       const fp = calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, !!tournament.is_major);
-      upsert.run(uuidv4(), tournament.id, player.id, r1, r2, r3, r4, madeCut ? 1 : 0, finishPos, fp);
+      // made_cut stored as: 1=confirmed made cut, 0=missed/WD/DQ, NULL=unknown (R1/R2 in progress)
+      const madeCutDb = madeCut === null ? null : (madeCut ? 1 : 0);
+      upsert.run(uuidv4(), tournament.id, player.id, r1, r2, r3, r4, madeCutDb, finishPos, fp);
       synced++;
     }
   })();
@@ -818,4 +844,4 @@ async function backfillCompleted() {
   }
 }
 
-module.exports = { syncTournamentScores, scheduleAutoSync, getSyncStatus, backfillCompleted, setIo, syncPoolOdds, syncTournamentField };
+module.exports = { syncTournamentScores, scheduleAutoSync, getSyncStatus, backfillCompleted, setIo, syncPoolOdds, syncTournamentField, parseCompetitor, calcFantasyPts };
