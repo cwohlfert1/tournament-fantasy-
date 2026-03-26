@@ -472,6 +472,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
           LEFT JOIN golf_players gp ON gp.name = pp.player_name
           LEFT JOIN golf_scores gs ON gs.player_id = gp.id AND gs.tournament_id = ?
           WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
+            AND (pp.is_withdrawn IS NULL OR pp.is_withdrawn = 0)
           ORDER BY pp.tier_number ASC
         `).all(tid, req.params.id, tid, m.user_id) : [];
 
