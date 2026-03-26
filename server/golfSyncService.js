@@ -368,6 +368,15 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   } else if (espnStatusName === 'STATUS_SCHEDULED') {
     newTournamentStatus = 'scheduled';
   }
+
+  // If ESPN didn't give us a recognized status but the tournament has started and has a field,
+  // infer 'active'. Prevents the DB staying 'scheduled' indefinitely when ESPN omits status.
+  const _tournStartDate = new Date(tournament.start_date);
+  if (!newTournamentStatus && competitors.length > 0 && new Date() >= _tournStartDate) {
+    newTournamentStatus = 'active';
+    console.log(`[golf-sync] Inferred active (${competitors.length} competitors, start_date=${tournament.start_date})`);
+  }
+
   const isCompleted = newTournamentStatus === 'completed';
   if (!silent) console.log(`[golf-sync] → tournament status: ${newTournamentStatus || '(no change)'}, period: ${currentPeriod}`);
 

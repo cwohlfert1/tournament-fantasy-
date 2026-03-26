@@ -583,8 +583,11 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
       `).all(req.params.id, req.user.id).map(r => r.player_name);
     }
 
-    // Pre-tournament: skip ESPN fetch entirely for scheduled (not-yet-started) tournaments
-    if (tourn && tourn.status === 'scheduled') {
+    // Pre-tournament: skip ESPN fetch only for tournaments that haven't started yet.
+    // Once the start date has arrived, always try to fetch live data from ESPN even if
+    // our DB status hasn't been updated by the sync job yet.
+    const _tournStarted = tourn && new Date() >= new Date(tourn.start_date);
+    if (tourn && tourn.status === 'scheduled' && !_tournStarted) {
       return res.json({ competitors: [], tournament: tourn, my_pick_names: myPickNames, isScheduled: true });
     }
 
@@ -617,6 +620,16 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
     }
 
     const rawComps = espnData?.events?.[0]?.competitions?.[0]?.competitors || [];
+
+    // If we got live competitors but DB still shows 'scheduled', flip to active.
+    // This ensures the sync job and standings query pick it up immediately.
+    if (rawComps.length > 0 && tourn && tourn.status === 'scheduled') {
+      try {
+        db.prepare("UPDATE golf_tournaments SET status = 'active' WHERE id = ?").run(tourn.id);
+        tourn.status = 'active';
+        console.log(`[pga-live] Flipped "${tourn.name}" → active (${rawComps.length} competitors from ESPN)`);
+      } catch (e) { /* non-fatal */ }
+    }
 
     const competitors = rawComps.map((comp, idx) => {
       const name = comp.athlete?.displayName || comp.athlete?.fullName || '';

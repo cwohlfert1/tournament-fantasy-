@@ -191,6 +191,10 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [pmSaving, setPmSaving] = useState(false);
   const [pmSaved,  setPmSaved]  = useState(false);
 
+  // Score sync
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
   // Blast modal
   const [blastModal, setBlastModal] = useState(null); // string (pre-filled message) or null
 
@@ -717,6 +721,38 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                 className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
               >
                 {balancing ? 'Loading…' : 'Preview Rebalance'}
+              </button>
+            </div>
+          )}
+
+          {/* Force score sync */}
+          {league?.format_type === 'pool' && league?.pool_tournament_id && (
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+              <h4 className="text-white text-sm font-bold mb-1">🔄 Sync Live Scores</h4>
+              <p className="text-gray-500 text-xs mb-3">
+                Scores update automatically every 10 minutes. Use this to force an immediate pull from ESPN.
+              </p>
+              {syncResult && (
+                <p className={`text-xs mb-2 font-semibold ${syncResult.ok ? 'text-green-400' : 'text-red-400'}`}>
+                  {syncResult.msg}
+                </p>
+              )}
+              <button
+                disabled={syncing}
+                onClick={async () => {
+                  setSyncing(true);
+                  setSyncResult(null);
+                  try {
+                    const r = await api.post(`/golf/admin/sync/${league.pool_tournament_id}`);
+                    setSyncResult({ ok: true, msg: `✓ Synced ${r.data.synced ?? 0} players` });
+                  } catch {
+                    setSyncResult({ ok: false, msg: '✗ Sync failed — check Railway logs' });
+                  }
+                  setSyncing(false);
+                }}
+                className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+              >
+                {syncing ? 'Syncing…' : 'Sync Now'}
               </button>
             </div>
           )}
