@@ -233,7 +233,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, onRemove }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, espnFlagHref, espnCountryAlt, onRemove }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
@@ -267,7 +267,9 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc.border}`; }}
     onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
     >
-      <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{toFlag(pick.country)}</span>
+      {espnFlagHref
+        ? <img src={espnFlagHref} alt={espnCountryAlt || ''} style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
+        : <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{toFlag(pick.country)}</span>}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -384,7 +386,7 @@ export default function PoolRosterTab({ leagueId, league }) {
       const map = {};
       for (const c of (r.data?.competitors || [])) {
         const key = (c.name || '').toLowerCase().replace(/[.']/g, '').trim();
-        map[key] = { teeTimeRaw: c.teeTimeRaw, isScheduled: c.isScheduled, isCut: c.isCut, isWD: c.isWD };
+        map[key] = { teeTimeRaw: c.teeTimeRaw, isScheduled: c.isScheduled, isCut: c.isCut, isWD: c.isWD, flagHref: c.flagHref, countryAlt: c.countryAlt };
       }
       setTeeTimeMap(map);
     }).catch(() => {});
@@ -611,15 +613,15 @@ export default function PoolRosterTab({ leagueId, league }) {
         return (
           <>
             {/* Status banner */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: (tournStatus === 'active') ? 'rgba(0,232,122,0.06)' : picksLocked ? 'rgba(251,191,36,0.06)' : 'rgba(0,232,122,0.06)', border: `1px solid ${(tournStatus === 'active') ? 'rgba(0,232,122,0.2)' : picksLocked ? 'rgba(251,191,36,0.2)' : 'rgba(0,232,122,0.2)'}`, borderRadius: 12, marginBottom: 20, flexWrap: 'wrap', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: tournStatus === 'active' ? 'rgba(0,232,122,0.07)' : tournStatus === 'completed' ? 'rgba(251,191,36,0.07)' : picksLocked ? 'rgba(251,191,36,0.07)' : 'rgba(0,232,122,0.09)', border: `1px solid ${tournStatus === 'active' ? 'rgba(0,232,122,0.25)' : tournStatus === 'completed' ? 'rgba(251,191,36,0.25)' : picksLocked ? 'rgba(251,191,36,0.25)' : 'rgba(0,232,122,0.35)'}`, borderRadius: 14, marginBottom: 20, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 {tournStatus === 'active'
-                  ? <><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 1.5s infinite' }} /><span style={{ fontSize: 13, color: '#22c55e', fontWeight: 600 }}>Live · Scores updating</span></>
+                  ? <><span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 1.5s infinite' }} /><span style={{ fontSize: 13, color: '#22c55e', fontWeight: 700 }}>Live · Scores updating</span></>
                   : tournStatus === 'completed'
-                    ? <><Trophy size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Tournament complete</span></>
+                    ? <><Trophy size={15} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 14, color: '#fbbf24', fontWeight: 700 }}>Tournament complete</span></>
                     : picksLocked
-                      ? <><Lock size={14} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Picks locked</span></>
-                      : <><Check style={{ width: 14, height: 14, color: '#22c55e' }} /><span style={{ fontSize: 13, color: '#22c55e', fontWeight: 600 }}>Picks submitted ✓ · Tap × to change a pick</span></>
+                      ? <><Lock size={15} style={{ color: '#fbbf24' }} /><span style={{ fontSize: 14, color: '#fbbf24', fontWeight: 700 }}>Picks locked 🔒</span></>
+                      : <><Check style={{ width: 15, height: 15, color: '#22c55e' }} /><span style={{ fontSize: 14, color: '#22c55e', fontWeight: 800, letterSpacing: '0.01em' }}>Picks submitted ✓</span></>
                 }
               </div>
               {!picksLocked && lockTime && <PicksCountdown lockTime={lockTime} />}
@@ -635,6 +637,9 @@ export default function PoolRosterTab({ leagueId, league }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: tc.accent }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: tc.label, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{TIER_NAMES_ROSTER[tierNum] || `Tier ${tierNum}`}</span>
+                    {tierCfgItem?.odds_min && tierCfgItem?.odds_max && (
+                      <span style={{ fontSize: 10, color: '#4b5563' }}>{tierCfgItem.odds_min}–{tierCfgItem.odds_max}</span>
+                    )}
                     <span style={{ fontSize: 11, color: '#4b5563' }}>{tierPicks.length}/{slotCount}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -651,6 +656,8 @@ export default function PoolRosterTab({ leagueId, league }) {
                           espnCut={espnData?.isCut}
                           isDropped={pick.is_dropped}
                           isPending={pick.is_pending}
+                          espnFlagHref={espnData?.flagHref}
+                          espnCountryAlt={espnData?.countryAlt}
                           onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' ? () => handleRemoveSubmittedPick(pick) : undefined}
                         />
                       );

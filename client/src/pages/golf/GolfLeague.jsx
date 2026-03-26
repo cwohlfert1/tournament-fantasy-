@@ -17,6 +17,7 @@ import StandingsTab from './tabs/StandingsTab';
 import ScheduleTab from './tabs/ScheduleTab';
 import CommissionerTab from './tabs/CommissionerTab';
 import PGALiveTab from './tabs/PGALiveTab';
+import OwnershipTab from './tabs/OwnershipTab';
 
 function getTabs(league, isComm) {
   const isPool = league?.format_type === 'pool';
@@ -29,6 +30,9 @@ function getTabs(league, isComm) {
   }
   if (!isPool) {
     base.push({ key: 'freeagency', label: 'Free Agency' });
+  }
+  if (isPool) {
+    base.push({ key: 'owned', label: '% Owned' });
   }
   base.push({ key: 'standings', label: 'Standings' });
   if (isPool && league?.pool_tournament_id) {
@@ -284,6 +288,9 @@ export default function GolfLeague() {
       )}
       {tab === 'lineup' && (
         <LineupTab leagueId={id} league={league} />
+      )}
+      {tab === 'owned' && (
+        <OwnershipTab leagueId={id} />
       )}
       {tab === 'standings' && (
         <StandingsTab leagueId={id} league={league} currentUserId={user?.id} />
