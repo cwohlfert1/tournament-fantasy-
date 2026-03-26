@@ -203,9 +203,17 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
     }
   }, [data, currentUserId]); // eslint-disable-line
 
+  // All derived values and hooks must be declared before any early return
+  const standings    = data?.standings || [];
+  const scoringStyle = data?.scoring_style || 'fantasy_points';
+  const isTotalStrokes = scoringStyle === 'total_strokes';
+  const ranks = useMemo(
+    () => computeRanks(standings, scoringStyle),
+    [standings, scoringStyle],
+  );
+
   if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading standings…</div>;
 
-  const standings  = data?.standings || [];
   const isPool     = data?.format === 'pool';
   const tournament = data?.tournament;
   const isLive     = tournament?.status === 'active';
@@ -229,13 +237,6 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
       </div>
     );
   }
-
-  const scoringStyle = data?.scoring_style || 'fantasy_points';
-  const isTotalStrokes = scoringStyle === 'total_strokes';
-  const ranks = useMemo(
-    () => computeRanks(standings, scoringStyle),
-    [standings, scoringStyle],
-  );
 
   // ── Pool leaderboard
   if (isPool) {
