@@ -232,6 +232,10 @@ const _golfColMigrations = [
   `ALTER TABLE golf_leagues ADD COLUMN venmo TEXT`,
   `ALTER TABLE golf_leagues ADD COLUMN zelle TEXT`,
   `ALTER TABLE golf_leagues ADD COLUMN paypal TEXT`,
+  // Drop-worst-players feature: persisted drop state for pool leagues
+  `ALTER TABLE golf_leagues ADD COLUMN pool_drops_applied INTEGER DEFAULT 0`,
+  `ALTER TABLE pool_picks ADD COLUMN is_dropped INTEGER DEFAULT 0`,
+  `ALTER TABLE pool_picks ADD COLUMN dropped_at DATETIME`,
 ];
 for (const sql of _golfColMigrations) { try { db.exec(sql); } catch (_) {} }
 

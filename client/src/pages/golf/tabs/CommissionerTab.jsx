@@ -195,6 +195,10 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
 
+  // Apply Round 2 Drops
+  const [applyingDrops, setApplyingDrops] = useState(false);
+  const [dropResult, setDropResult] = useState(null);
+
   // Tournament readiness
   const [readiness, setReadiness] = useState(null);
   const [checkingReadiness, setCheckingReadiness] = useState(false);
@@ -757,6 +761,95 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                 className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
               >
                 {syncing ? 'Syncing…' : 'Sync Now'}
+              </button>
+            </div>
+          )}
+
+          {/* Apply Round 2 Drops */}
+          {league?.format_type === 'pool' && league?.pool_tournament_id &&
+           ['stroke_play', 'total_score', 'total_strokes'].includes(league?.scoring_style) && (
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+              <h4 className="text-white text-sm font-bold mb-1">✂️ Apply Round 2 Drops</h4>
+              <p className="text-gray-500 text-xs mb-3">
+                After Friday's R2 scores are confirmed, drop the worst {league.pool_drop_count ?? 2} players
+                from each team based on their combined R1+R2 score. Ties broken by R1 score.
+                {' '}This locks the drops permanently — re-running updates based on latest R2 scores.
+              </p>
+
+              {league.pool_drops_applied ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, color: '#4ade80',
+                    background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)',
+                    padding: '3px 8px', borderRadius: 6,
+                  }}>✓ Drops applied</span>
+                  <span className="text-gray-500 text-xs">Standings reflect persisted drops.</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, color: '#fbbf24',
+                    background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
+                    padding: '3px 8px', borderRadius: 6,
+                  }}>Pending</span>
+                  <span className="text-gray-500 text-xs">All {league.picks_per_team ?? 7} players counting until drops are applied.</span>
+                </div>
+              )}
+
+              {dropResult && !dropResult.error && (
+                <div style={{ marginBottom: 10, background: '#0d1117', borderRadius: 8, padding: '8px 10px' }}>
+                  <p style={{ color: '#4ade80', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                    ✓ {dropResult.picks_dropped} player{dropResult.picks_dropped !== 1 ? 's' : ''} dropped
+                    across {dropResult.teams_processed} team{dropResult.teams_processed !== 1 ? 's' : ''}
+                  </p>
+                  {dropResult.results?.map(r => (
+                    <div key={r.username} style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>
+                      <span style={{ color: '#d1d5db', fontWeight: 600 }}>{r.username}:</span>{' '}
+                      {r.dropped.map(p => p.player_name).join(', ')}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {dropResult?.error && (
+                <p className="text-red-400 text-xs mb-2 font-semibold">✗ {dropResult.error}</p>
+              )}
+
+              <button
+                disabled={applyingDrops}
+                onClick={async () => {
+                  const action = league.pool_drops_applied ? 'Re-apply' : 'Apply';
+                  if (!window.confirm(
+                    `${action} Round 2 drops?\n\nThis will mark the worst ${league.pool_drop_count ?? 2} ` +
+                    `players on each team as DROPPED based on their R1+R2 scores.\n\n` +
+                    (league.pool_drops_applied
+                      ? 'Drops will be recalculated from current scores.'
+                      : 'All players are currently counting. This will lock in drops.')
+                  )) return;
+                  setApplyingDrops(true);
+                  setDropResult(null);
+                  try {
+                    const r = await api.post(`/golf/leagues/${leagueId}/apply-drops`);
+                    setDropResult(r.data);
+                  } catch (e) {
+                    setDropResult({ error: e.response?.data?.error || 'Failed to apply drops' });
+                  }
+                  setApplyingDrops(false);
+                }}
+                style={{
+                  fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 8,
+                  border: 'none', cursor: applyingDrops ? 'not-allowed' : 'pointer',
+                  opacity: applyingDrops ? 0.5 : 1,
+                  background: league.pool_drops_applied ? '#1f2937' : '#7c2d12',
+                  color: league.pool_drops_applied ? '#9ca3af' : '#fed7aa',
+                  transition: 'background 0.15s',
+                }}
+              >
+                {applyingDrops
+                  ? 'Applying drops…'
+                  : league.pool_drops_applied
+                    ? `Re-apply Drops (${league.pool_drop_count ?? 2} worst)`
+                    : `Drop Worst ${league.pool_drop_count ?? 2} Players`}
               </button>
             </div>
           )}

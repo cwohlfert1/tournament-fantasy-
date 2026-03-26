@@ -466,6 +466,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         // any golf_players ID rebuild that would leave stale IDs in pool_picks.
         const picks = tid ? db.prepare(`
           SELECT pp.player_id, pp.player_name, pp.tier_number, pp.country,
+                 pp.is_dropped,
                  gs.fantasy_points, gs.round1, gs.round2, gs.round3, gs.round4,
                  gs.finish_position, gs.made_cut
           FROM pool_picks pp
@@ -483,16 +484,31 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         // If a new name is ever added to CreateGolfLeague.jsx, add it here too.
         const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
         const dropCount = league.pool_drop_count ?? 2;
+        // Drops are locked when commissioner has clicked "Apply Round 2 Drops".
+        // Before that: all picks count (except MC which is always excluded from scoring).
+        // After that: persisted is_dropped values in pool_picks are the source of truth.
+        const dropsApplied = !!league.pool_drops_applied;
 
         let total_points;
         let enrichedPicks;
 
         if (isStrokeBased) {
           // STROKE PLAY — lower team score wins.
-          // Score = sum of round1-4 to-par values across counting players (drop worst N).
+          // Score = sum of round1-4 to-par values across counting players.
           // fantasy_points per player = player_total (r1+r2+r3+r4), NOT the TourneyRun
           // DB value. Even par = 0. -4 means 4 under par. No bonuses, no cut penalties.
-          const dropResult = applyDropScoring(picks, dropCount);
+          //
+          // Drop logic:
+          //   Before commissioner applies drops (dropsApplied=false):
+          //     Pass dropCount=0 → all players count (only MC still excluded from scoring).
+          //   After commissioner applies drops (dropsApplied=true):
+          //     Pass lockedDroppedIds from DB → persisted drops + MC excluded.
+          let lockedDroppedIds = null;
+          let effectiveDropCount = 0; // no auto worst-N until commissioner applies
+          if (dropsApplied) {
+            lockedDroppedIds = new Set(picks.filter(p => p.is_dropped).map(p => p.player_id));
+          }
+          const dropResult = applyDropScoring(picks, effectiveDropCount, { lockedDroppedIds });
           total_points = dropResult.team_score;
           enrichedPicks = dropResult.picks.map(p => ({
             player_name: p.player_name, tier_number: p.tier_number, country: p.country,
@@ -551,6 +567,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         standings, format: 'pool',
         scoring_style: scoringStyle,
         drop_count: league.pool_drop_count ?? 2,
+        drops_applied: !!league.pool_drops_applied,
         picks_per_team: league.picks_per_team || 8,
         active_tournament_id: tid,
         tournament: tourn,

@@ -2,7 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 const db = require('../db');
-const { applyDropScoring } = require('../pool-utils');
+const { applyDropScoring, computeDropIds } = require('../pool-utils');
 
 const router = express.Router();
 
@@ -475,6 +475,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     const picks = db.prepare(`
       SELECT
         pp.id, pp.tier_number, pp.player_id, pp.player_name, pp.salary_used,
+        pp.is_dropped,
         ptp.odds_display, ptp.world_ranking,
         COALESCE(pp.country, gp.country) AS country,
         COALESCE(pp.is_withdrawn, ptp.is_withdrawn, 0) AS is_withdrawn,
@@ -523,6 +524,8 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     const dropCount = league.pool_drop_count ?? 2;
     // All three names mean the same stroke-based logic — keep in sync with golf.js
     const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
+    // Use persisted drops when commissioner has applied them; otherwise all count (except MC).
+    const dropsApplied = !!league.pool_drops_applied;
 
     let enrichedPicks = picks;
     let teamScore = null;
@@ -530,7 +533,11 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     let droppedCount = null;
 
     if (isStrokeBased && picks.length > 0) {
-      const dropResult = applyDropScoring(picks, dropCount);
+      let lockedDroppedIds = null;
+      if (dropsApplied) {
+        lockedDroppedIds = new Set(picks.filter(p => p.is_dropped).map(p => p.player_id));
+      }
+      const dropResult = applyDropScoring(picks, dropsApplied ? 0 : 0, { lockedDroppedIds });
       enrichedPicks  = dropResult.picks;
       teamScore      = dropResult.team_score;
       countingCount  = dropResult.counting_count;
@@ -545,6 +552,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       tournament: tourn,
       tiers,
       drop_count:     dropCount,
+      drops_applied:  dropsApplied,
       picks_per_team: league.picks_per_team || 8,
       team_score:     teamScore,
       counting_count: countingCount,
@@ -889,6 +897,94 @@ router.post('/leagues/:id/commissioner/remove-picks', authMiddleware, (req, res)
     res.json({ ok: true, deleted, results });
   } catch (err) {
     console.error('[golf-pool] commissioner remove-picks error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /leagues/:id/apply-drops ────────────────────────────────────────────
+// Commissioner button: lock worst-N drops after Round 2.
+// For each team, sorts R1+R2 totals descending (worst first, R1 as tiebreaker),
+// marks bottom pool_drop_count picks as is_dropped=1 in pool_picks.
+// Sets pool_drops_applied=1 on the league so standings use persisted drops.
+// Idempotent: re-running resets all drops then reapplies (reflects updated R2 scores).
+router.post('/leagues/:id/apply-drops', authMiddleware, (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (league.format_type !== 'pool') return res.status(400).json({ error: 'Pool leagues only' });
+
+    const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
+    if (!isStrokeBased) return res.status(400).json({ error: 'Drops only apply to stroke-based scoring' });
+
+    const tid = league.pool_tournament_id;
+    if (!tid) return res.status(400).json({ error: 'No active tournament linked to this league' });
+
+    const dropCount = league.pool_drop_count ?? 2;
+    if (dropCount <= 0) return res.status(400).json({ error: 'pool_drop_count is 0 — no drops configured for this league' });
+
+    const members = db.prepare(`
+      SELECT glm.user_id, u.username
+      FROM golf_league_members glm JOIN users u ON glm.user_id = u.id
+      WHERE glm.golf_league_id = ?
+    `).all(req.params.id);
+
+    const picksByMember = db.prepare(`
+      SELECT pp.id, pp.player_id, pp.player_name, pp.tier_number,
+             gs.round1, gs.round2, gs.made_cut
+      FROM pool_picks pp
+      LEFT JOIN golf_players gp ON gp.name = pp.player_name
+      LEFT JOIN golf_scores gs ON gs.player_id = gp.id AND gs.tournament_id = ?
+      WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
+        AND (pp.is_withdrawn IS NULL OR pp.is_withdrawn = 0)
+    `);
+
+    const resetDrops = db.prepare(
+      'UPDATE pool_picks SET is_dropped = 0, dropped_at = NULL WHERE league_id = ? AND tournament_id = ? AND user_id = ?'
+    );
+    const setDropped = db.prepare(
+      'UPDATE pool_picks SET is_dropped = 1, dropped_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+
+    const results = [];
+    let totalDropped = 0;
+
+    db.transaction(() => {
+      for (const member of members) {
+        const picks = picksByMember.all(tid, req.params.id, tid, member.user_id);
+        if (picks.length === 0) continue;
+
+        // Reset all this member's drops first (idempotent re-run support)
+        resetDrops.run(req.params.id, tid, member.user_id);
+
+        const droppedIds = computeDropIds(picks, dropCount);
+
+        const droppedPlayers = [];
+        for (const pick of picks) {
+          if (droppedIds.has(pick.player_id)) {
+            setDropped.run(pick.id);
+            droppedPlayers.push({ player_name: pick.player_name, tier_number: pick.tier_number });
+            totalDropped++;
+          }
+        }
+
+        if (droppedPlayers.length > 0) {
+          results.push({ username: member.username, dropped: droppedPlayers });
+        }
+      }
+
+      db.prepare('UPDATE golf_leagues SET pool_drops_applied = 1 WHERE id = ?').run(req.params.id);
+    })();
+
+    console.log(`[golf-pool] apply-drops: ${totalDropped} picks dropped across ${results.length} teams in league ${req.params.id}`);
+    res.json({
+      ok: true,
+      teams_processed: members.length,
+      picks_dropped: totalDropped,
+      results,
+    });
+  } catch (err) {
+    console.error('[golf-pool] apply-drops error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
