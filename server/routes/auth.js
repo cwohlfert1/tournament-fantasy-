@@ -189,6 +189,80 @@ router.get('/referral/my-code', authMiddleware, (req, res) => {
   }
 });
 
+// ── Invite flow ──────────────────────────────────────────────────────────────
+
+// GET /api/auth/invite/:token
+// Returns the invited user's email + league name so the signup page can
+// pre-fill and display context.  Token is single-use (cleared on activation).
+router.get('/invite/:token', (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+
+    const user = db.prepare(
+      "SELECT id, email FROM users WHERE invite_token = ? AND status = 'invited'"
+    ).get(token);
+    if (!user) return res.status(404).json({ error: 'Invite link is invalid or has already been used' });
+
+    // Find the golf league this user was added to
+    const membership = db.prepare(`
+      SELECT gl.id AS leagueId, gl.name AS leagueName
+      FROM golf_league_members glm
+      JOIN golf_leagues gl ON gl.id = glm.golf_league_id
+      WHERE glm.user_id = ?
+      LIMIT 1
+    `).get(user.id);
+
+    res.json({
+      email:      user.email,
+      leagueName: membership?.leagueName || null,
+      leagueId:   membership?.leagueId  || null,
+    });
+  } catch (err) {
+    console.error('[auth] invite lookup error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/activate
+// Activates an invited account: sets username + password, marks status active,
+// clears the invite token, then returns a JWT so the user is immediately logged in.
+router.post('/activate', async (req, res) => {
+  try {
+    const { token, username, password } = req.body;
+    if (!token || !username || !password) {
+      return res.status(400).json({ error: 'Token, username, and password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const user = db.prepare(
+      "SELECT id, email FROM users WHERE invite_token = ? AND status = 'invited'"
+    ).get(token);
+    if (!user) return res.status(400).json({ error: 'Invite link is invalid or has already been used' });
+
+    // Check username not already taken
+    const taken = db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').get(username, user.id);
+    if (taken) return res.status(409).json({ error: 'Username is already taken' });
+
+    const password_hash = await bcrypt.hash(password, 10);
+    db.prepare(`
+      UPDATE users
+      SET username = ?, password_hash = ?, status = 'active',
+          invite_token = NULL, agreement_accepted = 1, age_confirmed = 1, state_eligible = 1
+      WHERE id = ?
+    `).run(username, password_hash, user.id);
+
+    const fullUser = { id: user.id, email: user.email, username };
+    const jwtToken = signToken(fullUser);
+    res.json({ token: jwtToken, user: { id: user.id, email: user.email, username, role: 'user' } });
+  } catch (err) {
+    console.error('[auth] activate error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/auth/me
 router.get('/me', authMiddleware, (req, res) => {
   const user = db.prepare('SELECT id, email, username, role, created_at FROM users WHERE id = ?').get(req.user.id);

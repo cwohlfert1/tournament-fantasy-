@@ -239,6 +239,10 @@ try { db.exec('ALTER TABLE league_members ADD COLUMN pending_owner_name TEXT'); 
 // Password reset tokens
 try { db.exec('ALTER TABLE users ADD COLUMN password_reset_token TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE users ADD COLUMN password_reset_expires DATETIME'); } catch (e) {}
+// League invite flow — invited users start with status 'invited' and a one-time token
+try { db.exec("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'"); } catch (e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN invite_token TEXT'); } catch (e) {}
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_invite_token_idx ON users(invite_token) WHERE invite_token IS NOT NULL'); } catch (e) {}
 // Injury news-scraping flags
 try { db.exec('ALTER TABLE players ADD COLUMN injury_flagged INTEGER DEFAULT 0'); } catch (e) {}
 try { db.exec("ALTER TABLE players ADD COLUMN injury_headline TEXT DEFAULT ''"); } catch (e) {}

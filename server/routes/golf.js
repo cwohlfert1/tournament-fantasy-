@@ -1298,4 +1298,93 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
   }
 });
 
+// ── POST /leagues/:id/import-members ─────────────────────────────────────────
+// Commissioner-only. Accepts a JSON array of { email, name } rows (already
+// validated / deduplicated on the client).  For each row:
+//   • If the email belongs to an existing user → add to league as a member.
+//   • If the email is new → create an "invited" user + send invite email.
+// Returns { imported, existing, skipped, errors }
+router.post('/leagues/:id/import-members', authMiddleware, async (req, res) => {
+  try {
+    const { id: leagueId } = req.params;
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Commissioner only' });
+    }
+
+    const { members } = req.body; // Array<{ email: string, name?: string }>
+    if (!Array.isArray(members) || members.length === 0) {
+      return res.status(400).json({ error: 'No members provided' });
+    }
+
+    const { sendGolfInviteEmail } = require('../mailer');
+    const crypto = require('crypto');
+    const commissioner = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(req.user.id);
+    const commissionerName = commissioner?.display_name || commissioner?.username || 'Your commissioner';
+
+    let imported = 0;
+    let existing = 0;
+    let skipped  = 0;
+    const errors = [];
+
+    for (const row of members) {
+      const email = String(row.email || '').trim().toLowerCase();
+      const name  = String(row.name  || '').trim();
+
+      if (!email) { skipped++; continue; }
+
+      try {
+        // Check if user already exists
+        let user = db.prepare('SELECT id, username FROM users WHERE email = ?').get(email);
+
+        if (!user) {
+          // Create invited user
+          const inviteToken = crypto.randomBytes(32).toString('hex');
+          const userId = uuidv4();
+          const username = `invited_${userId.slice(0, 8)}`; // placeholder, replaced on activation
+          db.prepare(`
+            INSERT INTO users (id, email, username, password_hash, status, invite_token,
+                               agreement_accepted, age_confirmed, state_eligible)
+            VALUES (?, ?, ?, 'INVITE_PENDING', 'invited', ?, 0, 0, 0)
+          `).run(userId, email, username, inviteToken);
+          user = { id: userId, username };
+
+          // Send invite email — fire and forget per row; capture errors without blocking
+          sendGolfInviteEmail(email, {
+            leagueName:       league.name,
+            commissionerName,
+            inviteToken,
+            tournamentName:   league.pool_tournament_name || null,
+          }).catch(err => console.error(`[golf/import] invite email to ${email} failed:`, err.message));
+        }
+
+        // Add to league (INSERT OR IGNORE handles re-import of existing members)
+        const teamName = name || user.username;
+        const alreadyMember = db.prepare(
+          'SELECT 1 FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?'
+        ).get(leagueId, user.id);
+
+        if (alreadyMember) {
+          existing++;
+        } else {
+          db.prepare(
+            'INSERT OR IGNORE INTO golf_league_members (id, golf_league_id, user_id, team_name) VALUES (?, ?, ?, ?)'
+          ).run(uuidv4(), leagueId, user.id, teamName);
+          imported++;
+        }
+      } catch (rowErr) {
+        console.error(`[golf/import] error processing ${email}:`, rowErr.message);
+        errors.push(`${email}: ${rowErr.message}`);
+        skipped++;
+      }
+    }
+
+    res.json({ imported, existing, skipped, errors });
+  } catch (err) {
+    console.error('[golf] import-members error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

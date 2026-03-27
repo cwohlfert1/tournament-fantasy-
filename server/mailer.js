@@ -375,6 +375,33 @@ ${emailFooter()}
   });
 }
 
+// ── Golf league invite ────────────────────────────────────────────────────────
+// Sent when a commissioner imports members — invitee may not have an account yet.
+async function sendGolfInviteEmail(toEmail, { leagueName, commissionerName, inviteToken, tournamentName }) {
+  const baseUrl = (process.env.CLIENT_URL || 'https://tourneyrun.app').replace(/\/$/, '');
+  const signupUrl = `${baseUrl}/signup?token=${inviteToken}`;
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `You've been invited to join ${leagueName} on TourneyRun`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">League Invite</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">You're invited!</h1>
+        <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;"><span style="color:#ffffff;font-weight:600;">${commissionerName}</span> has added you to <span style="color:#22c55e;font-weight:600;">${leagueName}</span>${tournamentName ? ` for the <span style="color:#ffffff;">${tournamentName}</span>` : ''} on TourneyRun Fantasy Golf.</p>
+        ${ctaButton(signupUrl, 'Accept Invite &amp; Create Account &rarr;')}
+        <p style="font-size:13px;color:#6b7280;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:16px;margin-left:0;">This invite link is unique to you. Once you create your account, you'll be automatically added to the league and can submit your picks.</p>
+        ${card('Your League', leagueName)}
+        ${card('Invited By', commissionerName)}
+        <p style="font-size:12px;color:#4b5563;line-height:1.6;margin-top:16px;margin-right:0;margin-bottom:0;margin-left:0;">If you weren't expecting this invitation, you can safely ignore this email.</p>
+      </td></tr>
+${emailFooter('tourneyrun.app &middot; Fantasy Golf &middot; Invite-only')}
+`),
+  });
+}
+
 module.exports = {
   sendEmail,
   sendEmailBatch,
@@ -387,4 +414,5 @@ module.exports = {
   sendGolfLeagueWelcome,
   sendGolfMassBlast,
   sendGolfRoundComplete,
+  sendGolfInviteEmail,
 };
