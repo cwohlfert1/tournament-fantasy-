@@ -623,6 +623,163 @@ export default function GolfLanding() {
         </div>
       </Section>
 
+      {/* ── Import Your Existing Group ─────────────────────────────────────── */}
+      <div style={{ borderTop: '1px solid #1a2733' }} />
+      <Section style={{ background: '#0a1a0f' }} className="py-16 sm:py-24 px-4 border-b border-gray-800">
+        <div className="max-w-5xl mx-auto">
+
+          {/* Two-column grid */}
+          <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-start">
+
+            {/* LEFT — copy */}
+            <div>
+              <div style={{ display: 'inline-block', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
+                <span style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Already running a pool?</span>
+              </div>
+              <h3 style={{ color: '#fff', fontSize: 'clamp(24px,3.5vw,38px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
+                Import your <span style={{ color: '#22c55e' }}>existing</span> group.
+              </h3>
+              <p style={{ color: '#9ca3af', fontSize: 15, lineHeight: 1.7, marginBottom: 32 }}>
+                Already running a pool in a spreadsheet or group chat? Upload your member list and TourneyRun handles the rest — invites, accounts, everything.
+              </p>
+
+              {/* Numbered steps */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 36 }}>
+                {[
+                  { n: 1, title: 'Upload your Excel or CSV',       sub: 'Just needs a name and email column' },
+                  { n: 2, title: 'We create accounts automatically', sub: 'Members just set a password to activate' },
+                  { n: 3, title: 'Everyone gets an invite email',   sub: '"Your league is getting an upgrade"' },
+                ].map(({ n, title, sub }) => (
+                  <div key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{ flexShrink: 0, width: 28, height: 28, borderRadius: '50%', background: '#22c55e', color: '#001a0d', fontWeight: 800, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                      {n}
+                    </div>
+                    <div>
+                      <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{title}</div>
+                      <div style={{ color: '#6b7280', fontSize: 13 }}>{sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Link
+                to="/golf/create?format=pool"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#22c55e', color: '#001a0d', fontWeight: 800, fontSize: 15, padding: '13px 26px', borderRadius: 999, textDecoration: 'none' }}
+              >
+                Import your group <ArrowRight size={15} />
+              </Link>
+            </div>
+
+            {/* RIGHT — import UI mockup */}
+            <div style={{ background: '#0f1923', border: '1px solid #1a2733', borderRadius: 16, padding: '20px', boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}>
+
+              {/* Card header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>Import members</span>
+                <span style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#4ade80', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Commissioner only</span>
+              </div>
+
+              {/* Upload zone */}
+              <div style={{ border: '1px dashed rgba(34,197,94,0.4)', borderRadius: 10, padding: '16px', textAlign: 'center', marginBottom: 14, background: 'rgba(34,197,94,0.03)' }}>
+                <div style={{ fontSize: 20, marginBottom: 6 }}>📂</div>
+                <div style={{ color: '#d1d5db', fontWeight: 600, fontSize: 12, marginBottom: 3 }}>Choose file or drag and drop</div>
+                <div style={{ color: '#4b5563', fontSize: 11 }}>.xlsx, .xls, .csv accepted</div>
+              </div>
+
+              {/* Preview table */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr auto', gap: '0 8px', alignItems: 'center' }}>
+                  {[
+                    { initials: 'JD', name: 'John D.',  email: 'j.d***@gmail.com',   status: 'New',            statusColor: '#22c55e', statusBg: 'rgba(34,197,94,0.1)' },
+                    { initials: 'SM', name: 'Sarah M.', email: 's.m***@yahoo.com',   status: 'New',            statusColor: '#22c55e', statusBg: 'rgba(34,197,94,0.1)' },
+                    { initials: 'TR', name: 'Tom R.',   email: 't.r***@gmail.com',   status: 'Already member', statusColor: '#6b7280', statusBg: 'rgba(107,114,128,0.1)' },
+                    { initials: 'AK', name: 'Amy K.',   email: 'a.k***@work.com',    status: 'New',            statusColor: '#22c55e', statusBg: 'rgba(34,197,94,0.1)' },
+                    { initials: 'MB', name: 'Mike B.',  email: 'm.b***@hotmail.com', status: 'New',            statusColor: '#22c55e', statusBg: 'rgba(34,197,94,0.1)' },
+                  ].map(({ initials, name, email, status, statusColor, statusBg }) => (
+                    <React.Fragment key={initials}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', color: '#4ade80', fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials}</div>
+                      <div style={{ paddingTop: 6, paddingBottom: 6 }}>
+                        <div style={{ color: '#d1d5db', fontWeight: 600, fontSize: 11 }}>{name}</div>
+                        <div style={{ color: '#4b5563', fontSize: 10 }}>{email}</div>
+                      </div>
+                      <span style={{ background: statusBg, color: statusColor, fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}>{status}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary row */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                {[
+                  { label: '4 New',         color: '#22c55e' },
+                  { label: '1 Already in',  color: '#6b7280' },
+                  { label: '0 Errors',      color: '#4b5563' },
+                  { label: '5 Total',       color: '#9ca3af' },
+                ].map(({ label, color }) => (
+                  <span key={label} style={{ color, fontSize: 11, fontWeight: 600 }}>{label}</span>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div style={{ background: '#22c55e', borderRadius: 8, padding: '9px 0', textAlign: 'center', color: '#001a0d', fontWeight: 800, fontSize: 12 }}>
+                Import 4 members + send invites
+              </div>
+            </div>
+          </div>
+
+          {/* Full-width email preview card */}
+          <div style={{ marginTop: 40, background: '#0f1923', border: '1px solid #1a2733', borderRadius: 16, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #1a2733' }}>
+              <span style={{ color: '#6b7280', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Each new member gets this invite automatically</span>
+            </div>
+            <div style={{ padding: '24px 28px', display: 'grid', sm: undefined }} className="grid sm:grid-cols-2 gap-8">
+              {/* Email metadata */}
+              <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+                  {[
+                    { lbl: 'From',    val: 'TourneyRun Golf <noreply@tourneyrun.app>' },
+                    { lbl: 'Subject', val: 'Your league is getting an upgrade' },
+                  ].map(({ lbl, val }) => (
+                    <div key={lbl} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <span style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, width: 48, flexShrink: 0, paddingTop: 1 }}>{lbl}</span>
+                      <span style={{ color: '#9ca3af', fontSize: 11 }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Email body preview */}
+                <div style={{ background: '#111c27', border: '1px solid #1a2733', borderRadius: 10, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                    <span style={{ color: '#d1d5db', fontSize: 13, fontWeight: 300 }}>tourney</span><span style={{ color: '#22c55e', fontSize: 13, fontWeight: 800 }}>run</span>
+                  </div>
+                  <p style={{ color: '#9ca3af', fontSize: 12, lineHeight: 1.65, margin: '0 0 14px' }}>
+                    Good news — your commissioner has moved{' '}
+                    <span style={{ color: '#fff', fontWeight: 600 }}>[League Name]</span>{' '}
+                    to TourneyRun. Everything runs automatically now: live ESPN scoring, standings that update themselves, and no more spreadsheets.
+                  </p>
+                  <div style={{ background: '#22c55e', borderRadius: 7, padding: '9px 18px', display: 'inline-block', color: '#001a0d', fontWeight: 700, fontSize: 12 }}>
+                    Create my account →
+                  </div>
+                </div>
+              </div>
+              {/* What they see note */}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14 }}>
+                {[
+                  { icon: '✉️', text: 'One invite email per new member, sent automatically' },
+                  { icon: '🔑', text: 'They click the link, pick a username and password — done' },
+                  { icon: '⛳', text: 'They\'re added to your league and ready to pick golfers' },
+                ].map(({ icon, text }) => (
+                  <div key={text} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+                    <span style={{ color: '#9ca3af', fontSize: 13, lineHeight: 1.5 }}>{text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </Section>
+
       {/* Section B — Daily Fantasy Pool */}
       <Section style={{ background: '#0d1117' }} className="py-16 sm:py-24 px-4 border-b border-gray-800">
         <div className="max-w-5xl mx-auto">
