@@ -1252,8 +1252,8 @@ router.post('/leagues/:id/blast', authMiddleware, async (req, res) => {
     console.log('[golf] Blast: sent to', members.length, 'members');
     res.json({ ok: true, sent: members.length });
   } catch (err) {
-    console.error('[golf] blast error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('[golf] blast error:', err.message, err.stack);
+    res.status(500).json({ error: err.message || 'Server error' });
   }
 });
 

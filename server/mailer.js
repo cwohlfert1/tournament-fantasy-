@@ -36,7 +36,7 @@ async function sendEmailBatch(emails) {
     subject: e.subject,
     html:    e.html,
   }));
-  const { data, error } = await _resend.emails.batch(payload);
+  const { data, error } = await _resend.batch.send(payload);
   if (error) throw new Error(error.message);
   return data;
 }
