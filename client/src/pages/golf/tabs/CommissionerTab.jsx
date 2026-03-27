@@ -7,18 +7,22 @@ import { parseSheetRows } from '../../../utils/importHelpers';
 
 // ── Blast confirmation modal ──────────────────────────────────────────────────
 function BlastModal({ leagueId, memberCount, initialMsg, onClose }) {
-  const [msg, setMsg]       = useState(initialMsg);
-  const [sending, setSending] = useState(false);
+  const [msg, setMsg]           = useState(initialMsg);
+  const [sending, setSending]   = useState(false);
   const [sentCount, setSentCount] = useState(null);
+  const [sendError, setSendError] = useState('');
 
   async function send() {
     if (!msg.trim()) return;
     setSending(true);
+    setSendError('');
     try {
       const r = await api.post(`/golf/leagues/${leagueId}/blast`, { message: msg });
       setSentCount(r.data.sent ?? 0);
       setTimeout(() => onClose(), 3000);
-    } catch { /* silent */ }
+    } catch (err) {
+      setSendError(err.response?.data?.error || 'Failed to send. Please try again.');
+    }
     setSending(false);
   }
 
@@ -51,6 +55,9 @@ function BlastModal({ leagueId, memberCount, initialMsg, onClose }) {
             boxSizing: 'border-box', opacity: sentCount !== null ? 0.5 : 1,
           }}
         />
+        {sendError && (
+          <p style={{ color: '#f87171', fontSize: 12, margin: '10px 0 0' }}>{sendError}</p>
+        )}
         {sentCount !== null ? (
           <p style={{ color: '#4ade80', fontSize: 14, fontWeight: 700,
             textAlign: 'center', margin: '14px 0 0' }}>
@@ -89,19 +96,23 @@ function BlastModal({ leagueId, memberCount, initialMsg, onClose }) {
 
 // ── Custom blast textarea ─────────────────────────────────────────────────────
 function MassBlast({ leagueId }) {
-  const [msg, setMsg]     = useState('');
-  const [sent, setSent]   = useState(false);
+  const [msg, setMsg]         = useState('');
+  const [sent, setSent]       = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
 
   async function send() {
     if (!msg.trim()) return;
     setLoading(true);
+    setError('');
     try {
       await api.post(`/golf/leagues/${leagueId}/blast`, { message: msg });
       setSent(true);
       setMsg('');
       setTimeout(() => setSent(false), 4000);
-    } catch { /* silent */ }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to send. Please try again.');
+    }
     setLoading(false);
   }
 
@@ -114,7 +125,8 @@ function MassBlast({ leagueId }) {
         rows={3}
         className="input w-full resize-none text-sm"
       />
-      {sent && <p className="text-green-400 text-xs">Message sent to all members!</p>}
+      {sent  && <p className="text-green-400 text-xs">Message sent to all members!</p>}
+      {error && <p className="text-red-400 text-xs">{error}</p>}
       <button
         onClick={send}
         disabled={loading || !msg.trim()}
