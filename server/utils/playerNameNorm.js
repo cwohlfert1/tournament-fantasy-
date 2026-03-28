@@ -67,15 +67,27 @@ function matchPlayerName(espnName, players, tournamentName) {
   const firstInit = parts[0][0];
 
   // 2. Last name + first initial
-  m = players.find(p => {
-    const pp = normalizePlayerName(p.name).split(' ');
-    return pp[pp.length - 1] === last && pp[0]?.[0] === firstInit;
-  });
-  if (m) return m;
+  // Guard: skip if first name token is exactly 2 chars — these are multi-initial
+  // abbreviations ("K.H."→"kh", "T.J."→"tj", "J.J."→"jj") that look like initials
+  // but would incorrectly match any player sharing the first letter and last name.
+  // Single-letter initials ("T."→"t", "J."→"j") are allowed — they're unambiguous
+  // in context of a last name.  Real 2-char first names (e.g. "Si") always match at
+  // level 1 (exact) and never reach this fallback.
+  if (parts[0].length !== 2) {
+    m = players.find(p => {
+      const pp = normalizePlayerName(p.name).split(' ');
+      return pp[pp.length - 1] === last && pp[0]?.[0] === firstInit;
+    });
+    if (m) return m;
+  }
 
   // 3. Last name only — only safe if exactly one match
-  const byLast = players.filter(p => normalizePlayerName(p.name).split(' ').pop() === last);
-  if (byLast.length === 1) return byLast[0];
+  // Same 2-char guard: "K.H. Lee" must not fall through to last-name-only and
+  // incorrectly match "Min Woo Lee" when he is the sole Lee in the player pool.
+  if (parts[0].length !== 2) {
+    const byLast = players.filter(p => normalizePlayerName(p.name).split(' ').pop() === last);
+    if (byLast.length === 1) return byLast[0];
+  }
 
   console.error(`[sync] NO MATCH: "${espnName}"${tournamentName ? ` in "${tournamentName}"` : ''} — not found in golf_players table`);
   return null;
