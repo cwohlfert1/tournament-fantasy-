@@ -1582,4 +1582,19 @@ runOnce('reset-houston-open-r2-drops-null-fix', () => {
   }
 });
 
+// ── One-time: add Valero Texas Open 2026 ──────────────────────────────────────
+runOnce('add-valero-texas-open-2026', () => {
+  try {
+    const exists = db.prepare("SELECT COUNT(*) as c FROM golf_tournaments WHERE name = 'Valero Texas Open'").get().c;
+    if (exists > 0) { console.log('[migration] add-valero-texas-open: already exists'); return; }
+    db.prepare(`
+      INSERT INTO golf_tournaments (id, name, course, start_date, end_date, season_year, is_major, is_signature, status, purse, prize_money)
+      VALUES (?, ?, ?, ?, ?, 2026, 0, 0, 'scheduled', ?, ?)
+    `).run(uuidv4(), 'Valero Texas Open', 'TPC San Antonio (Oaks Course), TX', '2026-04-03', '2026-04-06', 8700000, 8700000);
+    console.log('[migration] add-valero-texas-open: inserted');
+  } catch (e) {
+    console.error('[migration] add-valero-texas-open error:', e.message);
+  }
+});
+
 module.exports = db;
