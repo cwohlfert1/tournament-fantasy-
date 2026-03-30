@@ -392,6 +392,22 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   // Blast modal
   const [blastModal, setBlastModal] = useState(null); // string (pre-filled message) or null
 
+  // Member paid status (optimistic)
+  const [paidMap, setPaidMap] = useState(() => {
+    const map = {};
+    (members || []).forEach(m => { map[m.user_id] = !!m.is_paid; });
+    return map;
+  });
+
+  // Pool standings (for winner announcement)
+  const [poolStandings, setPoolStandings] = useState([]);
+  useEffect(() => {
+    if (league?.format_type !== 'pool') return;
+    api.get(`/golf/leagues/${leagueId}/standings`)
+      .then(r => setPoolStandings(r.data.standings || []))
+      .catch(() => {});
+  }, [leagueId, league?.format_type]); // eslint-disable-line
+
   useEffect(() => {
     Promise.all([
       api.get('/golf/payments/status'),
@@ -478,9 +494,17 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
   function winnerMsg() {
     const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
-    const sorted = [...members].sort((a, b) => Number(b.season_points || 0) - Number(a.season_points || 0));
-    const w1 = sorted[0]?.team_name || '[1st place]';
-    const w2 = sorted[1]?.team_name || '[2nd place]';
+    let w1, w2;
+    if (league?.format_type === 'pool' && poolStandings.length) {
+      // poolStandings already has rank=1 as winner regardless of scoring style
+      const byRank = [...poolStandings].sort((a, b) => a.rank - b.rank);
+      w1 = byRank[0]?.team_name || '[1st place]';
+      w2 = byRank[1]?.team_name || '[2nd place]';
+    } else {
+      const sorted = [...members].sort((a, b) => Number(b.season_points || 0) - Number(a.season_points || 0));
+      w1 = sorted[0]?.team_name || '[1st place]';
+      w2 = sorted[1]?.team_name || '[2nd place]';
+    }
     const prize1 = prizePool > 0 ? `$${(prizePool * p1pct / 100).toFixed(0)}` : '[prize]';
     const prize2 = prizePool > 0 ? `$${(prizePool * p2pct / 100).toFixed(0)}` : '[prize]';
     return `That's a wrap on ${leagueName}!\n\u{1F3C6} 1st place: ${w1} \u2014 ${prize1}\n\u{1F948} 2nd place: ${w2} \u2014 ${prize2}\n\nThanks everyone for playing \u2014 see you at the next tournament!\n\u2192 ${url}`;
@@ -539,6 +563,16 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       setTimeout(() => setPmSaved(false), 3000);
     } catch { /* silent */ }
     setPmSaving(false);
+  }
+
+  async function togglePaid(userId) {
+    const next = !paidMap[userId];
+    setPaidMap(prev => ({ ...prev, [userId]: next }));
+    try {
+      await api.post(`/golf/leagues/${leagueId}/members/${userId}/paid`, { is_paid: next });
+    } catch {
+      setPaidMap(prev => ({ ...prev, [userId]: !next })); // revert on error
+    }
   }
 
   // ── Gate check ──────────────────────────────────────────────────────────────
@@ -675,8 +709,13 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
           {/* Member roster */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-800">
+            <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
               <h4 className="text-white text-sm font-bold">Member Roster ({members.length})</h4>
+              {(league?.buy_in_amount > 0) && (
+                <span className="text-xs text-gray-500">
+                  <span className="text-green-400 font-bold">{Object.values(paidMap).filter(Boolean).length}</span>/{members.length} paid
+                </span>
+              )}
             </div>
             <div>
               {members.map((m, i) => (
@@ -687,9 +726,21 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                     <div className="text-white text-sm font-semibold">{m.team_name}</div>
                     <div className="text-gray-500 text-xs">{m.username}</div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-green-400 text-sm font-bold tabular-nums">{Number(m.season_points || 0).toFixed(1)} pts</div>
-                  </div>
+                  <button
+                    onClick={() => togglePaid(m.user_id)}
+                    title={paidMap[m.user_id] ? 'Mark as unpaid' : 'Mark as paid'}
+                    style={{
+                      width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                      background: paidMap[m.user_id] ? 'rgba(34,197,94,0.18)' : 'rgba(255,255,255,0.04)',
+                      border: `1.5px solid ${paidMap[m.user_id] ? '#22c55e' : '#374151'}`,
+                      color: paidMap[m.user_id] ? '#22c55e' : '#4b5563',
+                      cursor: 'pointer', fontSize: 15, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {paidMap[m.user_id] ? '✓' : '○'}
+                  </button>
                 </div>
               ))}
             </div>

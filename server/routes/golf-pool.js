@@ -999,4 +999,45 @@ router.post('/leagues/:id/apply-drops', authMiddleware, (req, res) => {
   }
 });
 
+// ── POST /leagues/:id/members/:userId/paid ────────────────────────────────────
+// Commissioner toggles paid status for a member.
+router.post('/leagues/:id/members/:userId/paid', authMiddleware, (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const { is_paid } = req.body;
+    if (is_paid === undefined) return res.status(400).json({ error: 'is_paid required' });
+    const result = db.prepare(
+      'UPDATE golf_league_members SET is_paid = ? WHERE golf_league_id = ? AND user_id = ?'
+    ).run(is_paid ? 1 : 0, req.params.id, req.params.userId);
+    if (result.changes === 0) return res.status(404).json({ error: 'Member not found' });
+    res.json({ ok: true, is_paid: is_paid ? 1 : 0 });
+  } catch (err) {
+    console.error('[golf-pool] set-paid error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /admin/set-drop-count ────────────────────────────────────────────────
+// Commissioner sets pool_drop_count for their league (fixes mis-configured leagues).
+// Body: { league_id, drop_count }
+router.post('/admin/set-drop-count', authMiddleware, (req, res) => {
+  try {
+    const { league_id, drop_count } = req.body;
+    if (!league_id) return res.status(400).json({ error: 'league_id required' });
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(league_id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const count = parseInt(drop_count);
+    if (isNaN(count) || count < 0) return res.status(400).json({ error: 'Invalid drop_count' });
+    db.prepare('UPDATE golf_leagues SET pool_drop_count = ? WHERE id = ?').run(count, league_id);
+    console.log(`[golf-pool] admin set-drop-count: league ${league_id} → ${count}`);
+    res.json({ ok: true, pool_drop_count: count });
+  } catch (err) {
+    console.error('[golf-pool] admin set-drop-count error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

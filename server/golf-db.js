@@ -236,6 +236,8 @@ const _golfColMigrations = [
   `ALTER TABLE golf_leagues ADD COLUMN pool_drops_applied INTEGER DEFAULT 0`,
   `ALTER TABLE pool_picks ADD COLUMN is_dropped INTEGER DEFAULT 0`,
   `ALTER TABLE pool_picks ADD COLUMN dropped_at DATETIME`,
+  // Commissioner payment tracking
+  `ALTER TABLE golf_league_members ADD COLUMN is_paid INTEGER DEFAULT 0`,
 ];
 for (const sql of _golfColMigrations) { try { db.exec(sql); } catch (_) {} }
 
