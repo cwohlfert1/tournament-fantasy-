@@ -1528,6 +1528,7 @@ export default function GolfLanding() {
             </span>
             <Link
               to="/golf/create"
+              onClick={() => window.scrollTo(0, 0)}
               style={{
                 background: '#22c55e', color: '#fff', fontWeight: 700, fontSize: 13,
                 padding: '9px 16px', borderRadius: 999, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,

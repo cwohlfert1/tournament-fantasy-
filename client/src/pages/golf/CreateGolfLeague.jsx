@@ -51,17 +51,6 @@ const FORMATS = [
 
 const SCORING_STYLES = [
   {
-    value: 'total_score',
-    icon: '⛳',
-    title: 'Finish Scoring',
-    subtitle: 'Award points for finishing position. Simple and beginner-friendly.',
-    description: '',
-    example: 'Win = 30pts · Top 5 = 15pts · Top 10 = 8pts · Top 25 = 3pts. Highest points wins.',
-    recommended: false,
-    isNew: false,
-    isPopular: true,
-  },
-  {
     value: 'stroke_play',
     icon: '🏌️',
     title: 'Classic Stroke Play',
@@ -81,6 +70,17 @@ const SCORING_STYLES = [
     example: 'Win +30 · Top 5 +15 · Top 10 +8 · Top 25 +3 on top of shot scoring.',
     recommended: false,
     isNew: true,
+    isPopular: false,
+  },
+  {
+    value: 'total_score',
+    icon: '⛳',
+    title: 'Finish Scoring',
+    subtitle: 'Award points for finishing position. Simple and beginner-friendly.',
+    description: '',
+    example: 'Win = 30pts · Top 5 = 15pts · Top 10 = 8pts · Top 25 = 3pts. Highest points wins.',
+    recommended: false,
+    isNew: false,
     isPopular: false,
   },
 ];
