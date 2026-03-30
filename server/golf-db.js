@@ -238,6 +238,9 @@ const _golfColMigrations = [
   `ALTER TABLE pool_picks ADD COLUMN dropped_at DATETIME`,
   // Commissioner payment tracking
   `ALTER TABLE golf_league_members ADD COLUMN is_paid INTEGER DEFAULT 0`,
+  // DataGolf integration
+  `ALTER TABLE golf_players ADD COLUMN datagolf_id INTEGER`,
+  `ALTER TABLE golf_tournaments ADD COLUMN datagolf_event_id INTEGER`,
 ];
 for (const sql of _golfColMigrations) { try { db.exec(sql); } catch (_) {} }
 

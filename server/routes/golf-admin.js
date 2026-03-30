@@ -1495,4 +1495,58 @@ router.post('/admin/dev/sync-odds', superadmin, async (req, res) => {
   }
 });
 
+// ── DataGolf: Sync player list ─────────────────────────────────────────────────
+router.post('/admin/dev/sync-datagolf-players', superadmin, async (req, res) => {
+  try {
+    const { syncPlayerList } = require('../dataGolfService');
+    const result = await syncPlayerList();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[admin] sync-datagolf-players error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DataGolf: Sync current field ───────────────────────────────────────────────
+router.post('/admin/dev/sync-datagolf-field', superadmin, async (req, res) => {
+  try {
+    const { syncCurrentField, syncFieldForTournament } = require('../dataGolfService');
+    const { tournament_id } = req.body;
+    const result = tournament_id
+      ? await syncFieldForTournament(tournament_id)
+      : await syncCurrentField();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[admin] sync-datagolf-field error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DataGolf: Sync schedule ────────────────────────────────────────────────────
+router.post('/admin/dev/sync-datagolf-schedule', superadmin, async (req, res) => {
+  try {
+    const { syncSchedule } = require('../dataGolfService');
+    const season = req.body.season || new Date().getFullYear();
+    const result = await syncSchedule(season);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[admin] sync-datagolf-schedule error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DataGolf: Sync live stats for a tournament ────────────────────────────────
+router.post('/admin/dev/sync-datagolf-live', superadmin, async (req, res) => {
+  try {
+    const { syncLiveStats } = require('../dataGolfService');
+    const { tournament_id } = req.body;
+    if (!tournament_id) return res.status(400).json({ error: 'tournament_id required' });
+    const result = await syncLiveStats(tournament_id);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[admin] sync-datagolf-live error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

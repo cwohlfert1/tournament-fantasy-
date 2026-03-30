@@ -1,0 +1,596 @@
+/**
+ * DataGolf Scratch Plus API integration
+ * https://datagolf.com/api-access
+ *
+ * Rate limit: 45 req/min. We conservatively space requests 1.5s apart (~40/min).
+ * All endpoints need ?key=DATAGOLF_API_KEY appended.
+ */
+
+const https   = require('https');
+const db      = require('./db');
+const { v4: uuidv4 } = require('uuid');
+
+const BASE = 'https://feeds.datagolf.com';
+
+// ── Country code normalization ─────────────────────────────────────────────────
+// DataGolf uses a mix of ISO alpha-2, ISO alpha-3, and custom abbreviations.
+// Maps anything we'll see → 2-letter ISO.
+const DG_COUNTRY_MAP = {
+  // UK nations → GB
+  ENG: 'GB', SCO: 'GB', WAL: 'GB', NIR: 'GB',
+  // Standard ISO alpha-3
+  USA: 'US', CAN: 'CA', MEX: 'MX', AUS: 'AU', NZL: 'NZ',
+  GBR: 'GB', IRL: 'IE', GER: 'DE', FRA: 'FR', SPA: 'ES',
+  ITA: 'IT', BEL: 'BE', NED: 'NL', SWE: 'SE', NOR: 'NO',
+  DEN: 'DK', FIN: 'FI', AUT: 'AT', SUI: 'CH', POR: 'PT',
+  GRE: 'GR', RSA: 'ZA', ZIM: 'ZW', KEN: 'KE',
+  JPN: 'JP', KOR: 'KR', CHN: 'CN', TPE: 'TW', IND: 'IN',
+  THA: 'TH', PHI: 'PH', MAS: 'MY', INA: 'ID', SGP: 'SG',
+  ARG: 'AR', COL: 'CO', BRA: 'BR', CHI: 'CL', PAR: 'PY',
+  URU: 'UY', VEN: 'VE', PUR: 'PR', BAH: 'BS',
+  FIJ: 'FJ', PNG: 'PG', SLO: 'SI', CZE: 'CZ', SVK: 'SK',
+  HUN: 'HU', POL: 'PL', ROM: 'RO', TUR: 'TR',
+};
+
+function normalizeCountry(code) {
+  if (!code) return null;
+  const c = String(code).toUpperCase().trim();
+  if (c.length === 2) return c; // already ISO-2
+  return DG_COUNTRY_MAP[c] || null;
+}
+
+// ── Rate limiter ───────────────────────────────────────────────────────────────
+let _lastReq = 0;
+async function throttle() {
+  const gap = 1500; // 1.5s between requests ≈ 40 req/min (under 45 limit)
+  const wait = Math.max(0, _lastReq + gap - Date.now());
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  _lastReq = Date.now();
+}
+
+// ── HTTP fetch ─────────────────────────────────────────────────────────────────
+function fetchJson(path) {
+  return new Promise(async (resolve, reject) => {
+    await throttle();
+    const key = process.env.DATAGOLF_API_KEY;
+    if (!key) { reject(new Error('DATAGOLF_API_KEY not set')); return; }
+    const sep = path.includes('?') ? '&' : '?';
+    const url = `${BASE}${path}${sep}key=${key}`;
+    const req = https.get(url, {
+      headers: { 'User-Agent': 'TourneyRun/1.0', Accept: 'application/json' },
+      timeout: 20000,
+    }, res => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch { reject(new Error(`DataGolf JSON parse error: ${path}`)); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error(`DataGolf timeout: ${path}`)); });
+  });
+}
+
+// ── Date parser ───────────────────────────────────────────────────────────────
+// Parses DataGolf date strings like "Apr 02-05" or "Apr 30-May 03"
+const MONTHS = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+function parseDGDate(str, year) {
+  if (!str || !year) return null;
+  const pad = n => String(n).padStart(2, '0');
+  // Split on " - " or plain "-" but be careful about "Apr 30-May 03"
+  // Strategy: split on last dash that's preceded by a digit
+  const match = str.match(/^([A-Za-z]+)\s+(\d+)[-–]([A-Za-z]+\s+)?(\d+)$/);
+  if (!match) return null;
+  const [, startMonStr, startDayStr, endMonStr, endDayStr] = match;
+  const startMon = MONTHS[startMonStr];
+  const endMon   = endMonStr ? MONTHS[endMonStr.trim()] : startMon;
+  const startDay = parseInt(startDayStr);
+  const endDay   = parseInt(endDayStr);
+  if (!startMon || !endMon || isNaN(startDay) || isNaN(endDay)) return null;
+  return {
+    start_date: `${year}-${pad(startMon)}-${pad(startDay)}`,
+    end_date:   `${year}-${pad(endMon)}-${pad(endDay)}`,
+  };
+}
+
+// ── Known majors (for is_major flag on schedule sync) ─────────────────────────
+const MAJOR_NAMES = [
+  'masters tournament', 'pga championship', 'u.s. open', 'us open',
+  'the open championship', 'open championship', 'players championship',
+];
+function isMajorEvent(name) {
+  const lower = (name || '').toLowerCase();
+  return MAJOR_NAMES.some(m => lower.includes(m));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. PLAYER LIST SYNC
+// Endpoint: GET /get-player-list?file_format=json
+//
+// Fetches all DataGolf players, matches to our golf_players by name,
+// stores datagolf_id, and fixes 3-letter country codes.
+// ─────────────────────────────────────────────────────────────────────────────
+async function syncPlayerList() {
+  const key = process.env.DATAGOLF_API_KEY;
+  if (!key) {
+    console.warn('[datagolf] DATAGOLF_API_KEY not set — skipping player list sync');
+    return { skipped: true, reason: 'no_key' };
+  }
+
+  console.log('[datagolf] Fetching player list...');
+  const raw = await fetchJson('/get-player-list?file_format=json');
+
+  // Response is either a flat array or { players: [...] }
+  const players = Array.isArray(raw) ? raw : (raw.players || raw.Player_list || []);
+  if (!players.length) throw new Error('DataGolf returned empty player list');
+
+  // Build name lookup map: normalized lowercase name → { dgId, country }
+  const byName  = new Map(); // lowercase full name → dgData
+  const byDgId  = new Map(); // dg_id → dgData
+  for (const p of players) {
+    const name    = (p.player_name || p.name || '').trim();
+    const dgId    = p.dg_id;
+    const country = normalizeCountry(p.country);
+    if (!name || !dgId) continue;
+    const entry = { dgId, name, country };
+    byName.set(name.toLowerCase(), entry);
+    byDgId.set(dgId, entry);
+  }
+
+  // Match against our existing golf_players records
+  const ourPlayers = db.prepare('SELECT id, name, country, datagolf_id FROM golf_players').all();
+  const updDg      = db.prepare('UPDATE golf_players SET datagolf_id = ? WHERE id = ?');
+  const updCountry = db.prepare("UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)");
+
+  let matched = 0, countryFixed = 0;
+  db.transaction(() => {
+    for (const p of ourPlayers) {
+      // Try exact name first, then lowercase trim
+      const key = p.name.toLowerCase().trim();
+      let dgData = byName.get(key);
+
+      // If not found by exact name, try without suffixes (Jr., III, etc.)
+      if (!dgData) {
+        const stripped = key.replace(/\s+(jr\.?|sr\.?|ii+|iii+|iv)$/i, '').trim();
+        if (stripped !== key) dgData = byName.get(stripped);
+      }
+
+      if (!dgData) continue;
+      matched++;
+
+      // Only update datagolf_id if not already set or set to a different value
+      if (p.datagolf_id !== dgData.dgId) updDg.run(dgData.dgId, p.id);
+
+      // Fix country code if it's missing or 3-letter
+      if (dgData.country && (!p.country || p.country.length !== 2)) {
+        updCountry.run(dgData.country, p.id);
+        countryFixed++;
+      }
+    }
+  })();
+
+  console.log(`[datagolf] Player list: ${players.length} DG, ${ourPlayers.length} ours, ${matched} matched, ${countryFixed} countries fixed`);
+  return { dg_total: players.length, our_total: ourPlayers.length, matched, country_fixed: countryFixed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. FIELD SYNC
+// Endpoint: GET /field-updates?tour=pga&file_format=json
+//
+// Returns the current PGA Tour week's field. We match it to an active/upcoming
+// tournament in our DB by name, populate golf_tournament_fields, and rebuild
+// pool_tier_players for any pool leagues using that tournament.
+//
+// WD handling: players in our DB who were previously in the field but not in
+// the DataGolf response are marked as WD (made_cut = 0, WD flag).
+// ─────────────────────────────────────────────────────────────────────────────
+async function syncCurrentField() {
+  const key = process.env.DATAGOLF_API_KEY;
+  if (!key) {
+    console.warn('[datagolf] DATAGOLF_API_KEY not set — skipping field sync');
+    return { skipped: true, reason: 'no_key' };
+  }
+
+  console.log('[datagolf] Fetching current field...');
+  const raw = await fetchJson('/field-updates?tour=pga&file_format=json');
+
+  const eventName = raw.event_name || raw.tournament_name || '';
+  const dgEventId = raw.event_id || null;
+  const field     = raw.field || raw.players || [];
+
+  if (!field.length) {
+    console.warn('[datagolf] Field response has no players — possibly off-season or API issue');
+    return { error: 'empty_field', event_name: eventName };
+  }
+
+  // Find our matching tournament
+  const year = new Date().getFullYear();
+  let tourn = null;
+
+  // Try by datagolf_event_id first
+  if (dgEventId) {
+    tourn = db.prepare(
+      'SELECT * FROM golf_tournaments WHERE datagolf_event_id = ? AND season_year = ?'
+    ).get(dgEventId, year);
+  }
+
+  // Fall back to name match
+  if (!tourn && eventName) {
+    const eventWords = eventName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(w => w.length > 3);
+    const candidates = db.prepare(
+      "SELECT * FROM golf_tournaments WHERE season_year = ? AND status IN ('active','scheduled') ORDER BY start_date ASC"
+    ).all(year);
+    for (const t of candidates) {
+      const tName = t.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim();
+      const hits = eventWords.filter(w => tName.includes(w)).length;
+      if (hits >= Math.min(2, eventWords.length)) { tourn = t; break; }
+    }
+  }
+
+  if (!tourn) {
+    console.warn(`[datagolf] No tournament matched "${eventName}" — storing event_id ${dgEventId} for manual association`);
+    return { error: 'tournament_not_found', event_name: eventName, dg_event_id: dgEventId };
+  }
+
+  // Persist datagolf_event_id if we learned it
+  if (dgEventId && !tourn.datagolf_event_id) {
+    db.prepare('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?').run(dgEventId, tourn.id);
+    tourn.datagolf_event_id = dgEventId;
+  }
+
+  return _applyFieldToTournament(tourn, field);
+}
+
+async function syncFieldForTournament(tournamentId) {
+  const key = process.env.DATAGOLF_API_KEY;
+  if (!key) return { skipped: true, reason: 'no_key' };
+
+  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  if (!tourn) throw new Error(`Tournament ${tournamentId} not found`);
+
+  const raw   = await fetchJson('/field-updates?tour=pga&file_format=json');
+  const field = raw.field || raw.players || [];
+
+  if (!field.length) return { error: 'empty_field' };
+
+  // Persist datagolf_event_id if returned
+  const dgEventId = raw.event_id || null;
+  if (dgEventId && !tourn.datagolf_event_id) {
+    db.prepare('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?').run(dgEventId, tourn.id);
+  }
+
+  return _applyFieldToTournament(tourn, field);
+}
+
+// Internal: write field data for a specific tournament
+function _applyFieldToTournament(tourn, field) {
+  console.log(`[datagolf] Applying field of ${field.length} players to ${tourn.name}`);
+
+  const _getGP  = db.prepare('SELECT * FROM golf_players WHERE datagolf_id = ? LIMIT 1');
+  const _getGPN = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
+  const _insGP  = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking, datagolf_id) VALUES (?, ?, ?, 1, ?, ?)');
+  const _updGPCo= db.prepare("UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)");
+  const _updDgId= db.prepare("UPDATE golf_players SET datagolf_id = ? WHERE id = ? AND datagolf_id IS NULL");
+  const _insTF  = db.prepare(`
+    INSERT OR REPLACE INTO golf_tournament_fields
+      (id, tournament_id, player_name, player_id, espn_player_id, world_ranking, odds_display, odds_decimal)
+    VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL)
+  `);
+
+  // Track which player IDs are in the new field (for WD detection)
+  const fieldPlayerIds = new Set();
+
+  db.prepare('DELETE FROM golf_tournament_fields WHERE tournament_id = ?').run(tourn.id);
+
+  let inserted = 0, created = 0;
+  db.transaction(() => {
+    for (const f of field) {
+      const name    = (f.player_name || f.name || '').trim();
+      const dgId    = f.dg_id;
+      const country = normalizeCountry(f.country);
+      const ranking = f.dg_id ? null : null; // DG field doesn't include ranking; will get from player record
+      if (!name) continue;
+
+      // Find or create player record, preferring datagolf_id match
+      let gp = dgId ? _getGP.get(dgId) : null;
+      if (!gp) gp = _getGPN.get(name);
+      if (!gp) {
+        _insGP.run(uuidv4(), name, country, 200, dgId || null);
+        gp = dgId ? _getGP.get(dgId) : _getGPN.get(name);
+        if (gp) created++;
+      }
+      if (!gp) continue;
+
+      // Update country and datagolf_id on player record
+      if (country)  _updGPCo.run(country, gp.id);
+      if (dgId)     _updDgId.run(dgId, gp.id);
+
+      fieldPlayerIds.add(gp.id);
+      _insTF.run(uuidv4(), tourn.id, name, gp.id, gp.world_ranking || 200);
+      inserted++;
+    }
+  })();
+
+  // ── Detect WDs: pool_picks for this tournament that aren't in new field ───
+  let wdCount = 0;
+  const pickLeagues = db.prepare(
+    "SELECT DISTINCT league_id FROM pool_picks WHERE tournament_id = ? AND is_dropped = 0"
+  ).all(tourn.id);
+  for (const { league_id } of pickLeagues) {
+    const picks = db.prepare(
+      'SELECT pp.player_id FROM pool_picks pp WHERE pp.league_id = ? AND pp.tournament_id = ?'
+    ).all(league_id, tourn.id);
+    for (const pick of picks) {
+      if (!fieldPlayerIds.has(pick.player_id)) {
+        // Player no longer in field — mark as WD in golf_scores
+        db.prepare(`
+          UPDATE golf_scores SET made_cut = 0
+          WHERE player_id = ? AND tournament_id = ? AND made_cut IS NULL
+        `).run(pick.player_id, tourn.id);
+        wdCount++;
+      }
+    }
+  }
+
+  // ── Rebuild pool_tier_players for affected leagues ────────────────────────
+  const { _oddsToDecimal, _rankToOdds } = _getTierHelpers();
+  const affectedLeagues = db.prepare(
+    "SELECT * FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'"
+  ).all(tourn.id);
+
+  const leagueResults = [];
+  for (const league of affectedLeagues) {
+    let tiersConfig = [];
+    try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
+    if (!tiersConfig.length) { leagueResults.push({ league: league.name, skipped: 'no_tier_config' }); continue; }
+
+    db.prepare('DELETE FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 0')
+      .run(league.id, tourn.id);
+
+    // Use odds from golf_players + golf_tournament_fields; field was just updated
+    const allTF = db.prepare(`
+      SELECT gp.*, tf.odds_display AS tf_od, tf.odds_decimal AS tf_dec
+      FROM golf_players gp
+      INNER JOIN golf_tournament_fields tf ON tf.player_id = gp.id AND tf.tournament_id = ?
+      ORDER BY COALESCE(tf.odds_decimal, gp.odds_decimal, 999) ASC
+    `).all(tourn.id);
+
+    const insTP = db.prepare(`
+      INSERT OR REPLACE INTO pool_tier_players
+        (id, league_id, tournament_id, player_id, player_name, tier_number,
+         odds_display, odds_decimal, world_ranking, salary, manually_overridden)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+    `);
+
+    let count = 0;
+    db.transaction(() => {
+      for (const p of allTF) {
+        const gen = (!p.tf_od && !p.odds_display) ? _rankToOdds(p.world_ranking || 200) : null;
+        const odds_display = p.tf_od || p.odds_display || gen.odds_display;
+        const odds_decimal = p.tf_dec || p.odds_decimal || gen.odds_decimal;
+        let tierNum = tiersConfig[tiersConfig.length - 1]?.tier || 1;
+        for (const t of tiersConfig) {
+          if (odds_decimal >= _oddsToDecimal(t.odds_min) && odds_decimal <= _oddsToDecimal(t.odds_max)) {
+            tierNum = t.tier; break;
+          }
+        }
+        insTP.run(uuidv4(), league.id, tourn.id, p.id, p.name, tierNum, odds_display, odds_decimal, p.world_ranking || 200);
+        count++;
+      }
+    })();
+    leagueResults.push({ league: league.name, players_assigned: count });
+  }
+
+  if (wdCount > 0) console.log(`[datagolf] ${tourn.name}: ${wdCount} WD(s) detected and marked`);
+  console.log(`[datagolf] ${tourn.name}: ${inserted} field players (${created} new), ${leagueResults.length} leagues rebuilt`);
+
+  return {
+    tournament: tourn.name,
+    field_size: inserted,
+    new_players: created,
+    wds_detected: wdCount,
+    leagues_rebuilt: leagueResults,
+  };
+}
+
+// Shared tier helpers (mirrors golf-admin.js — kept in sync manually)
+function _getTierHelpers() {
+  function _oddsToDecimal(str) {
+    if (!str) return 999;
+    const [a, b] = String(str).split(':').map(parseFloat);
+    if (isNaN(a) || isNaN(b) || b === 0) return 999;
+    return a / b + 1;
+  }
+  function _rankToOdds(rank) {
+    const r = rank || 9999;
+    const bands = [
+      { minRank:1,   maxRank:5,    min:8,   max:15   },
+      { minRank:6,   maxRank:15,   min:15,  max:30   },
+      { minRank:16,  maxRank:30,   min:30,  max:60   },
+      { minRank:31,  maxRank:50,   min:60,  max:100  },
+      { minRank:51,  maxRank:100,  min:100, max:200  },
+      { minRank:101, maxRank:200,  min:200, max:500  },
+    ];
+    const band = bands.find(b => r >= b.minRank && r <= b.maxRank) || { min:500, max:1000 };
+    const dec = (band.min + band.max) / 2 + 1;
+    return { odds_display: `${Math.round(dec - 1)}:1`, odds_decimal: dec };
+  }
+  return { _oddsToDecimal, _rankToOdds };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. SCHEDULE SYNC
+// Endpoint: GET /get-schedule?tour=pga&season=YYYY&file_format=json
+//
+// Auto-populates golf_tournaments from the DataGolf schedule.
+// Safe to run repeatedly — uses INSERT OR IGNORE + update for known fields.
+// ─────────────────────────────────────────────────────────────────────────────
+async function syncSchedule(season) {
+  const key = process.env.DATAGOLF_API_KEY;
+  if (!key) {
+    console.warn('[datagolf] DATAGOLF_API_KEY not set — skipping schedule sync');
+    return { skipped: true, reason: 'no_key' };
+  }
+
+  const yr = season || new Date().getFullYear();
+  console.log(`[datagolf] Fetching ${yr} schedule...`);
+  const raw = await fetchJson(`/get-schedule?tour=pga&season=${yr}&file_format=json`);
+
+  // Response: { schedule: [...] } or flat array
+  const events = Array.isArray(raw) ? raw : (raw.schedule || raw.events || []);
+  if (!events.length) {
+    console.warn('[datagolf] Schedule returned no events');
+    return { error: 'empty_schedule', season: yr };
+  }
+
+  const insT = db.prepare(`
+    INSERT OR IGNORE INTO golf_tournaments
+      (id, name, course, start_date, end_date, season_year, is_major, is_signature, status, purse, prize_money, datagolf_event_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?)
+  `);
+  const updT = db.prepare(`
+    UPDATE golf_tournaments
+    SET course = COALESCE(NULLIF(course,''), ?),
+        start_date = ?,
+        end_date = ?,
+        purse = COALESCE(NULLIF(purse,0), ?),
+        prize_money = COALESCE(NULLIF(prize_money,0), ?),
+        datagolf_event_id = COALESCE(datagolf_event_id, ?)
+    WHERE name = ? AND season_year = ?
+  `);
+
+  let inserted = 0, updated = 0;
+  db.transaction(() => {
+    for (const ev of events) {
+      const name   = (ev.event_name || ev.name || '').trim();
+      const dgId   = ev.event_id || ev.dg_event_id || null;
+      const course = (ev.course || ev.course_name || '').trim();
+      const purse  = ev.purse || ev.prize_money || 0;
+      const dates  = parseDGDate(ev.date || ev.dates || '', yr);
+      if (!name || !dates) continue;
+
+      const is_major     = isMajorEvent(name) ? 1 : 0;
+      const is_signature = (purse >= 15000000 || ev.signature === true || ev.is_signature === 1) ? 1 : 0;
+
+      const res = insT.run(uuidv4(), name, course, dates.start_date, dates.end_date, yr, is_major, is_signature, purse, purse, dgId);
+      if (res.changes > 0) {
+        inserted++;
+      } else {
+        // Tournament exists — update mutable fields
+        updT.run(course, dates.start_date, dates.end_date, purse, purse, dgId, name, yr);
+        updated++;
+      }
+    }
+  })();
+
+  console.log(`[datagolf] Schedule sync ${yr}: ${inserted} inserted, ${updated} updated (${events.length} total events)`);
+  return { season: yr, total: events.length, inserted, updated };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. LIVE SCORING SCAFFOLD
+// Endpoint: GET /preds/live-tournament-stats?stats=sg_total,sg_putt,sg_app,sg_ott,sg_t2g,scrambling&round=event_cumulative&file_format=json
+//
+// Updates every 5 minutes during rounds. Currently stores SG data alongside
+// existing ESPN round scores. Full replacement of ESPN scoring is future work.
+// ─────────────────────────────────────────────────────────────────────────────
+async function syncLiveStats(tournamentId) {
+  const key = process.env.DATAGOLF_API_KEY;
+  if (!key) return { skipped: true, reason: 'no_key' };
+
+  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  if (!tourn) throw new Error(`Tournament ${tournamentId} not found`);
+
+  console.log(`[datagolf] Fetching live stats for ${tourn.name}...`);
+  const raw = await fetchJson(
+    '/preds/live-tournament-stats?stats=sg_total,sg_putt,sg_app,sg_ott,sg_t2g,scrambling&round=event_cumulative&file_format=json'
+  );
+
+  const liveStats = raw.live_stats || raw.data || [];
+  if (!liveStats.length) return { synced: 0, reason: 'no_live_stats' };
+
+  // Ensure sg_total column exists (migration guard)
+  try { db.exec('ALTER TABLE golf_scores ADD COLUMN sg_total REAL'); } catch (_) {}
+
+  const updSG = db.prepare('UPDATE golf_scores SET sg_total = ? WHERE player_id = ? AND tournament_id = ?');
+  const _getGP = db.prepare('SELECT id FROM golf_players WHERE datagolf_id = ? LIMIT 1');
+  const _getGPN = db.prepare('SELECT id FROM golf_players WHERE name = ? LIMIT 1');
+
+  let synced = 0;
+  for (const s of liveStats) {
+    const dgId   = s.dg_id;
+    const name   = s.player_name || s.name || '';
+    const sgTotal = s.sg_total ?? null;
+    if (sgTotal === null) continue;
+
+    let gp = dgId ? _getGP.get(dgId) : null;
+    if (!gp && name) gp = _getGPN.get(name);
+    if (!gp) continue;
+
+    const res = updSG.run(sgTotal, gp.id, tourn.id);
+    if (res.changes > 0) synced++;
+  }
+
+  console.log(`[datagolf] Live stats ${tourn.name}: ${synced}/${liveStats.length} players updated`);
+  return { tournament: tourn.name, synced, total: liveStats.length, round_info: raw.info || {} };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. SCHEDULER
+// - Player list: once at startup (after 30s) + every Sunday at midnight UTC
+// - Field sync: every Monday at 8am UTC + every 12h Mon–Wed (WD updates)
+// - Schedule sync: once at startup (after 60s) + every Sunday at midnight UTC
+// ─────────────────────────────────────────────────────────────────────────────
+let _dgScheduleInterval = null;
+
+function scheduleDataGolfSync() {
+  if (!process.env.DATAGOLF_API_KEY) {
+    console.warn('[datagolf] DATAGOLF_API_KEY not set — DataGolf sync disabled');
+    return;
+  }
+
+  // Check every 10 minutes for scheduled tasks
+  if (_dgScheduleInterval) clearInterval(_dgScheduleInterval);
+  _dgScheduleInterval = setInterval(() => {
+    const now = new Date();
+    const dayUTC  = now.getUTCDay();   // 0=Sun, 1=Mon, 2=Tue, 3=Wed
+    const hourUTC = now.getUTCHours();
+    const minUTC  = now.getUTCMinutes();
+
+    // Monday 8am UTC: field sync (new tournament week starts)
+    if (dayUTC === 1 && hourUTC === 8 && minUTC < 10) {
+      console.log('[datagolf] Monday field sync triggered');
+      syncCurrentField().catch(e => console.error('[datagolf] Monday field sync error:', e.message));
+    }
+
+    // Mon–Wed 8pm UTC: afternoon WD/qualifier update
+    if ([1,2,3].includes(dayUTC) && hourUTC === 20 && minUTC < 10) {
+      console.log('[datagolf] Afternoon field update (WD check) triggered');
+      syncCurrentField().catch(e => console.error('[datagolf] Afternoon field sync error:', e.message));
+    }
+
+    // Sunday midnight UTC: player list + schedule refresh
+    if (dayUTC === 0 && hourUTC === 0 && minUTC < 10) {
+      console.log('[datagolf] Sunday maintenance: player list + schedule refresh');
+      syncPlayerList().catch(e => console.error('[datagolf] Sunday player list error:', e.message));
+      syncSchedule().catch(e => console.error('[datagolf] Sunday schedule error:', e.message));
+    }
+  }, 10 * 60 * 1000); // check every 10 min
+
+  // Startup tasks (staggered to avoid hammering API at boot)
+  setTimeout(() => syncPlayerList().catch(e => console.error('[datagolf] Startup player list error:', e.message)), 30 * 1000);
+  setTimeout(() => syncSchedule().catch(e => console.error('[datagolf] Startup schedule error:', e.message)), 75 * 1000);
+
+  console.log('[datagolf] Sync scheduled: field Mon 8am UTC + Mon/Tue/Wed 8pm UTC, player list + schedule Sunday midnight UTC');
+}
+
+module.exports = {
+  syncPlayerList,
+  syncCurrentField,
+  syncFieldForTournament,
+  syncSchedule,
+  syncLiveStats,
+  scheduleDataGolfSync,
+  normalizeCountry,
+};

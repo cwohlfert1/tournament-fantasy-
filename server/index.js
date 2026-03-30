@@ -493,6 +493,10 @@ setGolfSyncIo(io);
 scheduleAutoSync();
 setTimeout(backfillCompleted, 15 * 1000); // backfill after server is up
 
+// DataGolf integration — player list + field + schedule auto-sync
+const { scheduleDataGolfSync } = require('./dataGolfService');
+scheduleDataGolfSync();
+
 // Self-heal: correct any tournament marked 'completed' while still within its date window
 // (guards against sync bugs that prematurely complete a live tournament)
 try {

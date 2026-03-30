@@ -969,6 +969,8 @@ function DevToolsTab() {
   const [copied, setCopied]         = useState(false);
   const [readiness, setReadiness]   = useState(null);
   const [checkingReadiness, setCheckingReadiness] = useState(false);
+  const [dgResults, setDgResults]   = useState({});
+  const [dgLoading, setDgLoading]   = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -1285,6 +1287,220 @@ function DevToolsTab() {
         >
           {checkingReadiness ? 'Checking…' : 'Run Readiness Check'}
         </button>
+      </div>
+
+      {/* ── DataGolf Integration ── */}
+      <div style={{ marginTop: 28, marginBottom: 14 }}>
+        <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          DataGolf Integration
+        </div>
+        <div style={{ color: '#374151', fontSize: 11, marginTop: 4 }}>
+          Scratch Plus API — field sync, player IDs, schedule, live SG stats
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 16 }} className="sm:grid-cols-2">
+
+        {/* Player List */}
+        <div style={{ background: '#060e1a', border: '1px solid #2563eb33', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>🌍</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Sync Player List</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Fetches all DataGolf players, matches to our records by name, stores
+            DataGolf IDs, and fixes 3-letter country codes permanently.
+          </p>
+          {dgResults.players && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.players.error
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.players.error}</div>
+                : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <div style={{ color: '#4ade80' }}>✓ {dgResults.players.matched} / {dgResults.players.our_total} matched</div>
+                    <div style={{ color: '#60a5fa' }}>↳ {dgResults.players.country_fixed} country codes fixed</div>
+                    <div style={{ color: '#4b5563' }}>{dgResults.players.dg_total} total DataGolf players</div>
+                  </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.players}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, players: true }));
+              setDgResults(r => ({ ...r, players: null }));
+              try {
+                const res = await api.post('/golf/admin/dev/sync-datagolf-players');
+                setDgResults(r => ({ ...r, players: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, players: { error: e.response?.data?.error || 'Failed' } }));
+              }
+              setDgLoading(l => ({ ...l, players: false }));
+            }}
+            style={{
+              background: dgLoading.players ? '#1e3a5f' : '#2563eb',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: dgLoading.players ? 'not-allowed' : 'pointer',
+              opacity: dgLoading.players ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.players ? 'Syncing…' : 'Sync Player List →'}
+          </button>
+        </div>
+
+        {/* Field Sync */}
+        <div style={{ background: '#060e1a', border: '1px solid #059669' + '44', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>⛳</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Sync Current Field</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Fetches this week's field from DataGolf, populates player pool,
+            detects WDs, and rebuilds tiers for all linked pool leagues.
+          </p>
+          <select
+            value={selectedT}
+            onChange={e => setSelectedT(e.target.value)}
+            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}
+          >
+            <option value="">— Current week (auto-detect) —</option>
+            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          {dgResults.field && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.field.error
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.field.error}{dgResults.field.event_name ? ` ("${dgResults.field.event_name}")` : ''}</div>
+                : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <div style={{ color: '#4ade80' }}>✓ {dgResults.field.field_size} players — {dgResults.field.tournament}</div>
+                    {dgResults.field.new_players > 0 && <div style={{ color: '#60a5fa' }}>↳ {dgResults.field.new_players} new players created</div>}
+                    {dgResults.field.wds_detected > 0 && <div style={{ color: '#fbbf24' }}>⚠ {dgResults.field.wds_detected} WD(s) detected</div>}
+                    {(dgResults.field.leagues_rebuilt || []).map((l, i) => (
+                      <div key={i} style={{ color: l.skipped ? '#fbbf24' : '#4b5563', paddingLeft: 10 }}>
+                        {l.skipped ? `⚠ ${l.league}: ${l.skipped}` : `↳ ${l.league}: ${l.players_assigned} assigned`}
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.field}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, field: true }));
+              setDgResults(r => ({ ...r, field: null }));
+              try {
+                const body = selectedT ? { tournament_id: selectedT } : {};
+                const res = await api.post('/golf/admin/dev/sync-datagolf-field', body);
+                setDgResults(r => ({ ...r, field: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, field: { error: e.response?.data?.error || 'Failed' } }));
+              }
+              setDgLoading(l => ({ ...l, field: false }));
+            }}
+            style={{
+              background: dgLoading.field ? '#065f46' : '#059669',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: dgLoading.field ? 'not-allowed' : 'pointer',
+              opacity: dgLoading.field ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.field ? 'Syncing…' : 'Sync Field →'}
+          </button>
+        </div>
+
+        {/* Schedule Sync */}
+        <div style={{ background: '#0a0a06', border: '1px solid #d9770644', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>📅</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Sync PGA Schedule</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Imports the full PGA Tour schedule from DataGolf for the current season.
+            Inserts new tournaments and updates existing ones — replaces manual entry.
+          </p>
+          {dgResults.schedule && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.schedule.error
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.schedule.error}</div>
+                : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <div style={{ color: '#4ade80' }}>✓ {dgResults.schedule.inserted} new tournaments added</div>
+                    <div style={{ color: '#60a5fa' }}>↳ {dgResults.schedule.updated} existing updated</div>
+                    <div style={{ color: '#4b5563' }}>{dgResults.schedule.total} total events in {dgResults.schedule.season} schedule</div>
+                  </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.schedule}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, schedule: true }));
+              setDgResults(r => ({ ...r, schedule: null }));
+              try {
+                const res = await api.post('/golf/admin/dev/sync-datagolf-schedule', { season: new Date().getFullYear() });
+                setDgResults(r => ({ ...r, schedule: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, schedule: { error: e.response?.data?.error || 'Failed' } }));
+              }
+              setDgLoading(l => ({ ...l, schedule: false }));
+            }}
+            style={{
+              background: dgLoading.schedule ? '#92400e' : '#d97706',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: dgLoading.schedule ? 'not-allowed' : 'pointer',
+              opacity: dgLoading.schedule ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.schedule ? 'Syncing…' : 'Sync Schedule →'}
+          </button>
+        </div>
+
+        {/* Live SG Stats */}
+        <div style={{ background: '#0a060a', border: '1px solid #7c3aed44', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>📊</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Sync Live SG Stats</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Fetches cumulative strokes-gained data (sg_total, sg_putt, sg_app, etc.)
+            for an active tournament. Updates every 5 min during rounds.
+          </p>
+          <select
+            value={selectedT}
+            onChange={e => setSelectedT(e.target.value)}
+            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}
+          >
+            <option value="">— Select tournament —</option>
+            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          {dgResults.live && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.live.error
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.live.error}</div>
+                : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <div style={{ color: '#4ade80' }}>✓ {dgResults.live.synced} / {dgResults.live.total} players updated</div>
+                    {dgResults.live.round_info?.event_name && <div style={{ color: '#4b5563' }}>{dgResults.live.round_info.event_name}</div>}
+                  </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.live || !selectedT}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, live: true }));
+              setDgResults(r => ({ ...r, live: null }));
+              try {
+                const res = await api.post('/golf/admin/dev/sync-datagolf-live', { tournament_id: selectedT });
+                setDgResults(r => ({ ...r, live: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, live: { error: e.response?.data?.error || 'Failed' } }));
+              }
+              setDgLoading(l => ({ ...l, live: false }));
+            }}
+            style={{
+              background: (dgLoading.live || !selectedT) ? '#2e1065' : '#7c3aed',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: (dgLoading.live || !selectedT) ? 'not-allowed' : 'pointer',
+              opacity: (dgLoading.live || !selectedT) ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.live ? 'Fetching…' : 'Sync Live Stats →'}
+          </button>
+        </div>
+
       </div>
     </>
   );
