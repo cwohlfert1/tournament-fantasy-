@@ -967,6 +967,8 @@ function DevToolsTab() {
   const [loading, setLoading]       = useState({});
   const [valsparModal, setValsparModal] = useState(null); // { inviteCode, leagueName, tournament, botsAdded, playersAssigned }
   const [copied, setCopied]         = useState(false);
+  const [readiness, setReadiness]   = useState(null);
+  const [checkingReadiness, setCheckingReadiness] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -1205,6 +1207,84 @@ function DevToolsTab() {
             </div>
           ) : <div style={{ color: '#374151', fontSize: 12 }}>Loading…</div>
         )}
+      </div>
+
+      {/* ── Tournament Management ── */}
+      <div style={{ marginTop: 28, marginBottom: 14 }}>
+        <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Tournament Management
+        </div>
+      </div>
+      <div style={{ background: '#060e08', border: '1px solid #fbbf2433', borderRadius: 16, padding: 20 }}>
+        <div style={{ fontSize: 28, marginBottom: 10 }}>🏁</div>
+        <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Tournament Readiness Check</h4>
+        <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+          Run before each tournament to verify ESPN event ID, player pool, status, API reachability, and score sync are all healthy.
+        </p>
+
+        <select
+          value={selectedT}
+          onChange={e => { setSelectedT(e.target.value); setReadiness(null); }}
+          style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 12 }}
+        >
+          {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+
+        {readiness && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 8, marginBottom: 10, fontSize: 12, fontWeight: 700,
+              background: readiness.overall === 'pass' ? 'rgba(74,222,128,0.1)' : readiness.overall === 'fail' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)',
+              border: `1px solid ${readiness.overall === 'pass' ? 'rgba(74,222,128,0.35)' : readiness.overall === 'fail' ? 'rgba(248,113,113,0.35)' : 'rgba(251,191,36,0.35)'}`,
+              color: readiness.overall === 'pass' ? '#4ade80' : readiness.overall === 'fail' ? '#f87171' : '#fbbf24',
+            }}>
+              {readiness.overall === 'pass' ? '✓ All checks passed' : readiness.overall === 'fail' ? '✗ Issues found' : '⚠ Warnings'}
+            </div>
+            {readiness.tournament && (
+              <div style={{ color: '#4b5563', fontSize: 11, marginBottom: 8 }}>
+                {readiness.tournament.name} · espn_event_id: {readiness.tournament.espn_event_id || 'NULL'} · status: {readiness.tournament.status}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {readiness.checks.map(c => (
+                <div key={c.name} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#0d1117', borderRadius: 8, padding: '7px 10px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 1, color: c.status === 'pass' ? '#4ade80' : c.status === 'fail' ? '#f87171' : '#fbbf24' }}>
+                    {c.status === 'pass' ? '✓' : c.status === 'fail' ? '✗' : '⚠'}
+                  </span>
+                  <div>
+                    <div style={{ color: '#e5e7eb', fontSize: 12, fontWeight: 600 }}>{c.name}</div>
+                    <div style={{ color: '#6b7280', fontSize: 11, marginTop: 1 }}>{c.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          disabled={checkingReadiness || !selectedT}
+          onClick={async () => {
+            setCheckingReadiness(true);
+            setReadiness(null);
+            try {
+              const r = await api.get(`/golf/admin/tournament-readiness/${selectedT}`);
+              setReadiness(r.data);
+            } catch {
+              setReadiness({ overall: 'fail', checks: [{ name: 'Request failed', status: 'fail', detail: 'Could not reach server' }] });
+            }
+            setCheckingReadiness(false);
+          }}
+          style={{
+            background: (checkingReadiness || !selectedT) ? '#78350f' : '#d97706',
+            color: '#fff', border: 'none', borderRadius: 10,
+            padding: '9px 20px', fontSize: 13, fontWeight: 700,
+            cursor: (checkingReadiness || !selectedT) ? 'not-allowed' : 'pointer',
+            opacity: (checkingReadiness || !selectedT) ? 0.6 : 1,
+          }}
+        >
+          {checkingReadiness ? 'Checking…' : 'Run Readiness Check'}
+        </button>
       </div>
     </>
   );

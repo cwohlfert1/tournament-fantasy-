@@ -385,10 +385,6 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [applyingDrops, setApplyingDrops] = useState(false);
   const [dropResult, setDropResult] = useState(null);
 
-  // Tournament readiness
-  const [readiness, setReadiness] = useState(null);
-  const [checkingReadiness, setCheckingReadiness] = useState(false);
-
   // Blast modal
   const [blastModal, setBlastModal] = useState(null); // string (pre-filled message) or null
 
@@ -1117,72 +1113,6 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                   : league.pool_drops_applied
                     ? `Re-apply Drops (${league.pool_drop_count ?? 2} worst)`
                     : `Drop Worst ${league.pool_drop_count ?? 2} Players`}
-              </button>
-            </div>
-          )}
-
-          {/* Tournament readiness check */}
-          {league?.format_type === 'pool' && league?.pool_tournament_id && (
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-              <h4 className="text-white text-sm font-bold mb-1">🏁 Tournament Readiness</h4>
-              <p className="text-gray-500 text-xs mb-3">
-                Run before each tournament to catch setup issues before they cost teams points.
-              </p>
-
-              {readiness && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '4px 10px', borderRadius: 8, marginBottom: 10, fontSize: 12, fontWeight: 700,
-                    background: readiness.overall === 'pass' ? 'rgba(74,222,128,0.1)'
-                      : readiness.overall === 'fail' ? 'rgba(248,113,113,0.1)' : 'rgba(251,191,36,0.1)',
-                    border: `1px solid ${readiness.overall === 'pass' ? 'rgba(74,222,128,0.35)'
-                      : readiness.overall === 'fail' ? 'rgba(248,113,113,0.35)' : 'rgba(251,191,36,0.35)'}`,
-                    color: readiness.overall === 'pass' ? '#4ade80'
-                      : readiness.overall === 'fail' ? '#f87171' : '#fbbf24',
-                  }}>
-                    {readiness.overall === 'pass' ? '✓ All checks passed'
-                      : readiness.overall === 'fail' ? '✗ Issues found'
-                      : '⚠ Warnings'}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {readiness.checks.map(c => (
-                      <div key={c.name} style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 8,
-                        background: '#0d1117', borderRadius: 8, padding: '7px 10px',
-                      }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 1,
-                          color: c.status === 'pass' ? '#4ade80' : c.status === 'fail' ? '#f87171' : '#fbbf24',
-                        }}>
-                          {c.status === 'pass' ? '✓' : c.status === 'fail' ? '✗' : '⚠'}
-                        </span>
-                        <div>
-                          <div style={{ color: '#e5e7eb', fontSize: 12, fontWeight: 600 }}>{c.name}</div>
-                          <div style={{ color: '#6b7280', fontSize: 11, marginTop: 1 }}>{c.detail}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <button
-                disabled={checkingReadiness}
-                onClick={async () => {
-                  setCheckingReadiness(true);
-                  setReadiness(null);
-                  try {
-                    const r = await api.get(`/golf/admin/tournament-readiness/${league.pool_tournament_id}`);
-                    setReadiness(r.data);
-                  } catch {
-                    setReadiness({ overall: 'fail', checks: [{ name: 'Request failed', status: 'fail', detail: 'Could not reach server' }] });
-                  }
-                  setCheckingReadiness(false);
-                }}
-                className="text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
-              >
-                {checkingReadiness ? 'Checking…' : 'Run Readiness Check'}
               </button>
             </div>
           )}

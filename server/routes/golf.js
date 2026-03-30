@@ -1064,20 +1064,14 @@ router.get('/admin/sync/status', authMiddleware, (req, res) => {
 //   5. ESPN API is reachable and returns competitor data
 //   6. Score sync fires and returns at least 1 player
 //
-// Accessible to commissioner of any league using this tournament, or superadmin.
+// Superadmin only — moved from Commissioner page.
 router.get('/admin/tournament-readiness/:tournamentId', authMiddleware, async (req, res) => {
   try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Superadmin only' });
+
     const { tournamentId } = req.params;
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
     if (!tourn) return res.status(404).json({ error: 'Tournament not found' });
-
-    // Auth: superadmin OR commissioner of a league using this tournament
-    if (req.user.role !== 'superadmin') {
-      const commLeague = db.prepare(
-        'SELECT id FROM golf_leagues WHERE commissioner_id = ? AND pool_tournament_id = ?'
-      ).get(req.user.id, tournamentId);
-      if (!commLeague) return res.status(403).json({ error: 'Commissioner access required' });
-    }
 
     const checks = [];
     const pass = (name, detail) => checks.push({ name, status: 'pass', detail });
