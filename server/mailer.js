@@ -131,9 +131,9 @@ ${emailHeader()}
           </tr>
         </table>
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">How it works</div>
-        ${card('Step 1', '&#127919; Draft real college basketball players')}
-        ${card('Step 2', '&#128202; Score points every time they score')}
-        ${card('Step 3', '&#128181; Win your league\'s prize pool')}
+        ${card('Step 1', '🎯 Draft real college basketball players')}
+        ${card('Step 2', '📊 Score points every time they score')}
+        ${card('Step 3', '💵 Win your league\'s prize pool')}
       </td></tr>
 ${emailFooter('tourneyrun.app &middot; Skill-based fantasy &middot; Payments powered by Stripe')}
 `),
@@ -149,7 +149,7 @@ async function sendLeagueStandingsEmail(toEmail, { username, leagueName, roundNa
 
   const rows = standings.map((s, i) => {
     const rank  = i + 1;
-    const medal = rank === 1 ? '&#129351;' : rank === 2 ? '&#129352;' : rank === 3 ? '&#129353;' : `${rank}.`;
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
     const isYou = s.username === username;
     return `<tr style="background-color:${isYou ? '#162a1a' : 'transparent'};">
       <td style="padding-top:9px;padding-right:12px;padding-bottom:9px;padding-left:12px;font-size:14px;color:${isYou ? '#22c55e' : '#6b7280'};font-weight:${isYou ? '700' : '400'};">${medal}</td>
@@ -166,7 +166,7 @@ async function sendLeagueStandingsEmail(toEmail, { username, leagueName, roundNa
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">${leagueName}</div>
-        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">${roundName} complete &#127936;</h1>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">${roundName} complete 🏀</h1>
         <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">Here are the updated standings for your league.</p>
         <div style="background-color:#1a2733;border-radius:8px;overflow:hidden;margin-bottom:20px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
@@ -193,9 +193,9 @@ async function sendGolfPaymentConfirmation(toEmail, username, type, meta) {
   const baseUrl = (process.env.CLIENT_URL || 'https://tourneyrun.app').replace(/\/$/, '');
 
   const subjects = {
-    golf_season_pass: '&#9971; Your 2026 Golf Season Pass is active',
-    golf_pool_entry:  '&#9971; Office Pool entry confirmed',
-    golf_comm_pro:    '&#9971; Commissioner Pro unlocked',
+    golf_season_pass: '⛳ Your 2026 Golf Season Pass is active',
+    golf_pool_entry:  '⛳ Office Pool entry confirmed',
+    golf_comm_pro:    '⛳ Commissioner Pro unlocked',
   };
 
   const bodies = {
@@ -204,7 +204,7 @@ async function sendGolfPaymentConfirmation(toEmail, username, type, meta) {
     golf_comm_pro:    `Commissioner Pro is active for your league. You now have access to auto-emails, payment tracking, FAAB results, CSV export, and more.`,
   };
 
-  const subject  = subjects[type] || '&#9971; TourneyRun Golf — Payment confirmed';
+  const subject  = subjects[type] || '⛳ TourneyRun Golf — Payment confirmed';
   const bodyText = bodies[type]   || 'Your payment was successful.';
 
   await sendEmail({
@@ -215,9 +215,9 @@ async function sendGolfPaymentConfirmation(toEmail, username, type, meta) {
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Fantasy Golf</div>
-        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Payment confirmed &#10003;</h1>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Payment confirmed ✓</h1>
         <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">Hey ${username} &mdash; ${bodyText}</p>
-        ${card('Status', '<span style="color:#22c55e;font-weight:600;">&#10003; Active</span>')}
+        ${card('Status', '<span style="color:#22c55e;font-weight:600;">✓ Active</span>')}
         ${meta.tournament_name ? card('Tournament', meta.tournament_name) : ''}
         ${ctaButton(`${baseUrl}/golf/dashboard`, 'Go to Golf Dashboard &rarr;')}
       </td></tr>
@@ -233,12 +233,12 @@ async function sendCommProUnlocked(toEmail, username, leagueName) {
   await sendEmail({
     from: FROM_GOLF,
     to:   toEmail,
-    subject: '&#127942; You unlocked Commissioner Pro — free for 2026!',
+    subject: '🏆 You unlocked Commissioner Pro — free for 2026!',
     html: emailShell(`
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Commissioner</div>
-        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Commissioner Pro unlocked! &#127942;</h1>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Commissioner Pro unlocked! 🏆</h1>
         <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">Hey ${username}, your league <span style="color:#ffffff;font-weight:600;">${leagueName}</span> hit 6 members &mdash; so we unlocked Commissioner Pro for the 2026 season at no charge.</p>
         ${card('League', leagueName)}
         ${card('Unlocked Features', 'Auto-emails &middot; Payment tracker &middot; FAAB results &middot; CSV export &middot; Member roster &middot; Mass blast')}
@@ -256,12 +256,12 @@ async function sendGolfPoolLive(toEmail, { username, leagueName, leagueId, spots
   await sendEmail({
     from: FROM_GOLF,
     to:   toEmail,
-    subject: 'Your TourneyRun pool is live! &#127952;',
+    subject: 'Your TourneyRun pool is live! ⛳',
     html: emailShell(`
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
         <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">${leagueName}</div>
-        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Your pool is live! &#9989;</h1>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Your pool is live! ✅</h1>
         <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">Hey ${username} &mdash; <span style="color:#ffffff;font-weight:600;">${leagueName}</span> is open and ready for picks. Share the link below to get your group in before Thursday.</p>
         ${tournamentName ? card('Tournament', tournamentName) : ''}
         ${card('Open Spots', String(spotsOpen))}
@@ -295,7 +295,7 @@ async function sendGolfLeagueWelcome(toEmail, { username, leagueName, leagueId, 
   await sendEmail({
     from: FROM_GOLF,
     to:   toEmail,
-    subject: `&#9971; Welcome to ${leagueName} — you're in!`,
+    subject: `⛳ Welcome to ${leagueName} — you're in!`,
     html: emailShell(`
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
@@ -326,7 +326,7 @@ async function sendGolfMassBlast(toEmail, { leagueName, leagueId, message }) {
   await sendEmail({
     from: FROM_GOLF,
     to:   toEmail,
-    subject: `&#128227; Message from your ${leagueName} commissioner`,
+    subject: `📣 Message from your ${leagueName} commissioner`,
     html: emailShell(`
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
@@ -358,7 +358,7 @@ async function sendGolfRoundComplete(toEmail, { username, leagueName, leagueId, 
   await sendEmail({
     from: FROM_GOLF,
     to:   toEmail,
-    subject: `&#128202; Round ${roundNumber} complete &mdash; ${leagueName}`,
+    subject: `📊 Round ${roundNumber} complete — ${leagueName}`,
     html: emailShell(`
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
