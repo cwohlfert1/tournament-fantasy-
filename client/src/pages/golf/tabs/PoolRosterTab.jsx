@@ -602,14 +602,23 @@ export default function PoolRosterTab({ leagueId, league }) {
 
       {/* ── SUBMITTED: picks grid ── */}
       {submitted && (() => {
+        // Hide players not in this week's field (DataGolf sync sets made_cut=0 for non-field players).
+        // Only exclude if: no round scores, not explicitly withdrawn, and not a real cut (no finish_position).
+        const visiblePicks = picks.filter(p => {
+          const hasRoundScore = p.round1 != null || p.round2 != null || p.round3 != null || p.round4 != null;
+          const isNotInField = p.made_cut === 0 && !p.is_withdrawn && !hasRoundScore && p.finish_position == null;
+          if (isNotInField) console.log('[PoolRoster] hiding not-in-field player:', p.player_name, { made_cut: p.made_cut, is_withdrawn: p.is_withdrawn, hasRoundScore, finish_position: p.finish_position });
+          return !isNotInField;
+        });
+        console.log('[PoolRoster] picks total:', picks.length, '| visible after filter:', visiblePicks.length);
         const byTier = {};
-        for (const p of picks) {
+        for (const p of visiblePicks) {
           if (!byTier[p.tier_number]) byTier[p.tier_number] = [];
           byTier[p.tier_number].push(p);
         }
         const tierNums = tiersConfig.length
           ? tiersConfig.map(t => parseInt(t.tier || t.tier_number || t.id)).filter(Boolean)
-          : [...new Set(picks.map(p => p.tier_number))].sort();
+          : [...new Set(visiblePicks.map(p => p.tier_number))].sort();
 
         return (
           <>

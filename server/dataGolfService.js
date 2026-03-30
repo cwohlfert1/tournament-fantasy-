@@ -323,7 +323,13 @@ function _applyFieldToTournament(tourn, field) {
     ).all(league_id, tourn.id);
     for (const pick of picks) {
       if (!fieldPlayerIds.has(pick.player_id)) {
-        // Player no longer in field — mark as WD in golf_scores
+        // Player no longer in field — ensure a golf_scores row exists with made_cut=0
+        // INSERT OR IGNORE creates the row if it doesn't exist; UPDATE handles the case
+        // where a row exists but made_cut is still NULL (e.g. was in R1 then WD'd).
+        db.prepare(`
+          INSERT OR IGNORE INTO golf_scores (id, tournament_id, player_id, made_cut, updated_at)
+          VALUES (?, ?, ?, 0, datetime('now'))
+        `).run(uuidv4(), tourn.id, pick.player_id);
         db.prepare(`
           UPDATE golf_scores SET made_cut = 0
           WHERE player_id = ? AND tournament_id = ? AND made_cut IS NULL
