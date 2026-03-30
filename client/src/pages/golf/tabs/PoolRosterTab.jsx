@@ -233,7 +233,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, espnFlagHref, espnCountryAlt, onRemove }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, espnFlagHref, espnCountryAlt, onRemove, isStrokeBased }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
@@ -321,7 +321,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
             <div style={{ fontSize: 11, color: '#6b7280' }}>
               {isLive ? `R${rounds.length}: ${fmtScore(todayRaw)}` : isComplete ? `Rd ${rounds.length}` : ''}
             </div>
-            {pts != null && !isDropped && (
+            {pts != null && !isDropped && !isStrokeBased && (
               <div style={{ fontSize: 11, fontWeight: 700, color: tc.label }}>
                 {pts > 0 ? '+' : ''}{pts} pts
               </div>
@@ -414,6 +414,7 @@ export default function PoolRosterTab({ leagueId, league }) {
   const dropCount    = data?.drop_count ?? league.pool_drop_count ?? 2;
   const teamScore    = data?.team_score;
   const picksPerTeam  = data?.picks_per_team || league.picks_per_team || 8;
+  const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
 
   const totalTarget = picksPerTeam;
   const totalDone   = Object.values(selected).flat().length;
@@ -658,6 +659,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                           isPending={pick.is_pending}
                           espnFlagHref={espnData?.flagHref}
                           espnCountryAlt={espnData?.countryAlt}
+                          isStrokeBased={isStrokeBased}
                           onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' ? () => handleRemoveSubmittedPick(pick) : undefined}
                         />
                       );

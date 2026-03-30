@@ -159,7 +159,7 @@ function GolfBellMenu({ notifications, dismissed, dismiss, markAllRead, unreadCo
           position: 'absolute', top: 'calc(100% + 6px)', right: 0,
           width: 320, maxHeight: 400, overflowY: 'auto',
           background: '#0f1923', border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 12, zIndex: 200,
+          borderRadius: 12, zIndex: 9000,
           boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', position: 'sticky', top: 0, background: '#0f1923' }}>
@@ -411,30 +411,10 @@ export default function Navbar({ variant }) {
         {/* ── Mobile: bell (golf + logged in) + hamburger ── */}
         <div className="md:hidden flex items-center" style={{ gap: 2 }}>
           {isGolf && user && (
-            <button
-              onClick={() => setMenuOpen(true)}
-              aria-label="Notifications"
-              style={{
-                position: 'relative', background: 'none', border: 'none',
-                cursor: 'pointer', padding: '5px 6px', borderRadius: 8,
-                color: golfNotif.unreadCount > 0 ? '#4ade80' : '#6b7280',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <BellSVG />
-              {golfNotif.unreadCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: 2, right: 2,
-                  minWidth: 15, height: 15, borderRadius: 999,
-                  background: '#ef4444', color: '#fff',
-                  fontSize: 9, fontWeight: 800, lineHeight: 1, padding: '0 3px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 0 1.5px #0a1a0f',
-                }}>
-                  {golfNotif.unreadCount > 9 ? '9+' : golfNotif.unreadCount}
-                </span>
-              )}
-            </button>
+            // Wrap in div so clicking bell also closes the hamburger menu
+            <div onClick={() => setMenuOpen(false)}>
+              <GolfBellMenu {...golfNotif} />
+            </div>
           )}
           <button
             className="p-2 rounded-lg transition-colors"

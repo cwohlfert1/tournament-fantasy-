@@ -19,12 +19,11 @@ import CommissionerTab from './tabs/CommissionerTab';
 import PGALiveTab from './tabs/PGALiveTab';
 import OwnershipTab from './tabs/OwnershipTab';
 
-function getTabs(league, isComm) {
+function getTabs(league, isComm, hideOverview = false) {
   const isPool = league?.format_type === 'pool';
-  const base = [
-    { key: 'overview',  label: 'Overview' },
-    { key: 'roster',    label: isPool ? 'My Picks' : 'Roster' },
-  ];
+  const base = [];
+  if (!hideOverview) base.push({ key: 'overview', label: 'Overview' });
+  base.push({ key: 'roster', label: isPool ? 'My Picks' : 'Roster' });
   if (!isPool) {
     base.push({ key: 'lineup', label: 'My Lineup' });
   }
@@ -197,6 +196,18 @@ export default function GolfLeague() {
 
   const isComm = league.commissioner_id === user?.id;
 
+  // Hide Overview tab once picks are submitted and tournament has started.
+  // picksStatus loads async — stays false until resolved (no flash risk).
+  const shouldHideOverview =
+    league.format_type === 'pool' &&
+    !!picksStatus?.submitted &&
+    (league.pool_tournament_status === 'active' ||
+     league.pool_tournament_status === 'completed' ||
+     !!picksStatus?.picks_locked);
+
+  // If the URL tab is 'overview' but it's hidden, treat as 'roster'.
+  const effectiveTab = tab === 'overview' && shouldHideOverview ? 'roster' : tab;
+
   function setTab(t) {
     setSearchParams({ tab: t });
   }
@@ -256,12 +267,12 @@ export default function GolfLeague() {
       {/* ── Tab bar ── */}
       <div className="relative mb-6">
         <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {getTabs(league, isComm).map(t => (
+          {getTabs(league, isComm, shouldHideOverview).map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`shrink-0 px-3 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
-                tab === t.key
+                effectiveTab === t.key
                   ? 'bg-green-500 text-white shadow-sm'
                   : 'text-gray-400 hover:text-gray-200'
               }`}
@@ -274,31 +285,31 @@ export default function GolfLeague() {
       </div>
 
       {/* ── Tab content ── */}
-      {tab === 'overview' && (
+      {effectiveTab === 'overview' && (
         <OverviewTab league={league} members={members} user={user} isComm={isComm} navigate={navigate} picksStatus={picksStatus} />
       )}
-      {tab === 'schedule' && (
+      {effectiveTab === 'schedule' && (
         <ScheduleTab leagueId={id} isComm={isComm} />
       )}
-      {tab === 'roster' && (
+      {effectiveTab === 'roster' && (
         <RosterTab leagueId={id} league={league} />
       )}
-      {tab === 'freeagency' && league.format_type === 'tourneyrun' && (
+      {effectiveTab === 'freeagency' && league.format_type === 'tourneyrun' && (
         <FreeAgencyTab leagueId={id} league={league} />
       )}
-      {tab === 'lineup' && (
+      {effectiveTab === 'lineup' && (
         <LineupTab leagueId={id} league={league} />
       )}
-      {tab === 'owned' && (
+      {effectiveTab === 'owned' && (
         <OwnershipTab leagueId={id} />
       )}
-      {tab === 'standings' && (
+      {effectiveTab === 'standings' && (
         <StandingsTab leagueId={id} league={league} currentUserId={user?.id} />
       )}
-      {tab === 'pga-live' && (
+      {effectiveTab === 'pga-live' && (
         <PGALiveTab leagueId={id} league={league} />
       )}
-      {tab === 'commissioner' && isComm && (
+      {effectiveTab === 'commissioner' && isComm && (
         <CommissionerTab leagueId={id} leagueName={league.name} members={members} league={league} />
       )}
     </div>

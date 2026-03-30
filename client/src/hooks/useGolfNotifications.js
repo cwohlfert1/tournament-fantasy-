@@ -147,6 +147,7 @@ export function useGolfNotifications(userId) {
     unreadCount,
     leagues,
     poolPicksMap,
+    standingsMap,
     loading,
   };
 }

@@ -138,13 +138,19 @@ function NextTournamentBanner({ tournament }) {
 
 // ── League Card ────────────────────────────────────────────────────────────────
 
-function LeagueCard({ league, userId, picksStatus, past = false }) {
+function LeagueCard({ league, userId, picksStatus, standingsData, past = false }) {
   const navigate = useNavigate();
   const isComm = league.commissioner_id === userId;
   const meta   = getMeta(league.format_type);
 
   const isPool = league.format_type === 'pool';
   const poolTs  = isPool ? league.pool_tournament_status : null;
+
+  // Standings rank for active/completed pool leagues
+  const myStanding  = standingsData?.standings?.find(s => s.user_id === userId);
+  const myRank      = myStanding?.rank;
+  const totalTeams  = standingsData?.standings?.length;
+  const showRank    = myRank != null && isPool && (poolTs === 'active' || poolTs === 'completed');
   const statusLabel = past ? 'Completed'
     : isPool
       ? (poolTs === 'active' ? 'Live' : poolTs === 'completed' ? 'Complete' : league.picks_locked ? 'Picks Locked' : 'Picks Open')
@@ -220,6 +226,16 @@ function LeagueCard({ league, userId, picksStatus, past = false }) {
             <div className="text-white text-sm font-semibold">{league.member_count}/{league.max_teams}</div>
           </div>
         </div>
+
+        {/* Standings rank — shown for active/completed pool leagues */}
+        {showRank && (
+          <div className="bg-gray-800/60 rounded-xl px-3 py-2.5">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Your Rank</div>
+            <div className="text-white text-sm font-semibold">
+              #{myRank} <span className="text-gray-500 font-normal">of {totalTeams}</span>
+            </div>
+          </div>
+        )}
 
         {/* Prize breakdown (active leagues with buy-in) */}
         {!past && <PrizeBreakdown league={league} />}
@@ -333,7 +349,7 @@ export default function GolfDashboard() {
   // Leagues + picks + standings + notifications — single shared source
   const {
     notifications, dismissed, dismiss,
-    leagues, poolPicksMap, loading: notifLoading,
+    leagues, poolPicksMap, standingsMap, loading: notifLoading,
   } = useGolfNotifications(user?.id);
 
   const [nextTournament, setNextTournament]   = useState(null);
@@ -472,7 +488,7 @@ export default function GolfDashboard() {
           <SectionHeader label="Active Leagues" count={activeLeagues.length} />
           <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {activeLeagues.map(l => (
-              <LeagueCard key={l.id} league={l} userId={user?.id} picksStatus={poolPicksMap[l.id]} />
+              <LeagueCard key={l.id} league={l} userId={user?.id} picksStatus={poolPicksMap[l.id]} standingsData={standingsMap[l.id]} />
             ))}
           </div>
         </div>
