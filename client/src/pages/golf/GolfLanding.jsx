@@ -117,7 +117,15 @@ function daysUntil(dateStr) {
   return Math.round((target - today) / 86400000);
 }
 
-// ── Tournament status badge ───────────────────────────────────────────────────
+// ── Tournament status helpers ─────────────────────────────────────────────────
+// Derive display status from dates so DB sync errors can't show future
+// events as completed.
+function getTournamentDisplayStatus(t) {
+  if (t.end_date && new Date(t.end_date + 'T23:59:59') < new Date()) return 'completed';
+  if (t.status === 'active') return 'active';
+  return 'upcoming';
+}
+
 function TournamentBadge({ status, isMajor }) {
   if (status === 'active') {
     return (
@@ -1348,21 +1356,23 @@ export default function GolfLanding() {
             </div>
           ) : (() => {
             const featured = tournaments.filter(t => t.is_major || t.is_signature);
-            const nextUpIdx = featured.findIndex(
-              t => t.status !== 'completed' && t.status !== 'active'
-            );
+            const nextUpIdx = featured.findIndex(t => {
+              const ds = getTournamentDisplayStatus(t);
+              return ds !== 'completed' && ds !== 'active';
+            });
             return (
               <div className="space-y-2">
                 {featured.map((t, idx) => {
+                  const displayStatus = getTournamentDisplayStatus(t);
                   const isNextUp = idx === nextUpIdx;
                   const countdown = isNextUp && t.start_date ? daysUntil(t.start_date) : null;
                   return (
                     <div
                       key={t.id}
                       className={!isNextUp ? `flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-colors ${
-                        t.status === 'active'
+                        displayStatus === 'active'
                           ? 'bg-green-950/20 border-green-800/40'
-                          : t.status === 'completed'
+                          : displayStatus === 'completed'
                           ? 'border-gray-800 opacity-60'
                           : t.is_major
                           ? 'bg-yellow-950/10 border-yellow-900/30'
@@ -1381,7 +1391,7 @@ export default function GolfLanding() {
                       } : undefined}
                     >
                       <div className="flex-1 min-w-0">
-                        <span className={`font-semibold text-sm truncate block ${t.status === 'completed' ? 'text-gray-500' : 'text-white'}`}>
+                        <span className={`font-semibold text-sm truncate block ${displayStatus === 'completed' ? 'text-gray-500' : 'text-white'}`}>
                           {t.name}
                         </span>
                         {(t.start_date || t.end_date) && (
@@ -1401,7 +1411,7 @@ export default function GolfLanding() {
                             NEXT UP
                           </span>
                         )}
-                        <TournamentBadge status={t.status} isMajor={!!t.is_major} />
+                        <TournamentBadge status={displayStatus} isMajor={!!t.is_major} />
                       </div>
                     </div>
                   );

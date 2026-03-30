@@ -214,7 +214,7 @@ async function sendGolfPaymentConfirmation(toEmail, username, type, meta) {
     html: emailShell(`
 ${emailHeader()}
       <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
-        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Golf Fantasy</div>
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Fantasy Golf</div>
         <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Payment confirmed &#10003;</h1>
         <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">Hey ${username} &mdash; ${bodyText}</p>
         ${card('Status', '<span style="color:#22c55e;font-weight:600;">&#10003; Active</span>')}

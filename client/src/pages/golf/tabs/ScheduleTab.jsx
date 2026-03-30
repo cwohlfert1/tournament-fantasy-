@@ -16,7 +16,15 @@ export default function ScheduleTab({ leagueId, isComm }) {
 
   if (loading) return <div className="py-10 text-center text-gray-500">Loading schedule...</div>;
 
+  const today = new Date();
   const fmt = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  // Only gray out / mark done if the end date has actually passed
+  function getDisplayStatus(t) {
+    if (t.end_date && new Date(t.end_date + 'T23:59:59') < today) return 'completed';
+    if (t.status === 'active') return 'active';
+    return 'upcoming';
+  }
 
   function StatusPill({ status }) {
     if (status === 'active') return (
@@ -43,7 +51,8 @@ export default function ScheduleTab({ leagueId, isComm }) {
         {tournaments.map(t => {
           const isMajor = !!t.is_major;
           const isSig   = t.is_signature === 1 && !isMajor;
-          const isDone  = t.status === 'completed';
+          const displayStatus = getDisplayStatus(t);
+          const isDone  = displayStatus === 'completed';
           return (
             <div
               key={t.id}
@@ -78,7 +87,7 @@ export default function ScheduleTab({ leagueId, isComm }) {
 
               {/* Right side: status + commissioner link */}
               <div className="shrink-0 pt-0.5 flex flex-col items-end gap-1.5">
-                <StatusPill status={t.status} />
+                <StatusPill status={displayStatus} />
                 {isComm && (isDone || t.status === 'active') && (
                   <Link
                     to={`/golf/league/${leagueId}/scores?tournament=${t.id}`}

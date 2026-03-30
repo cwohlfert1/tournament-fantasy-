@@ -73,6 +73,7 @@ import GolfDraft from './pages/golf/GolfDraft';
 import GolfAuctionDraft from './pages/golf/GolfAuctionDraft';
 import GolfScoreEntry from './pages/golf/GolfScoreEntry';
 import GolfStrategy from './pages/golf/GolfStrategy';
+import GolfNews from './pages/golf/GolfNews';
 import GolfFaq from './pages/golf/GolfFaq';
 import GolfPaymentSuccess from './pages/golf/GolfPaymentSuccess';
 import GolfSuperAdmin from './pages/golf/GolfSuperAdmin';
@@ -175,6 +176,8 @@ export default function App() {
               <Route path="/golf/league/:id/picks" element={<ProtectedRoute><GolfPoolPicks /></ProtectedRoute>} />
               <Route path="/golf/league/:id/picks/submitted" element={<ProtectedRoute><GolfPoolPicksSubmitted /></ProtectedRoute>} />
               <Route path="/golf/strategy" element={<GolfStrategy />} />
+              <Route path="/golf/news" element={<GolfNews />} />
+              <Route path="/golf/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/golf/faq" element={<GolfFaq />} />
               <Route path="/golf/payment/success" element={<GolfPaymentSuccess />} />
               <Route path="/golf/admin" element={<ProtectedRoute><GolfSuperAdmin /></ProtectedRoute>} />
