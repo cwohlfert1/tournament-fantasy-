@@ -251,10 +251,10 @@ async function syncCurrentField() {
   }
 
   const result = _applyFieldToTournament(tourn, field);
-  // Auto-assign ranking-based tiers after field is populated (non-blocking)
-  syncDgRankingTiers(tourn.id).then(t => {
-    if (!t.skipped) console.log(`[datagolf] Auto ranking-tiers: ${t.updated} assignments updated`);
-  }).catch(e => console.warn('[datagolf] Ranking tier auto-sync skipped:', e.message));
+  // Auto-assign betting-odds-based tiers after field is populated (non-blocking)
+  syncDgOddsTiers(tourn.id).then(t => {
+    if (!t.skipped) console.log(`[datagolf] Auto odds-tiers: ${t.updated} assigned, ${t.no_odds} defaulted to T4`);
+  }).catch(e => console.warn('[datagolf] Odds tier auto-sync skipped:', e.message));
   return result;
 }
 
@@ -277,9 +277,9 @@ async function syncFieldForTournament(tournamentId) {
   }
 
   const result = _applyFieldToTournament(tourn, field);
-  syncDgRankingTiers(tourn.id).then(t => {
-    if (!t.skipped) console.log(`[datagolf] Auto ranking-tiers: ${t.updated} assignments updated`);
-  }).catch(e => console.warn('[datagolf] Ranking tier auto-sync skipped:', e.message));
+  syncDgOddsTiers(tourn.id).then(t => {
+    if (!t.skipped) console.log(`[datagolf] Auto odds-tiers: ${t.updated} assigned, ${t.no_odds} defaulted to T4`);
+  }).catch(e => console.warn('[datagolf] Odds tier auto-sync skipped:', e.message));
   return result;
 }
 
@@ -616,33 +616,76 @@ async function fetchWinProbs() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. RANKING-BASED TIER ASSIGNMENT
-// Endpoint: GET /preds/get-dg-rankings?file_format=json
+// 7. ODDS-BASED TIER ASSIGNMENT
+// Endpoint: GET /betting-tools/outrights?tour=pga&market=win&odds_format=american
 //
-// Assigns pool_tier_players.tier_number by DG rank position within the field:
-//   Field rank  1–15  → Tier 1
-//   Field rank 16–40  → Tier 2
-//   Field rank 41+    → Tier 3
+// Assigns pool_tier_players.tier_number based on DataGolf win odds (American format):
+//   american < +2000   → Tier 1  (top favorites)
+//   +2000 to +3999     → Tier 2  (strong contenders)
+//   +4000 to +7999     → Tier 3  (longshots with a chance)
+//   +8000 or longer    → Tier 4  (true lottery tickets)
 //
+// Also updates odds_display and odds_decimal on pool_tier_players.
 // Runs automatically after every field sync. Respects manually_overridden flag.
-// Super Admin can also trigger via POST /admin/dev/sync-datagolf-ranking-tiers.
+// Super Admin can trigger manually: POST /admin/dev/sync-datagolf-odds-tiers
 // ─────────────────────────────────────────────────────────────────────────────
-async function syncDgRankingTiers(tournamentId) {
+
+// Convert American odds → display string ("15:1") + decimal (16.0)
+function _americanToDisplay(american) {
+  if (american == null || american < -5000) return { display: null, decimal: null };
+  const ratio = american > 0 ? american / 100 : 100 / Math.abs(american);
+  const nice = ratio < 5   ? Math.round(ratio * 4) / 4 :
+               ratio < 20  ? Math.round(ratio * 2) / 2 :
+               ratio < 100 ? Math.round(ratio / 5) * 5 :
+                             Math.round(ratio / 25) * 25;
+  return { display: `${nice}:1`, decimal: nice + 1 };
+}
+
+const DG_BOOK_PREFS = ['draftkings', 'fanduel', 'betmgm', 'caesars', 'pointsbetus', 'betrivers', 'unibet'];
+
+async function syncDgOddsTiers(tournamentId) {
   if (!process.env.DATAGOLF_API_KEY) return { skipped: true, reason: 'no_key' };
 
   const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
   if (!tourn) return { error: 'tournament_not_found' };
 
-  // DG rankings (1hr cached)
-  let rankData = _cacheGet('dg_rankings');
-  if (!rankData) {
-    const raw      = await fetchJson('/preds/get-dg-rankings?file_format=json');
-    const rankings = Array.isArray(raw) ? raw : (raw.rankings || raw.data || []);
-    rankData = { rankings };
-    _cacheSet('dg_rankings', rankData);
+  // Fetch DG betting odds (1hr cache keyed per tournament)
+  const cacheKey = `dg_odds_${tournamentId}`;
+  let oddsData = _cacheGet(cacheKey);
+  if (!oddsData) {
+    const raw  = await fetchJson('/betting-tools/outrights?tour=pga&market=win&odds_format=american');
+    const odds = Array.isArray(raw) ? raw : (raw.odds || raw.players || raw.data || []);
+    oddsData = { odds, event_name: raw.event_name || '' };
+    _cacheSet(cacheKey, oddsData);
   }
 
-  // Field player lookup: datagolf_id → our player UUID, name → our player UUID
+  // Build player odds lookup: dg_id → { american, display, decimal }, name → same
+  const byDgId = new Map();
+  const byName = new Map();
+  for (const p of oddsData.odds) {
+    let american = null;
+    for (const bk of DG_BOOK_PREFS) {
+      if (p[bk] != null) { american = p[bk]; break; }
+    }
+    if (american == null) {
+      for (const [k, v] of Object.entries(p)) {
+        if (!['player_name', 'dg_id'].includes(k) && typeof v === 'number') { american = v; break; }
+      }
+    }
+    if (american == null) continue;
+    const entry = { american, ..._americanToDisplay(american) };
+    if (p.dg_id != null)   byDgId.set(Number(p.dg_id), entry);
+    if (p.player_name)     byName.set(p.player_name.toLowerCase().trim(), entry);
+  }
+
+  if (!byDgId.size && !byName.size) {
+    console.warn(`[datagolf] Odds tiers: no odds data returned for "${oddsData.event_name}"`);
+    return { skipped: true, reason: 'no_odds_data', event_name: oddsData.event_name };
+  }
+
+  const tierForAmerican = american =>
+    american < 2000 ? 1 : american < 4000 ? 2 : american < 8000 ? 3 : 4;
+
   const fieldRows = db.prepare(`
     SELECT tf.player_id, gp.datagolf_id, gp.name
     FROM golf_tournament_fields tf
@@ -650,46 +693,36 @@ async function syncDgRankingTiers(tournamentId) {
     WHERE tf.tournament_id = ?
   `).all(tournamentId);
 
-  const byDgId = new Map();
-  const byName = new Map();
-  for (const f of fieldRows) {
-    if (f.datagolf_id) byDgId.set(Number(f.datagolf_id), f.player_id);
-    byName.set((f.name || '').toLowerCase().trim(), f.player_id);
-  }
-
-  // Walk DG rankings in order; only keep players in our field
-  const fieldRanked = [];
-  for (const r of rankData.rankings) {
-    const pid = (r.dg_id ? byDgId.get(Number(r.dg_id)) : null)
-              || byName.get((r.player_name || '').toLowerCase().trim());
-    if (pid) fieldRanked.push({ playerId: pid, fieldRank: fieldRanked.length + 1 });
-  }
-
-  const tierForRank = r => r <= 15 ? 1 : r <= 40 ? 2 : 3;
-
   const leagues = db.prepare(
     "SELECT id FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'"
   ).all(tournamentId);
 
-  let updated = 0;
-  const upd = db.prepare('UPDATE pool_tier_players SET tier_number = ? WHERE id = ?');
+  let updated = 0, noOdds = 0;
+  const upd = db.prepare('UPDATE pool_tier_players SET tier_number = ?, odds_display = ?, odds_decimal = ? WHERE id = ?');
   const sel = db.prepare(
     'SELECT id, manually_overridden FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND player_id = ?'
   );
 
   for (const { id: leagueId } of leagues) {
     db.transaction(() => {
-      for (const { playerId, fieldRank } of fieldRanked) {
-        const row = sel.get(leagueId, tournamentId, playerId);
+      for (const f of fieldRows) {
+        const row = sel.get(leagueId, tournamentId, f.player_id);
         if (!row || row.manually_overridden) continue;
-        upd.run(tierForRank(fieldRank), row.id);
-        updated++;
+        const odds = (f.datagolf_id ? byDgId.get(Number(f.datagolf_id)) : null)
+                   || byName.get((f.name || '').toLowerCase().trim());
+        if (!odds) {
+          upd.run(4, null, null, row.id); // no odds → default Tier 4
+          noOdds++;
+        } else {
+          upd.run(tierForAmerican(odds.american), odds.display, odds.decimal, row.id);
+          updated++;
+        }
       }
     })();
   }
 
-  console.log(`[datagolf] Ranking tiers ${tourn.name}: ${fieldRanked.length} in-field ranked, ${updated} tier assignments updated across ${leagues.length} leagues`);
-  return { tournament: tourn.name, field_ranked: fieldRanked.length, leagues: leagues.length, updated };
+  console.log(`[datagolf] Odds tiers ${tourn.name}: ${updated} assigned by odds, ${noOdds} defaulted to T4, across ${leagues.length} leagues`);
+  return { tournament: tourn.name, event_name: oddsData.event_name, odds_players: byDgId.size || byName.size, leagues: leagues.length, updated, no_odds: noOdds };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -751,5 +784,5 @@ module.exports = {
   normalizeCountry,
   fetchSkillRatings,
   fetchWinProbs,
-  syncDgRankingTiers,
+  syncDgOddsTiers,
 };

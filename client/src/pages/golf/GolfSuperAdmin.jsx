@@ -1501,6 +1501,66 @@ function DevToolsTab() {
           </button>
         </div>
 
+        {/* Apply Betting Odds Tiers */}
+        <div style={{ background: '#0a060a', border: '1px solid #ea580c44', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>🎯</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Apply Betting Odds Tiers</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 6px', lineHeight: 1.5 }}>
+            Assigns tiers using DataGolf win odds (American format):
+          </p>
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14, lineHeight: 1.8 }}>
+            <div>Tier 1: shorter than +2000 (top favorites)</div>
+            <div>Tier 2: +2000 to +3999 (strong contenders)</div>
+            <div>Tier 3: +4000 to +7999 (longshots with a chance)</div>
+            <div>Tier 4: +8000 or longer (lottery tickets)</div>
+          </div>
+          <select
+            value={selectedT}
+            onChange={e => setSelectedT(e.target.value)}
+            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}
+          >
+            <option value="">— Select tournament —</option>
+            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          {dgResults.oddsTiers && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.oddsTiers.error
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.oddsTiers.error}</div>
+                : dgResults.oddsTiers.skipped
+                  ? <div style={{ color: '#fbbf24', fontSize: 12 }}>⚠ Skipped: {dgResults.oddsTiers.reason}</div>
+                  : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                      <div style={{ color: '#4ade80' }}>✓ {dgResults.oddsTiers.updated} players assigned across {dgResults.oddsTiers.leagues} league(s)</div>
+                      {dgResults.oddsTiers.no_odds > 0 && <div style={{ color: '#fbbf24' }}>↳ {dgResults.oddsTiers.no_odds} players defaulted to Tier 4 (no odds data)</div>}
+                      {dgResults.oddsTiers.event_name && <div style={{ color: '#4b5563' }}>{dgResults.oddsTiers.event_name}</div>}
+                    </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.oddsTiers || !selectedT}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, oddsTiers: true }));
+              setDgResults(r => ({ ...r, oddsTiers: null }));
+              try {
+                const res = await api.post('/golf/admin/dev/sync-datagolf-odds-tiers', { tournament_id: selectedT });
+                setDgResults(r => ({ ...r, oddsTiers: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, oddsTiers: { error: e.response?.data?.error || 'Failed' } }));
+              }
+              setDgLoading(l => ({ ...l, oddsTiers: false }));
+            }}
+            style={{
+              background: (dgLoading.oddsTiers || !selectedT) ? '#7c2d12' : '#ea580c',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: (dgLoading.oddsTiers || !selectedT) ? 'not-allowed' : 'pointer',
+              opacity: (dgLoading.oddsTiers || !selectedT) ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.oddsTiers ? 'Applying…' : 'Apply Betting Odds Tiers →'}
+          </button>
+        </div>
+
       </div>
     </>
   );
