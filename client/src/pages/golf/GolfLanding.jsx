@@ -564,9 +564,6 @@ export default function GolfLanding() {
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div>
-              <div style={{ display: 'inline-block', background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
-                <span style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>⛳ Office Pool</span>
-              </div>
               <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Run your office pool.<br />
                 <span style={{ color: '#22c55e' }}>Without the spreadsheet.</span>
@@ -633,9 +630,9 @@ export default function GolfLanding() {
 
             {/* LEFT — copy */}
             <div>
-              <div style={{ display: 'inline-block', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
-                <span style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Already running a pool?</span>
-              </div>
+              <p style={{ color: '#22c55e', fontSize: 'clamp(14px,1.5vw,16px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 16 }}>
+                Already running a pool?
+              </p>
               <h3 style={{ color: '#fff', fontSize: 'clamp(24px,3.5vw,38px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Import your <span style={{ color: '#22c55e' }}>existing</span> group.
               </h3>
@@ -785,9 +782,6 @@ export default function GolfLanding() {
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div style={{ order: 2 }}>
-              <div style={{ display: 'inline-block', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
-                <span style={{ color: '#f59e0b', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>🏆 Daily Fantasy</span>
-              </div>
               <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 DFS without<br />
                 <span style={{ color: '#22c55e' }}>the complexity.</span>
@@ -843,9 +837,6 @@ export default function GolfLanding() {
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div>
-              <div style={{ display: 'inline-block', background: 'rgba(0,232,122,0.08)', border: '1px solid rgba(0,232,122,0.2)', borderRadius: 999, padding: '4px 14px', marginBottom: 16 }}>
-                <span style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>🏌️ Season Long</span>
-              </div>
               <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Season-long fantasy golf.<br />
                 <span style={{ color: '#22c55e' }}>Draft once. Win all year.</span>
@@ -1083,9 +1074,6 @@ export default function GolfLanding() {
           </div>
           <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 12 }}>
             Competitors charge <span style={{ color: '#f87171', textDecoration: 'line-through' }}>$30–$110</span> for the same thing.
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4ade80', fontSize: 12, fontWeight: 600 }}>
-            <span>✓</span> Free to browse — no credit card required
           </div>
         </div>
 

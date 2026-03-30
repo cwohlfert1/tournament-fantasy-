@@ -490,13 +490,6 @@ export default function Landing() {
         <FloatingCards slowdown={heroHovered} />
 
         <div className="relative z-10 max-w-3xl mx-auto w-full">
-          {/* Eyebrow badge */}
-          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] px-4 py-1.5 rounded-full mb-6"
-            style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)', color: '#fb923c' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f97316', display: 'inline-block', animation: 'glowPulse 2s ease-in-out infinite' }} />
-            2026 Fantasy Basketball
-          </div>
-
           {/* Main headline */}
           <h1 style={{
             fontSize: 'clamp(48px,10vw,80px)',
@@ -942,10 +935,6 @@ export default function Landing() {
       <section style={{ padding: 'clamp(64px,10vw,96px) 16px' }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-6"
-              style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em' }}>⚡ Premium Feature</span>
-            </div>
             <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
               Can't make the draft?<br />
               <span style={{ color: '#fb923c' }}>We've got you. ⚡</span>
