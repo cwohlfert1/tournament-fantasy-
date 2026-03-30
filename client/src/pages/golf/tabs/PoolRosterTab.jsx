@@ -615,15 +615,24 @@ export default function PoolRosterTab({ leagueId, league }) {
 
       {/* ── SUBMITTED: picks grid ── */}
       {submitted && (() => {
-        // Hide players not in this week's field (DataGolf sync sets made_cut=0 for non-field players).
-        // Only exclude if: no round scores, not explicitly withdrawn, and not a real cut (no finish_position).
+        // Hide players not in this week's field.
+        // made_cut=0 + no round scores + no finish = never in field (hide completely, even if is_withdrawn=1).
+        // Real WDs (withdrew after playing) have round scores, so they still show with WD badge.
         const visiblePicks = picks.filter(p => {
           const hasRoundScore = p.round1 != null || p.round2 != null || p.round3 != null || p.round4 != null;
-          const isNotInField = p.made_cut === 0 && !p.is_withdrawn && !hasRoundScore && p.finish_position == null;
+          const isNotInField = p.made_cut === 0 && !hasRoundScore && p.finish_position == null;
           if (isNotInField) console.log('[PoolRoster] hiding not-in-field player:', p.player_name, { made_cut: p.made_cut, is_withdrawn: p.is_withdrawn, hasRoundScore, finish_position: p.finish_position });
           return !isNotInField;
         });
         console.log('[PoolRoster] picks total:', picks.length, '| visible after filter:', visiblePicks.length);
+        // Per-tier debug logging
+        const tierCounts = {};
+        for (const p of picks) { tierCounts[p.tier_number] = (tierCounts[p.tier_number] || 0) + 1; }
+        const visibleTierCounts = {};
+        for (const p of visiblePicks) { visibleTierCounts[p.tier_number] = (visibleTierCounts[p.tier_number] || 0) + 1; }
+        for (const t of Object.keys(tierCounts)) {
+          console.log(`[PoolRoster] Tier ${t}: total=${tierCounts[t]}, visible=${visibleTierCounts[t] || 0}, hidden=${tierCounts[t] - (visibleTierCounts[t] || 0)}`);
+        }
         const byTier = {};
         for (const p of visiblePicks) {
           if (!byTier[p.tier_number]) byTier[p.tier_number] = [];
