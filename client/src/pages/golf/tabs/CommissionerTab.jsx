@@ -366,6 +366,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [payout1, setPayout1] = useState(String(league?.payout_first   ?? 70));
   const [payout2, setPayout2] = useState(String(league?.payout_second  ?? 20));
   const [payout3, setPayout3] = useState(String(league?.payout_third   ?? 10));
+  const [picksPerTeam, setPicksPerTeam] = useState(String(league?.picks_per_team ?? 8));
   const [dropCount, setDropCount] = useState(String(league?.pool_drop_count ?? 2));
   const [tierPicksCfg, setTierPicksCfg] = useState(() => {
     try { return JSON.parse(league?.pool_tiers || '[]'); } catch { return []; }
@@ -544,6 +545,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         payout_1st: parseFloat(payout1) || 0,
         payout_2nd: parseFloat(payout2) || 0,
         payout_3rd: parseFloat(payout3) || 0,
+        picks_per_team: Math.max(1, parseInt(picksPerTeam) || 8),
         pool_drop_count: Math.max(0, parseInt(dropCount) || 0),
         pool_tiers: updatedTiers.length ? updatedTiers : undefined,
       });
@@ -796,6 +798,37 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                       Must sum to 100% (currently {payoutsSum.toFixed(0)}%)
                     </p>
                   )}
+                </div>
+
+                {/* Total picks per team */}
+                <div>
+                  <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                    Total players drafted per team
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[4, 5, 6, 7, 8, 9, 10, 12, 14, 16].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setPicksPerTeam(String(n))}
+                        style={{
+                          padding: '5px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                          border: `1.5px solid ${picksPerTeam === String(n) ? '#22c55e' : 'rgba(255,255,255,0.1)'}`,
+                          background: picksPerTeam === String(n) ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.03)',
+                          color: picksPerTeam === String(n) ? '#22c55e' : '#9ca3af',
+                          cursor: 'pointer',
+                        }}
+                      >{n}</button>
+                    ))}
+                    <input
+                      type="number" min="1" max="30" step="1"
+                      placeholder="Custom"
+                      value={[4,5,6,7,8,9,10,12,14,16].includes(parseInt(picksPerTeam)) ? '' : picksPerTeam}
+                      onChange={e => { if (e.target.value) setPicksPerTeam(e.target.value); }}
+                      className="input text-sm text-center"
+                      style={{ width: 72 }}
+                    />
+                  </div>
                 </div>
 
                 {/* Picks per tier */}

@@ -1259,7 +1259,7 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not commissioner' });
 
-    const { buy_in_amount, payout_1st, payout_2nd, payout_3rd, venmo, zelle, paypal, pool_drop_count, pool_tiers } = req.body;
+    const { buy_in_amount, payout_1st, payout_2nd, payout_3rd, venmo, zelle, paypal, pool_drop_count, pool_tiers, picks_per_team } = req.body;
 
     // Payout settings — only if provided
     if (payout_1st !== undefined) {
@@ -1275,6 +1275,10 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
     }
 
     // Pool-specific settings
+    if (picks_per_team !== undefined) {
+      const ppt = Math.max(1, parseInt(picks_per_team) || 8);
+      db.prepare('UPDATE golf_leagues SET picks_per_team = ? WHERE id = ?').run(ppt, req.params.id);
+    }
     if (pool_drop_count !== undefined) {
       const dc = Math.max(0, parseInt(pool_drop_count) || 0);
       db.prepare('UPDATE golf_leagues SET pool_drop_count = ? WHERE id = ?').run(dc, req.params.id);

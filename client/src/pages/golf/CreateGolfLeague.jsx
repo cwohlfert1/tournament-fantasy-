@@ -747,10 +747,19 @@ export default function CreateGolfLeague() {
               <div>
                 <label className="label mb-2.5">Picks Per Tournament</label>
                 <PillSelector
-                  options={[6, 8, 10].map(n => ({ value: n, label: String(n) }))}
-                  value={form.picks_per_team}
-                  onChange={v => set('picks_per_team', v)}
+                  options={[4, 5, 6, 7, 8, 9, 10, 'custom'].map(n => ({ value: n === 'custom' ? 'custom' : n, label: String(n) }))}
+                  value={[4,5,6,7,8,9,10].includes(form.picks_per_team) ? form.picks_per_team : 'custom'}
+                  onChange={v => set('picks_per_team', v === 'custom' ? 11 : v)}
                 />
+                {![4,5,6,7,8,9,10].includes(form.picks_per_team) && (
+                  <input
+                    type="number" min="1" max="30" step="1"
+                    className="input w-28 text-sm mt-2"
+                    placeholder="Enter number"
+                    value={form.picks_per_team}
+                    onChange={e => { const v = parseInt(e.target.value); if (v > 0) set('picks_per_team', v); }}
+                  />
+                )}
                 <p className="text-gray-600 text-xs mt-2">Each manager picks this many golfers per tournament.</p>
               </div>
 
