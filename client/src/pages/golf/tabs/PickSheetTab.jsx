@@ -31,6 +31,8 @@ export default function TieredPickSheet({ leagueId, league }) {
   const [saving, setSaving]         = useState(false);
   const [error, setError]           = useState('');
   const [countdown, setCountdown]   = useState('');
+  const [sgMap, setSgMap]           = useState({}); // normalized name → { sg_total }
+  const [winMap, setWinMap]         = useState({}); // normalized name → { win }
   const tierRefs = useRef([]);
 
   useEffect(() => {
@@ -40,6 +42,9 @@ export default function TieredPickSheet({ leagueId, league }) {
           api.get(`/golf/leagues/${leagueId}/tier-players`),
           api.get(`/golf/leagues/${leagueId}/picks/my`),
         ]);
+        // Non-blocking: fetch form data from DataGolf (1hr cached on server)
+        api.get('/golf/datagolf/skill-ratings').then(r => setSgMap(r.data?.byName || {})).catch(() => {});
+        api.get('/golf/datagolf/win-probs').then(r => setWinMap(r.data?.byName || {})).catch(() => {});
         setTiers(tierRes.data.tiers || []);
 
         const myPicks = pickRes.data.picks || [];
@@ -277,11 +282,23 @@ export default function TieredPickSheet({ leagueId, league }) {
 
               {/* Players list */}
               <div>
-                {(tier.players || []).map((player, pIdx) => {
+                {(() => {
+                  const players = tier.players || [];
+                  // Find highest win% in this tier for highlighting
+                  const bestWin = Math.max(...players.map(p => winMap[(p.player_name || '').toLowerCase().trim()]?.win ?? 0), 0);
+                  return players.map((player, pIdx) => {
                   const pid        = player.player_id;
                   const isSelected = tierPicks.includes(pid);
                   const isFull     = !isSelected && tierPicks.length >= tier.picks;
                   const isDisabled = locked || isFull;
+                  const normName   = (player.player_name || '').toLowerCase().trim();
+                  const sgEntry    = sgMap[normName];
+                  const winEntry   = winMap[normName];
+                  const sg         = sgEntry?.sg_total ?? null;
+                  const winPct     = winEntry?.win ?? null;
+                  const isTopPick  = winPct != null && bestWin > 0 && winPct >= bestWin;
+                  const isHot      = sg != null && sg > 0.5;
+                  const isCold     = sg != null && sg < -0.5;
 
                   return (
                     <button
@@ -292,7 +309,8 @@ export default function TieredPickSheet({ leagueId, league }) {
                         display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px',
                         background: isSelected ? 'rgba(0,232,122,0.1)' : 'transparent',
                         border: 'none',
-                        borderBottom: pIdx < (tier.players.length - 1) ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                        borderBottom: pIdx < (players.length - 1) ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                        outline: isTopPick && !isSelected ? '1px solid rgba(59,130,246,0.4)' : 'none',
                         width: '100%', textAlign: 'left',
                         cursor: isDisabled ? (locked ? 'default' : 'not-allowed') : 'pointer',
                         opacity: isFull ? 0.35 : 1,
@@ -318,16 +336,45 @@ export default function TieredPickSheet({ leagueId, league }) {
 
                       {/* Player info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ color: isSelected ? '#fff' : '#d1d5db', fontSize: 13, fontWeight: isSelected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {player.player_name}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          <span style={{ color: isSelected ? '#fff' : '#d1d5db', fontSize: 13, fontWeight: isSelected ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {player.player_name}
+                          </span>
+                          {isHot && (
+                            <span style={{ fontSize: 11, color: '#f97316', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              🔥 {sg > 0 ? '+' : ''}{sg.toFixed(1)} SG
+                            </span>
+                          )}
+                          {isCold && (
+                            <span style={{ fontSize: 11, color: '#60a5fa', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              ❄️ {sg.toFixed(1)} SG
+                            </span>
+                          )}
                         </div>
                         <div style={{ color: '#4b5563', fontSize: 11, marginTop: 1 }}>
                           #{player.world_ranking}{player.country ? ` · ${toFlag(player.country)}` : ''}
                         </div>
+                        {winPct != null && (
+                          <div style={{ marginTop: 4 }}>
+                            <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+                              <div style={{
+                                height: '100%',
+                                width: `${bestWin > 0 ? Math.round((winPct / bestWin) * 100) : 0}%`,
+                                background: isTopPick ? '#3b82f6' : 'rgba(255,255,255,0.2)',
+                                borderRadius: 2,
+                                transition: 'width 0.4s ease',
+                              }} />
+                            </div>
+                            <div style={{ fontSize: 10, color: isTopPick ? '#60a5fa' : '#4b5563', marginTop: 1 }}>
+                              {(winPct * 100).toFixed(1)}% win{isTopPick ? ' · best in tier' : ''}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
-                })}
+                  });
+                })()}
               </div>
             </div>
           );

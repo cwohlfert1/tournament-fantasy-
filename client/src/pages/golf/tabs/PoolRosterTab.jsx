@@ -233,7 +233,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, espnFlagHref, espnCountryAlt, onRemove, isStrokeBased }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, espnFlagHref, espnCountryAlt, onRemove, isStrokeBased, sgEntry }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
@@ -278,6 +278,16 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
           </span>
           {pick.odds_display && (
             <span style={{ fontSize: 11, color: tc.label, fontWeight: 600 }}>{fmtOdds(pick.odds_display)}</span>
+          )}
+          {sgEntry?.sg_total != null && sgEntry.sg_total > 0.5 && (
+            <span style={{ fontSize: 10, color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}>
+              🔥 {sgEntry.sg_total > 0 ? '+' : ''}{sgEntry.sg_total.toFixed(1)} SG
+            </span>
+          )}
+          {sgEntry?.sg_total != null && sgEntry.sg_total < -0.5 && (
+            <span style={{ fontSize: 10, color: '#60a5fa', fontWeight: 700, whiteSpace: 'nowrap' }}>
+              ❄️ {sgEntry.sg_total.toFixed(1)} SG
+            </span>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
@@ -366,6 +376,7 @@ export default function PoolRosterTab({ leagueId, league }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [teeTimeMap, setTeeTimeMap] = useState({});
+  const [sgMap, setSgMap] = useState({}); // normalized name → { sg_total }
 
   const [selected, setSelected] = useState({});
   const [names, setNames]       = useState({});
@@ -382,6 +393,8 @@ export default function PoolRosterTab({ leagueId, league }) {
       setLocalSubmitted(null);
     } catch { setData(null); }
     setLoading(false);
+    // Non-blocking: fetch form badges from DataGolf (1hr cached on server)
+    api.get('/golf/datagolf/skill-ratings').then(r => setSgMap(r.data?.byName || {})).catch(() => {});
     api.get(`/golf/leagues/${leagueId}/pga-live`).then(r => {
       const map = {};
       for (const c of (r.data?.competitors || [])) {
@@ -656,6 +669,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                     {[...tierPicks].sort((a, b) => (a.odds_decimal || 999) - (b.odds_decimal || 999)).map((pick, idx) => {
                       const normName = (pick.player_name || '').toLowerCase().replace(/[.']/g, '').trim();
                       const espnData = teeTimeMap[normName];
+                      const sgEntry = sgMap[(pick.player_name || '').toLowerCase().trim()];
                       return (
                         <PlayerCard
                           key={pick.id} pick={pick} tier={tierNum} idx={idx}
@@ -669,6 +683,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                           espnFlagHref={espnData?.flagHref}
                           espnCountryAlt={espnData?.countryAlt}
                           isStrokeBased={isStrokeBased}
+                          sgEntry={sgEntry}
                           onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' ? () => handleRemoveSubmittedPick(pick) : undefined}
                         />
                       );

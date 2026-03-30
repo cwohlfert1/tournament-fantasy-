@@ -1549,4 +1549,18 @@ router.post('/admin/dev/sync-datagolf-live', superadmin, async (req, res) => {
   }
 });
 
+// ── DataGolf: Apply ranking-based tier assignment ─────────────────────────────
+router.post('/admin/dev/sync-datagolf-ranking-tiers', superadmin, async (req, res) => {
+  try {
+    const { syncDgRankingTiers } = require('../dataGolfService');
+    const { tournament_id } = req.body;
+    if (!tournament_id) return res.status(400).json({ error: 'tournament_id required' });
+    const result = await syncDgRankingTiers(tournament_id);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[admin] sync-datagolf-ranking-tiers error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

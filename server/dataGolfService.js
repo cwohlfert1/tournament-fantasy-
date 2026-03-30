@@ -39,6 +39,17 @@ function normalizeCountry(code) {
   return DG_COUNTRY_MAP[c] || null;
 }
 
+// ── 1-hour in-memory cache ─────────────────────────────────────────────────────
+const _dgCache = new Map();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+function _cacheGet(key) {
+  const e = _dgCache.get(key);
+  return (e && Date.now() < e.expiresAt) ? e.data : null;
+}
+function _cacheSet(key, data) {
+  _dgCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL });
+}
+
 // ── Rate limiter ───────────────────────────────────────────────────────────────
 let _lastReq = 0;
 async function throttle() {
@@ -239,7 +250,12 @@ async function syncCurrentField() {
     tourn.datagolf_event_id = dgEventId;
   }
 
-  return _applyFieldToTournament(tourn, field);
+  const result = _applyFieldToTournament(tourn, field);
+  // Auto-assign ranking-based tiers after field is populated (non-blocking)
+  syncDgRankingTiers(tourn.id).then(t => {
+    if (!t.skipped) console.log(`[datagolf] Auto ranking-tiers: ${t.updated} assignments updated`);
+  }).catch(e => console.warn('[datagolf] Ranking tier auto-sync skipped:', e.message));
+  return result;
 }
 
 async function syncFieldForTournament(tournamentId) {
@@ -260,7 +276,11 @@ async function syncFieldForTournament(tournamentId) {
     db.prepare('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?').run(dgEventId, tourn.id);
   }
 
-  return _applyFieldToTournament(tourn, field);
+  const result = _applyFieldToTournament(tourn, field);
+  syncDgRankingTiers(tourn.id).then(t => {
+    if (!t.skipped) console.log(`[datagolf] Auto ranking-tiers: ${t.updated} assignments updated`);
+  }).catch(e => console.warn('[datagolf] Ranking tier auto-sync skipped:', e.message));
+  return result;
 }
 
 // Internal: write field data for a specific tournament
@@ -543,7 +563,137 @@ async function syncLiveStats(tournamentId) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. SCHEDULER
+// 5. SKILL RATINGS — form badges (🔥 hot / ❄️ cold)
+// Endpoint: GET /preds/skill-ratings?display=value&file_format=json
+// Returns recent SG data per player. Cached 1 hour.
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchSkillRatings() {
+  const cached = _cacheGet('skill_ratings');
+  if (cached) return cached;
+  if (!process.env.DATAGOLF_API_KEY) return null;
+
+  const raw     = await fetchJson('/preds/skill-ratings?display=value&file_format=json');
+  const players = Array.isArray(raw) ? raw : (raw.players || raw.data || []);
+
+  // Build lookup maps keyed by DG id and normalized player name
+  const byDgId = {};
+  const byName = {};
+  for (const p of players) {
+    const sg = (p.sg_total != null && !isNaN(p.sg_total)) ? p.sg_total : null;
+    if (p.dg_id != null) byDgId[p.dg_id] = { sg_total: sg, player_name: p.player_name };
+    if (p.player_name)   byName[p.player_name.toLowerCase().trim()] = { sg_total: sg, dg_id: p.dg_id };
+  }
+  const result = { byDgId, byName, fetchedAt: Date.now() };
+  _cacheSet('skill_ratings', result);
+  console.log(`[datagolf] Skill ratings fetched: ${players.length} players`);
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. WIN PROBABILITIES — pre-tournament predictions
+// Endpoint: GET /preds/pre-tournament?tour=pga&file_format=json
+// Returns win%, top-5%, make-cut% per player. Cached 1 hour.
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchWinProbs() {
+  const cached = _cacheGet('win_probs');
+  if (cached) return cached;
+  if (!process.env.DATAGOLF_API_KEY) return null;
+
+  const raw     = await fetchJson('/preds/pre-tournament?tour=pga&file_format=json');
+  const players = Array.isArray(raw) ? raw : (raw.players || raw.data || []);
+
+  const byDgId = {};
+  const byName = {};
+  for (const p of players) {
+    const entry = { win: p.win ?? null, top5: p.top_5 ?? null, make_cut: p.make_cut ?? null };
+    if (p.dg_id != null) byDgId[p.dg_id] = { ...entry, player_name: p.player_name };
+    if (p.player_name)   byName[p.player_name.toLowerCase().trim()] = { ...entry, dg_id: p.dg_id };
+  }
+  const result = { byDgId, byName, event_name: raw.event_name || '', fetchedAt: Date.now() };
+  _cacheSet('win_probs', result);
+  console.log(`[datagolf] Win probs fetched: ${players.length} players for "${result.event_name}"`);
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. RANKING-BASED TIER ASSIGNMENT
+// Endpoint: GET /preds/get-dg-rankings?file_format=json
+//
+// Assigns pool_tier_players.tier_number by DG rank position within the field:
+//   Field rank  1–15  → Tier 1
+//   Field rank 16–40  → Tier 2
+//   Field rank 41+    → Tier 3
+//
+// Runs automatically after every field sync. Respects manually_overridden flag.
+// Super Admin can also trigger via POST /admin/dev/sync-datagolf-ranking-tiers.
+// ─────────────────────────────────────────────────────────────────────────────
+async function syncDgRankingTiers(tournamentId) {
+  if (!process.env.DATAGOLF_API_KEY) return { skipped: true, reason: 'no_key' };
+
+  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  if (!tourn) return { error: 'tournament_not_found' };
+
+  // DG rankings (1hr cached)
+  let rankData = _cacheGet('dg_rankings');
+  if (!rankData) {
+    const raw      = await fetchJson('/preds/get-dg-rankings?file_format=json');
+    const rankings = Array.isArray(raw) ? raw : (raw.rankings || raw.data || []);
+    rankData = { rankings };
+    _cacheSet('dg_rankings', rankData);
+  }
+
+  // Field player lookup: datagolf_id → our player UUID, name → our player UUID
+  const fieldRows = db.prepare(`
+    SELECT tf.player_id, gp.datagolf_id, gp.name
+    FROM golf_tournament_fields tf
+    JOIN golf_players gp ON gp.id = tf.player_id
+    WHERE tf.tournament_id = ?
+  `).all(tournamentId);
+
+  const byDgId = new Map();
+  const byName = new Map();
+  for (const f of fieldRows) {
+    if (f.datagolf_id) byDgId.set(Number(f.datagolf_id), f.player_id);
+    byName.set((f.name || '').toLowerCase().trim(), f.player_id);
+  }
+
+  // Walk DG rankings in order; only keep players in our field
+  const fieldRanked = [];
+  for (const r of rankData.rankings) {
+    const pid = (r.dg_id ? byDgId.get(Number(r.dg_id)) : null)
+              || byName.get((r.player_name || '').toLowerCase().trim());
+    if (pid) fieldRanked.push({ playerId: pid, fieldRank: fieldRanked.length + 1 });
+  }
+
+  const tierForRank = r => r <= 15 ? 1 : r <= 40 ? 2 : 3;
+
+  const leagues = db.prepare(
+    "SELECT id FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'"
+  ).all(tournamentId);
+
+  let updated = 0;
+  const upd = db.prepare('UPDATE pool_tier_players SET tier_number = ? WHERE id = ?');
+  const sel = db.prepare(
+    'SELECT id, manually_overridden FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND player_id = ?'
+  );
+
+  for (const { id: leagueId } of leagues) {
+    db.transaction(() => {
+      for (const { playerId, fieldRank } of fieldRanked) {
+        const row = sel.get(leagueId, tournamentId, playerId);
+        if (!row || row.manually_overridden) continue;
+        upd.run(tierForRank(fieldRank), row.id);
+        updated++;
+      }
+    })();
+  }
+
+  console.log(`[datagolf] Ranking tiers ${tourn.name}: ${fieldRanked.length} in-field ranked, ${updated} tier assignments updated across ${leagues.length} leagues`);
+  return { tournament: tourn.name, field_ranked: fieldRanked.length, leagues: leagues.length, updated };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. SCHEDULER
 // - Player list: once at startup (after 30s) + every Sunday at midnight UTC
 // - Field sync: every Monday at 8am UTC + every 12h Mon–Wed (WD updates)
 // - Schedule sync: once at startup (after 60s) + every Sunday at midnight UTC
@@ -599,4 +749,7 @@ module.exports = {
   syncLiveStats,
   scheduleDataGolfSync,
   normalizeCountry,
+  fetchSkillRatings,
+  fetchWinProbs,
+  syncDgRankingTiers,
 };

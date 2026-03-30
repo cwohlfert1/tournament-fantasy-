@@ -1381,4 +1381,32 @@ router.post('/leagues/:id/import-members', authMiddleware, async (req, res) => {
   }
 });
 
+// ── GET /datagolf/skill-ratings — form badges (🔥/❄️) ──────────────────────────
+// 1hr cached from DataGolf /preds/skill-ratings. Returns byName + byDgId maps.
+router.get('/datagolf/skill-ratings', authMiddleware, async (req, res) => {
+  try {
+    const { fetchSkillRatings } = require('../dataGolfService');
+    const data = await fetchSkillRatings();
+    if (!data) return res.json({ byName: {}, byDgId: {} });
+    res.json(data);
+  } catch (err) {
+    console.error('[golf] skill-ratings error:', err.message);
+    res.json({ byName: {}, byDgId: {} }); // degrade gracefully — don't break picks page
+  }
+});
+
+// ── GET /datagolf/win-probs — pre-tournament win % ─────────────────────────────
+// 1hr cached from DataGolf /preds/pre-tournament. Returns byName + byDgId maps.
+router.get('/datagolf/win-probs', authMiddleware, async (req, res) => {
+  try {
+    const { fetchWinProbs } = require('../dataGolfService');
+    const data = await fetchWinProbs();
+    if (!data) return res.json({ byName: {}, byDgId: {}, event_name: '' });
+    res.json(data);
+  } catch (err) {
+    console.error('[golf] win-probs error:', err.message);
+    res.json({ byName: {}, byDgId: {}, event_name: '' });
+  }
+});
+
 module.exports = router;
