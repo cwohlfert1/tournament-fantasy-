@@ -473,15 +473,15 @@ export default function GolfLanding() {
               </div>
               <div className="mt-3">
                 <div className="text-2xl mb-2">🏌️</div>
-                <h3 className="text-white font-black text-base">TourneyRun Format</h3>
-                <p className="text-green-400/80 text-xs mt-0.5 mb-4">Best for serious groups</p>
+                <h3 className="text-white font-black text-base">Season Long Fantasy</h3>
+                <p className="text-green-400/80 text-xs mt-0.5 mb-4">Draft once. Compete all season.</p>
                 <ul className="space-y-2 text-sm text-gray-400">
                   {[
-                    'Auction draft with salary cap',
-                    'Set weekly lineups (4 core + 4 flex)',
-                    'FAAB waiver wire between events',
-                    'Majors count 1.5×',
-                    'Season-long leaderboard',
+                    'Auction draft to build your team before the season',
+                    'Set your lineup each week — 4 starters, 4 flex',
+                    'FAAB waiver wire keeps every week fresh',
+                    'Majors count 1.5× — big moments hit harder',
+                    'Live standings update after every tournament',
                   ].map(item => (
                     <li key={item} className="flex items-start gap-2">
                       <span className="text-green-500 shrink-0 mt-0.5">✓</span>
