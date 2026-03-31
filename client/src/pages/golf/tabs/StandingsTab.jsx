@@ -405,10 +405,9 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
         )}
 
         {isTotalStrokes && dropCount > 0 && (
-          <div style={{ background: dropsApplied ? 'rgba(0,232,122,0.06)' : 'rgba(249,115,22,0.05)', border: `1px solid ${dropsApplied ? 'rgba(0,232,122,0.15)' : 'rgba(249,115,22,0.2)'}`, borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13 }}>{dropsApplied ? '⚖️' : '🔄'}</span>
-            <span style={{ color: '#9ca3af', fontSize: 12 }}>
-              Pick {picksPerTeam} · <span style={{ color: '#22c55e', fontWeight: 700 }}>Best {countingPicks} count</span> · Worst {dropCount} {dropsApplied ? 'locked' : <span style={{ color: '#f97316' }}>live — updates each round</span>} · MC auto-dropped
+          <div style={{ background: 'rgba(107,114,128,0.08)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#6b7280', fontSize: 12 }}>
+              Top {countingPicks} scores will count — worst {dropCount} will be auto-dropped.
             </span>
           </div>
         )}
