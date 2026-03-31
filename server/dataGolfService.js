@@ -679,7 +679,18 @@ async function syncDgOddsTiers(tournamentId) {
     if (american == null) continue;
     const entry = { american, ..._americanToDisplay(american) };
     if (p.dg_id != null)   byDgId.set(Number(p.dg_id), entry);
-    if (p.player_name)     byName.set(p.player_name.toLowerCase().trim(), entry);
+    if (p.player_name) {
+      const norm = p.player_name.toLowerCase().trim();
+      byName.set(norm, entry);
+      // Also index "Last, First" → "first last" and strip accents for fuzzy matching
+      const noAccent = norm.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (noAccent !== norm) byName.set(noAccent, entry);
+      // "Last, First" format
+      if (norm.includes(',')) {
+        const [last, first] = norm.split(',').map(s => s.trim());
+        byName.set(`${first} ${last}`, entry);
+      }
+    }
   }
 
   if (!byDgId.size && !byName.size) {
@@ -687,44 +698,65 @@ async function syncDgOddsTiers(tournamentId) {
     return { skipped: true, reason: 'no_odds_data', event_name: oddsData.event_name };
   }
 
+  // T1: < +2000 (elite favorites, ≤ 19/1)
+  // T2: +2000–+3999  T3: +4000–+7999  T4: +8000+
   const tierForAmerican = american =>
-    american < 2000 ? 1 : american < 4000 ? 2 : american < 8000 ? 3 : 4;
+    american <= 2000 ? 1 : american < 4000 ? 2 : american < 8000 ? 3 : 4;
 
+  // GROUP BY player_id: prevents processing the same player multiple times when
+  // golf_tournament_fields has duplicate name-variant rows for the same player_id.
   const fieldRows = db.prepare(`
     SELECT tf.player_id, gp.datagolf_id, gp.name
     FROM golf_tournament_fields tf
     JOIN golf_players gp ON gp.id = tf.player_id
     WHERE tf.tournament_id = ?
+    GROUP BY tf.player_id
   `).all(tournamentId);
 
   const leagues = db.prepare(
     "SELECT id FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'"
   ).all(tournamentId);
 
-  let updated = 0, noOdds = 0;
-  const upd = db.prepare('UPDATE pool_tier_players SET tier_number = ?, odds_display = ?, odds_decimal = ? WHERE id = ?');
-  const sel = db.prepare(
-    'SELECT id, manually_overridden FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND player_id = ?'
+  let updated = 0, noOdds = 0, noMatch = 0;
+
+  // Bulk UPDATE by player_id — updates ALL duplicate pool_tier_players rows for a player at once.
+  // Previous approach used sel.get() + UPDATE WHERE id=? which only fixed ONE of N duplicate rows.
+  const updWithOdds = db.prepare(
+    'UPDATE pool_tier_players SET tier_number = ?, odds_display = ?, odds_decimal = ? WHERE league_id = ? AND tournament_id = ? AND player_id = ? AND (manually_overridden IS NULL OR manually_overridden = 0)'
   );
+  const updNoOdds = db.prepare(
+    'UPDATE pool_tier_players SET tier_number = 4, odds_display = NULL, odds_decimal = NULL WHERE league_id = ? AND tournament_id = ? AND player_id = ? AND (manually_overridden IS NULL OR manually_overridden = 0)'
+  );
+
+  // One-time dedup: remove stale duplicate pool_tier_players rows, keeping the MAX id per player.
+  // This cleans up rows created by the JOIN multiplication bug before GROUP BY was added.
+  const dedup = db.prepare(`
+    DELETE FROM pool_tier_players
+    WHERE tournament_id = ?
+      AND id NOT IN (
+        SELECT MAX(id) FROM pool_tier_players WHERE tournament_id = ? GROUP BY league_id, player_id
+      )
+  `);
 
   for (const { id: leagueId } of leagues) {
     db.transaction(() => {
+      dedup.run(tournamentId, tournamentId);
+
       for (const f of fieldRows) {
-        const row = sel.get(leagueId, tournamentId, f.player_id);
-        if (!row || row.manually_overridden) continue;
         const odds = (f.datagolf_id ? byDgId.get(Number(f.datagolf_id)) : null)
                    || byName.get((f.name || '').toLowerCase().trim());
         if (!odds) {
-          upd.run(4, null, null, row.id); // no odds → default Tier 4
+          updNoOdds.run(leagueId, tournamentId, f.player_id);
           noOdds++;
         } else {
-          upd.run(tierForAmerican(odds.american), odds.display, odds.decimal, row.id);
+          updWithOdds.run(tierForAmerican(odds.american), odds.display, odds.decimal, leagueId, tournamentId, f.player_id);
           updated++;
         }
       }
     })();
   }
 
+  if (noOdds > 0) console.log(`[datagolf] Odds tiers: ${noOdds} players had no DG odds match — defaulted to T4`);
   console.log(`[datagolf] Odds tiers ${tourn.name}: ${updated} assigned by odds, ${noOdds} defaulted to T4, across ${leagues.length} leagues`);
   return { tournament: tourn.name, event_name: oddsData.event_name, odds_players: byDgId.size || byName.size, leagues: leagues.length, updated, no_odds: noOdds };
 }
