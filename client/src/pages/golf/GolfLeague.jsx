@@ -188,7 +188,6 @@ export default function GolfLeague() {
           <div>
             <h1 className="text-3xl font-black text-white break-words">{league.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <Badge color="green">Golf</Badge>
               {isComm && <Badge color="blue">Commissioner</Badge>}
               {league.format_type === 'pool'
                 ? (() => {
