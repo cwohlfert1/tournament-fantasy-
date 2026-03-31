@@ -1562,6 +1562,84 @@ function DevToolsTab() {
         </div>
 
       </div>
+
+      {/* ── DataGolf API Diagnostic ── */}
+      <div style={{ marginTop: 28, marginBottom: 14 }}>
+        <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          DataGolf API Diagnostic
+        </div>
+        <div style={{ color: '#374151', fontSize: 11, marginTop: 4 }}>
+          Test API key validity and inspect raw odds data
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 16 }}>
+        <div style={{ background: '#080f09', border: '1px solid #111827', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>🔑</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Test DataGolf Odds API</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Checks if DATAGOLF_API_KEY is set, makes a live call to the outrights endpoint, and returns the first 5 players plus any searched players (Fleetwood, Morikawa, Spieth, etc).
+          </p>
+          {dgResults.dgTest && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.dgTest.ok === false
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.dgTest.error}</div>
+                : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <div style={{ color: '#4ade80' }}>✓ HTTP {dgResults.dgTest.http_status} — {dgResults.dgTest.event_name}</div>
+                    <div style={{ color: '#60a5fa' }}>Total players: {dgResults.dgTest.total_players}</div>
+                    <div style={{ color: '#9ca3af', marginTop: 6, fontWeight: 700 }}>First 5:</div>
+                    {(dgResults.dgTest.first_5 || []).map((p, i) => (
+                      <div key={i} style={{ color: '#d1d5db', paddingLeft: 8 }}>
+                        {p.name} — DK: {p.draftkings ?? '—'} / FD: {p.fanduel ?? '—'} / MGM: {p.betmgm ?? '—'}
+                      </div>
+                    ))}
+                    {(dgResults.dgTest.searched_players || []).length > 0 && (
+                      <>
+                        <div style={{ color: '#9ca3af', marginTop: 8, fontWeight: 700 }}>Searched players:</div>
+                        {dgResults.dgTest.searched_players.map((p, i) => (
+                          <div key={i} style={{ color: '#fbbf24', paddingLeft: 8 }}>
+                            {p.name} — DK: {p.draftkings ?? '—'} / FD: {p.fanduel ?? '—'} / MGM: {p.betmgm ?? '—'} / CZR: {p.caesars ?? '—'}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {(dgResults.dgTest.searched_players || []).length === 0 && (
+                      <div style={{ color: '#f87171', marginTop: 6 }}>⚠ None of the searched players found in response</div>
+                    )}
+                    {dgResults.dgTest.sample_keys && (
+                      <div style={{ color: '#6b7280', marginTop: 6, fontSize: 11 }}>
+                        Keys: {JSON.stringify(dgResults.dgTest.sample_keys)}
+                      </div>
+                    )}
+                  </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.dgTest}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, dgTest: true }));
+              setDgResults(r => ({ ...r, dgTest: null }));
+              try {
+                const res = await api.get('/golf/admin/dev/datagolf-odds-test');
+                setDgResults(r => ({ ...r, dgTest: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, dgTest: { ok: false, error: e.response?.data?.error || 'Request failed' } }));
+              }
+              setDgLoading(l => ({ ...l, dgTest: false }));
+            }}
+            style={{
+              background: dgLoading.dgTest ? '#1e3a5f' : '#1d4ed8',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: dgLoading.dgTest ? 'not-allowed' : 'pointer',
+              opacity: dgLoading.dgTest ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.dgTest ? 'Testing…' : 'Test DataGolf API →'}
+          </button>
+        </div>
+      </div>
+
     </>
   );
 }
