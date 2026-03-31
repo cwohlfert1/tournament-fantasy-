@@ -499,16 +499,18 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
           // DB value. Even par = 0. -4 means 4 under par. No bonuses, no cut penalties.
           //
           // Drop logic:
-          //   Before commissioner applies drops (dropsApplied=false):
-          //     Pass dropCount=0 → all players count (only MC still excluded from scoring).
+          //   Before commissioner locks drops (dropsApplied=false):
+          //     Auto mode — applyDropScoring computes worst-N live from current scores.
+          //     Players shown as is_dropped=true are the current worst N (dynamic, changes as rounds progress).
           //   After commissioner applies drops (dropsApplied=true):
-          //     Pass lockedDroppedIds from DB → persisted drops + MC excluded.
+          //     Locked mode — lockedDroppedIds from DB are the source of truth.
+          //     dropCount is ignored in locked mode.
           let lockedDroppedIds = null;
-          let effectiveDropCount = 0; // no auto worst-N until commissioner applies
           if (dropsApplied) {
             lockedDroppedIds = new Set(picks.filter(p => p.is_dropped).map(p => p.player_id));
           }
-          const dropResult = applyDropScoring(picks, effectiveDropCount, { lockedDroppedIds });
+          // Always pass dropCount — locked mode ignores it; auto mode uses it for live worst-N.
+          const dropResult = applyDropScoring(picks, dropCount, { lockedDroppedIds });
           total_points = dropResult.team_score;
           enrichedPicks = dropResult.picks.map(p => ({
             player_name: p.player_name, tier_number: p.tier_number, country: p.country,

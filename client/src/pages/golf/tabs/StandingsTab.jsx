@@ -242,6 +242,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   // ── Pool leaderboard
   if (isPool) {
     const dropCount    = data?.drop_count ?? 2;
+    const dropsApplied = !!data?.drops_applied;
     const picksPerTeam = data?.picks_per_team || 8;
     const countingPicks = picksPerTeam - dropCount;
 
@@ -259,7 +260,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
       return <span style={{ color }}>{label}</span>;
     };
 
-    function PoolExpandContent({ picks }) {
+    function PoolExpandContent({ picks, dropsLocked }) {
       if (!picks || picks.length === 0) return null;
       const byTier = {};
       picks.forEach(p => {
@@ -299,7 +300,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
                           <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                           {flipName(p.player_name)}
                         </span>
-                        {isDropped && <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>DROPPED</span>}
+                        {isDropped && (dropsLocked
+                          ? <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>DROPPED</span>
+                          : <span style={{ fontSize: 9, fontWeight: 700, color: '#f97316', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>DROPPING</span>
+                        )}
                         {isMC && !isDropped && <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>MC</span>}
                         {isPending && <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>TBD</span>}
                         {isWD ? (
@@ -393,10 +397,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
         {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} p1={p1} p2={p2} p3={p3} />}
 
         {isTotalStrokes && dropCount > 0 && (
-          <div style={{ background: 'rgba(0,232,122,0.06)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13 }}>⚖️</span>
+          <div style={{ background: dropsApplied ? 'rgba(0,232,122,0.06)' : 'rgba(249,115,22,0.05)', border: `1px solid ${dropsApplied ? 'rgba(0,232,122,0.15)' : 'rgba(249,115,22,0.2)'}`, borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13 }}>{dropsApplied ? '⚖️' : '🔄'}</span>
             <span style={{ color: '#9ca3af', fontSize: 12 }}>
-              Pick {picksPerTeam} · <span style={{ color: '#22c55e', fontWeight: 700 }}>Best {countingPicks} count</span> · Worst {dropCount} dropped · MC auto-dropped
+              Pick {picksPerTeam} · <span style={{ color: '#22c55e', fontWeight: 700 }}>Best {countingPicks} count</span> · Worst {dropCount} {dropsApplied ? 'locked' : <span style={{ color: '#f97316' }}>live — updates each round</span>} · MC auto-dropped
             </span>
           </div>
         )}
@@ -417,7 +421,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
               s={s} i={i}
               rankInfo={ranks[i]}
               canExpand={!!s.submitted && (s.picks?.length > 0)}
-              expandContent={s.picks?.length > 0 ? <PoolExpandContent picks={s.picks} /> : null}
+              expandContent={s.picks?.length > 0 ? <PoolExpandContent picks={s.picks} dropsLocked={dropsApplied} /> : null}
               currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
               hasPrize={hasPrize} prizeTotal={prizeTotal} p1={p1} p2={p2} p3={p3}
               isTotalStrokes={isTotalStrokes} hasScores={hasScores}

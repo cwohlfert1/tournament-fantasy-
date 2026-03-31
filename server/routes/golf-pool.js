@@ -556,7 +556,8 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       if (dropsApplied) {
         lockedDroppedIds = new Set(picks.filter(p => p.is_dropped).map(p => p.player_id));
       }
-      const dropResult = applyDropScoring(picks, dropsApplied ? 0 : 0, { lockedDroppedIds });
+      // Always pass dropCount — locked mode (lockedDroppedIds set) ignores it; auto mode uses it for live worst-N.
+      const dropResult = applyDropScoring(picks, dropCount, { lockedDroppedIds });
       enrichedPicks  = dropResult.picks;
       teamScore      = dropResult.team_score;
       countingCount  = dropResult.counting_count;

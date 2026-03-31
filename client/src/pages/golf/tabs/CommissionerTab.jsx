@@ -1121,6 +1121,17 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                 {' '}This locks the drops permanently — re-running updates based on latest R2 scores.
               </p>
 
+              {!league.pool_drops_applied && (
+                <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                  <p style={{ fontSize: 12, color: '#fb923c', margin: 0, fontWeight: 600 }}>
+                    ⚠️ Only apply drops after R2 is fully complete.
+                  </p>
+                  <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>
+                    Auto-drops are already showing live in standings. Applying here locks them permanently.
+                  </p>
+                </div>
+              )}
+
               {league.pool_drops_applied ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   <span style={{
@@ -1137,7 +1148,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                     background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
                     padding: '3px 8px', borderRadius: 6,
                   }}>Pending</span>
-                  <span className="text-gray-500 text-xs">All {league.picks_per_team ?? 7} players counting until drops are applied.</span>
+                  <span className="text-gray-500 text-xs">Worst {league.pool_drop_count ?? 2} players showing as DROPPING live — apply to lock permanently.</span>
                 </div>
               )}
 

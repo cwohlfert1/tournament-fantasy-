@@ -250,7 +250,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
   );
 }
 
-function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, isPending, espnFlagHref, espnCountryAlt, onRemove, isStrokeBased, sgEntry }) {
+function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagueId, teeTimeRaw, espnScheduled, espnCut, isDropped, dropsApplied, isPending, espnFlagHref, espnCountryAlt, onRemove, isStrokeBased, sgEntry }) {
   const tc = ROSTER_TIER_COLORS[tier] || ROSTER_TIER_COLORS[4];
   const rounds = getRounds(pick);
   const todayRaw = getTodayScore(pick);
@@ -325,7 +325,9 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
       {/* Score column */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0, minWidth: 70 }}>
         {isDropped ? (
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>DROPPED</span>
+          dropsApplied
+            ? <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>DROPPED</span>
+            : <span style={{ fontSize: 9, fontWeight: 700, color: '#f97316', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>DROPPING</span>
         ) : isPending && (isLive || isComplete) ? (
           <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>PENDING</span>
         ) : hasScores && !isCUT && !isWD ? (
@@ -449,6 +451,7 @@ export default function PoolRosterTab({ leagueId, league }) {
   // tourn?.status is fetched fresh on each my-roster load; league.pool_tournament_status may lag.
   const tournStatus  = tourn?.status || league.pool_tournament_status;
   const dropCount    = data?.drop_count ?? league.pool_drop_count ?? 2;
+  const dropsApplied = !!data?.drops_applied;
   const teamScore    = data?.team_score;
   const picksPerTeam  = data?.picks_per_team || league.picks_per_team || 8;
   const isStrokeBased = ['stroke_play', 'total_score', 'total_strokes'].includes(league.scoring_style);
@@ -702,6 +705,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                           espnScheduled={espnData?.isScheduled}
                           espnCut={espnData?.isCut}
                           isDropped={pick.is_dropped}
+                          dropsApplied={dropsApplied}
                           isPending={pick.is_pending}
                           espnFlagHref={espnData?.flagHref}
                           espnCountryAlt={espnData?.countryAlt}
