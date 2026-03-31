@@ -605,6 +605,15 @@ async function syncTournamentField(tournamentId) {
     return;
   }
 
+  // Build confirmed field from golf_tournament_fields — only these players are actually
+  // in the tournament. pool_tier_players may contain 200+ extra players from assign-tiers
+  // that are NOT playing this week and must never be evaluated for WD status.
+  const confirmedFieldIds = new Set(
+    db.prepare('SELECT DISTINCT player_id FROM golf_tournament_fields WHERE tournament_id = ?')
+      .all(tournamentId).map(r => r.player_id)
+  );
+  console.log(`[field-sync] ${tourn.name}: ${confirmedFieldIds.size} players in confirmed field (golf_tournament_fields)`);
+
   for (const league of leagues) {
     // Fetch ALL pool_tier_players (including already-WD'd) so we can both clear false WDs
     // and mark new ones in a single reconcile pass.
@@ -629,6 +638,19 @@ async function syncTournamentField(tournamentId) {
     let clearedCount = 0;
     db.transaction(() => {
       for (const p of tierPlayers) {
+        // If this player is not in the confirmed tournament field (golf_tournament_fields),
+        // they're a background pool filler from assign-tiers — not a tournament participant.
+        // Clear any accidental WD flag and skip — never mark them WD.
+        if (!confirmedFieldIds.has(p.player_id)) {
+          if (p.is_withdrawn) {
+            clearWD.run(p.id);
+            clearPickWD.run(league.id, tournamentId, p.player_name);
+            console.log(`[field-sync] Cleared non-field player WD: ${p.player_name} (league ${league.id})`);
+            clearedCount++;
+          }
+          continue;
+        }
+
         const n = norm(p.player_name);
         // DataGolf names are stored as "Last, First" — flip to "First Last" for ESPN comparison
         let nFlipped = n;
