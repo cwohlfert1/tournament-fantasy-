@@ -606,39 +606,67 @@ async function syncTournamentField(tournamentId) {
   }
 
   for (const league of leagues) {
+    // Fetch ALL pool_tier_players (including already-WD'd) so we can both clear false WDs
+    // and mark new ones in a single reconcile pass.
     const tierPlayers = db.prepare(
-      'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND is_withdrawn = 0'
+      'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?'
     ).all(league.id, tournamentId);
 
     const markWD = db.prepare(
       'UPDATE pool_tier_players SET is_withdrawn = 1 WHERE id = ?'
     );
+    const clearWD = db.prepare(
+      'UPDATE pool_tier_players SET is_withdrawn = 0 WHERE id = ?'
+    );
     const markPickWD = db.prepare(
       'UPDATE pool_picks SET is_withdrawn = 1 WHERE league_id = ? AND tournament_id = ? AND player_name = ?'
     );
+    const clearPickWD = db.prepare(
+      'UPDATE pool_picks SET is_withdrawn = 0 WHERE league_id = ? AND tournament_id = ? AND player_name = ?'
+    );
 
     let wdCount = 0;
+    let clearedCount = 0;
     db.transaction(() => {
       for (const p of tierPlayers) {
         const n = norm(p.player_name);
-        // Check direct match or last+first-initial match
-        const inField = espnNames.has(n) || [...espnNames].some(en => {
+        // DataGolf names are stored as "Last, First" — flip to "First Last" for ESPN comparison
+        let nFlipped = n;
+        if (p.player_name.includes(',')) {
+          const [last, first] = p.player_name.split(',').map(s => s.trim());
+          if (first) nFlipped = norm(`${first} ${last}`);
+        }
+        // Check direct match (either format) or last+first-initial fallback
+        const inField = espnNames.has(n) || espnNames.has(nFlipped) || [...espnNames].some(en => {
           const parts = en.split(' ');
-          const np = n.split(' ');
+          const np = nFlipped.split(' ');
           return parts[parts.length - 1] === np[np.length - 1] && parts[0]?.[0] === np[0]?.[0];
         });
-        if (!inField) {
-          markWD.run(p.id);
-          markPickWD.run(league.id, tournamentId, p.player_name);
-          console.log(`[field-sync] WD detected: ${p.player_name} (league ${league.id})`);
-          wdCount++;
+        if (inField) {
+          if (p.is_withdrawn) {
+            clearWD.run(p.id);
+            clearPickWD.run(league.id, tournamentId, p.player_name);
+            console.log(`[field-sync] Cleared false WD: ${p.player_name} (league ${league.id})`);
+            clearedCount++;
+          }
+        } else {
+          if (!p.is_withdrawn) {
+            markWD.run(p.id);
+            markPickWD.run(league.id, tournamentId, p.player_name);
+            console.log(`[field-sync] WD detected: ${p.player_name} (league ${league.id})`);
+            wdCount++;
+          }
         }
       }
     })();
+    if (clearedCount > 0) {
+      console.log(`[field-sync] ${tourn.name}: ${clearedCount} false WD(s) cleared in league ${league.id}`);
+    }
     if (wdCount > 0) {
       console.log(`[field-sync] ${tourn.name}: ${wdCount} player(s) marked WD in league ${league.id}`);
-    } else {
-      console.log(`[field-sync] ${tourn.name}: no WDs detected`);
+    }
+    if (wdCount === 0 && clearedCount === 0) {
+      console.log(`[field-sync] ${tourn.name}: field in sync, no changes`);
     }
   }
 }

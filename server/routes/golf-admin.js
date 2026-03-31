@@ -1571,4 +1571,23 @@ router.get('/admin/dev/datagolf-odds-test', superadmin, async (req, res) => {
   }
 });
 
+// ── POST /admin/dev/sync-wd-field ─────────────────────────────────────────────
+// Manually trigger the ESPN WD field sync for a tournament. Clears false WDs
+// (caused by DataGolf "Last, First" name format mismatch) and marks real ones.
+router.post('/admin/dev/sync-wd-field', superadmin, async (req, res) => {
+  const { tournament_id } = req.body;
+  if (!tournament_id) return res.status(400).json({ error: 'tournament_id required' });
+  try {
+    const { syncTournamentField } = require('../golfSyncService');
+    await syncTournamentField(tournament_id);
+    const counts = db.prepare(
+      'SELECT SUM(is_withdrawn) AS wd_count, COUNT(*) AS total FROM pool_tier_players WHERE tournament_id = ?'
+    ).get(tournament_id);
+    res.json({ ok: true, wd_count: counts?.wd_count || 0, total: counts?.total || 0 });
+  } catch (err) {
+    console.error('[admin] sync-wd-field error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

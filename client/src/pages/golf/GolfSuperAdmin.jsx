@@ -1563,6 +1563,59 @@ function DevToolsTab() {
 
       </div>
 
+      {/* ── ESPN WD Field Sync ── */}
+      <div style={{ marginTop: 28, marginBottom: 14 }}>
+        <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          WD Field Sync
+        </div>
+        <div style={{ color: '#374151', fontSize: 11, marginTop: 4 }}>
+          Compare pool players against live ESPN field — clear false WDs, mark real ones
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 16 }}>
+        <div style={{ background: '#080f09', border: '1px solid #111827', borderRadius: 16, padding: 20 }}>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>🔄</div>
+          <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Sync WD Status</h4>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+            Fetches the ESPN field and reconciles is_withdrawn flags — clears false WDs caused by name format mismatch and marks any real withdrawals. Run this after deploying the name-format fix to immediately clear wrong WD badges.
+          </p>
+          {dgResults.wdSync && (
+            <div style={{ marginBottom: 12 }}>
+              {dgResults.wdSync.error
+                ? <div style={{ color: '#f87171', fontSize: 12 }}>⚠ {dgResults.wdSync.error}</div>
+                : <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <div style={{ color: '#4ade80' }}>✓ Sync complete</div>
+                    <div style={{ color: '#60a5fa' }}>WD players: {dgResults.wdSync.wd_count} / {dgResults.wdSync.total} total</div>
+                  </div>
+              }
+            </div>
+          )}
+          <button
+            disabled={dgLoading.wdSync || !selectedT}
+            onClick={async () => {
+              setDgLoading(l => ({ ...l, wdSync: true }));
+              setDgResults(r => ({ ...r, wdSync: null }));
+              try {
+                const res = await api.post('/golf/admin/dev/sync-wd-field', { tournament_id: selectedT });
+                setDgResults(r => ({ ...r, wdSync: res.data }));
+              } catch (e) {
+                setDgResults(r => ({ ...r, wdSync: { error: e.response?.data?.error || 'Failed' } }));
+              }
+              setDgLoading(l => ({ ...l, wdSync: false }));
+            }}
+            style={{
+              background: (dgLoading.wdSync || !selectedT) ? '#14532d' : '#16a34a',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 20px', fontSize: 13, fontWeight: 700,
+              cursor: (dgLoading.wdSync || !selectedT) ? 'not-allowed' : 'pointer',
+              opacity: (dgLoading.wdSync || !selectedT) ? 0.6 : 1,
+            }}
+          >
+            {dgLoading.wdSync ? 'Syncing…' : 'Sync WD Status →'}
+          </button>
+        </div>
+      </div>
+
       {/* ── DataGolf API Diagnostic ── */}
       <div style={{ marginTop: 28, marginBottom: 14 }}>
         <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>

@@ -256,12 +256,14 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
   const todayRaw = getTodayScore(pick);
   const totalPar = pick.player_total ?? rounds.reduce((s, r) => s + (r || 0), 0);
   const pts = pick.fantasy_points;
-  const isPreTournWD = !!pick.is_withdrawn;
-  const isWD  = !isPreTournWD && pick.made_cut === 0 && pick.finish_position == null;
-  const isCUT = (pick.made_cut === 0 && pick.finish_position != null) || espnCut;
   const hasScores = rounds.length > 0;
   const isLive = tournStatus === 'active';
   const isComplete = tournStatus === 'completed';
+  // Only show WD when the tournament has actually started — pre-tournament is_withdrawn
+  // is often an ESPN name-match false positive and should not surface as WD to users.
+  const isPreTournWD = !!pick.is_withdrawn && (isLive || isComplete);
+  const isWD  = !isPreTournWD && pick.made_cut === 0 && pick.finish_position == null && (isLive || isComplete);
+  const isCUT = (pick.made_cut === 0 && pick.finish_position != null) || espnCut;
   const showTeeTime = !hasScores && !isCUT && !isWD && !isPreTournWD && !isPending && teeTimeRaw;
   const teeTxt = showTeeTime ? fmtTeeTimeShort(teeTimeRaw) : null;
 
@@ -710,7 +712,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                           espnCountryAlt={espnData?.countryAlt}
                           isStrokeBased={isStrokeBased}
                           sgEntry={sgEntry}
-                          onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' ? () => handleRemoveSubmittedPick(pick) : undefined}
+                          onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' && (!lockTime || Date.now() < new Date(lockTime).getTime()) ? () => handleRemoveSubmittedPick(pick) : undefined}
                         />
                       );
                     })}
