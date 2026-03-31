@@ -39,7 +39,22 @@ export default function OwnershipTab({ leagueId }) {
   }
 
   const standings = data?.standings || [];
+  const picksRevealed = !!data?.picks_revealed;
   const teamCount = standings.filter(s => (s.picks || []).length > 0).length;
+
+  if (!picksRevealed) {
+    return (
+      <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: 16 }}>
+          <span style={{ fontSize: 24 }}>🔒</span>
+        </div>
+        <h3 style={{ color: '#fff', fontWeight: 800, fontSize: 18, margin: '0 0 8px' }}>Picks are hidden</h3>
+        <p style={{ color: '#6b7280', fontSize: 13, maxWidth: 300, margin: '0 auto' }}>
+          Ownership data is revealed once picks lock 1 hour before Thursday&apos;s first tee time. This prevents teams from gaining an unfair advantage.
+        </p>
+      </div>
+    );
+  }
 
   if (teamCount === 0) {
     return (

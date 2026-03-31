@@ -539,15 +539,22 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
           }));
         }
 
+        // Picks are revealed once they're locked or the tournament is underway/complete.
+        // Before that, only the owner of a team can see their own picks.
+        const picksRevealed = !!league.picks_locked || tourn?.status === 'active' || tourn?.status === 'completed';
+
         return {
           user_id: m.user_id, username: m.username, team_name: m.team_name,
           avatar_url: m.avatar_url,
           season_points: total_points,
           submitted: picks.length > 0,
           scoring_style: league.scoring_style || 'fantasy_points',
-          picks: enrichedPicks,
+          picks: picksRevealed || m.user_id === req.user.id ? enrichedPicks : [],
         };
       });
+
+      // Picks revealed once locked or tournament started (computed from first member; same for all).
+      const picksRevealed = !!league.picks_locked || tourn?.status === 'active' || tourn?.status === 'completed';
 
       // Stroke-based scoring: sort ascending (lowest score wins).
       const scoringStyle = league.scoring_style || 'fantasy_points';
@@ -571,6 +578,7 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
         drop_count: league.pool_drop_count ?? 2,
         drops_applied: !!league.pool_drops_applied,
         picks_per_team: league.picks_per_team || 8,
+        picks_revealed: picksRevealed,
         active_tournament_id: tid,
         tournament: tourn,
         has_scores: hasScores,

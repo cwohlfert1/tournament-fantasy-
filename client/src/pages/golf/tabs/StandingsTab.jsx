@@ -245,6 +245,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
     const dropsApplied = !!data?.drops_applied;
     const picksPerTeam = data?.picks_per_team || 8;
     const countingPicks = picksPerTeam - dropCount;
+    const picksRevealed = !!data?.picks_revealed;
 
     const allPicks = standings.flatMap(s => s.picks || []);
     let currentRound = 0;
@@ -396,6 +397,13 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
         {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} p1={p1} p2={p2} p3={p3} />}
 
+        {!picksRevealed && (
+          <div style={{ background: 'rgba(107,114,128,0.08)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13 }}>🔒</span>
+            <span style={{ color: '#6b7280', fontSize: 12 }}>Other teams&apos; picks are hidden until picks lock 1 hour before Thursday tee time. You can expand your own row to see your picks.</span>
+          </div>
+        )}
+
         {isTotalStrokes && dropCount > 0 && (
           <div style={{ background: dropsApplied ? 'rgba(0,232,122,0.06)' : 'rgba(249,115,22,0.05)', border: `1px solid ${dropsApplied ? 'rgba(0,232,122,0.15)' : 'rgba(249,115,22,0.2)'}`, borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13 }}>{dropsApplied ? '⚖️' : '🔄'}</span>
@@ -420,8 +428,8 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
               key={s.user_id}
               s={s} i={i}
               rankInfo={ranks[i]}
-              canExpand={!!s.submitted && (s.picks?.length > 0)}
-              expandContent={s.picks?.length > 0 ? <PoolExpandContent picks={s.picks} dropsLocked={dropsApplied} /> : null}
+              canExpand={!!s.submitted && (s.picks?.length > 0) && (picksRevealed || s.user_id === currentUserId)}
+              expandContent={s.picks?.length > 0 && (picksRevealed || s.user_id === currentUserId) ? <PoolExpandContent picks={s.picks} dropsLocked={dropsApplied} /> : null}
               currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
               hasPrize={hasPrize} prizeTotal={prizeTotal} p1={p1} p2={p2} p3={p3}
               isTotalStrokes={isTotalStrokes} hasScores={hasScores}
