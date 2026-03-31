@@ -1624,4 +1624,32 @@ runOnce('fix-valero-texas-open-dates-2026', () => {
   }
 });
 
+// ── One-time: reset Valero Texas Open to 'scheduled' and clear false WDs ──────
+// The set-valero-espn-event-id-2026 migration prematurely set status='active',
+// causing syncTournamentField to run and mark 109 non-Valero players as WD,
+// and causing the frontend to render WD/PENDING badges before the tournament starts.
+// Reset to 'scheduled' so the normal auto-activation flow handles Thursday's start.
+runOnce('reset-valero-status-to-scheduled-2026', () => {
+  try {
+    const tourn = db.prepare(
+      "SELECT id FROM golf_tournaments WHERE name = 'Valero Texas Open' AND season_year = 2026"
+    ).get();
+    if (!tourn) { console.log('[migration] reset-valero-status: tournament not found'); return; }
+
+    db.prepare("UPDATE golf_tournaments SET status = 'scheduled' WHERE id = ?").run(tourn.id);
+
+    // Clear all false is_withdrawn flags set by the premature WD detection run
+    const ptpCleared = db.prepare(
+      'UPDATE pool_tier_players SET is_withdrawn = 0 WHERE tournament_id = ?'
+    ).run(tourn.id);
+    const ppCleared = db.prepare(
+      'UPDATE pool_picks SET is_withdrawn = 0 WHERE tournament_id = ?'
+    ).run(tourn.id);
+
+    console.log(`[migration] reset-valero-status: set to scheduled, cleared ${ptpCleared.changes} ptp WDs, ${ppCleared.changes} pick WDs`);
+  } catch (e) {
+    console.error('[migration] reset-valero-status error:', e.message);
+  }
+});
+
 module.exports = db;

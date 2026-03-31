@@ -326,7 +326,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0, minWidth: 70 }}>
         {isDropped ? (
           <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>DROPPED</span>
-        ) : isPending ? (
+        ) : isPending && (isLive || isComplete) ? (
           <span style={{ fontSize: 9, fontWeight: 700, color: '#d97706', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.3)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>PENDING</span>
         ) : hasScores && !isCUT && !isWD ? (
           <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', background: 'rgba(0,232,122,0.1)', border: '1px solid rgba(0,232,122,0.25)', padding: '1px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>COUNTING</span>
