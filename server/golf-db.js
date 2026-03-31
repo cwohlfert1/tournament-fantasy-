@@ -841,6 +841,21 @@ try { db.exec(`ALTER TABLE golf_tournament_fields ADD COLUMN odds_decimal REAL`)
 
 try {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS mass_email_log (
+      id TEXT PRIMARY KEY,
+      sent_by TEXT NOT NULL,
+      audience TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body_preview TEXT,
+      recipient_count INTEGER DEFAULT 0,
+      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sent_by) REFERENCES users(id)
+    );
+  `);
+} catch (e) { console.error('[golf-db] mass_email_log table error:', e.message); }
+
+try {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS golf_waitlist (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL,

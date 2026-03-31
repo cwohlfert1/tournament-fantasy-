@@ -1590,4 +1590,135 @@ router.post('/admin/dev/sync-wd-field', superadmin, async (req, res) => {
   }
 });
 
+// ── GET /admin/dev/mass-email-preview ─────────────────────────────────────────
+// Returns the recipient list for a given audience without sending anything.
+// audience: 'all_users' | tournament_id (UUID)
+router.get('/admin/dev/mass-email-preview', superadmin, (req, res) => {
+  try {
+    const { audience } = req.query;
+    if (!audience) return res.status(400).json({ error: 'audience required' });
+
+    let recipients;
+    if (audience === 'all_users') {
+      recipients = db.prepare(
+        "SELECT u.id, u.email, u.username FROM users u WHERE u.email IS NOT NULL AND u.email != '' ORDER BY u.created_at DESC"
+      ).all();
+    } else {
+      // audience is a tournament_id — get all users who have pool_picks for that tournament
+      recipients = db.prepare(`
+        SELECT DISTINCT u.id, u.email, u.username
+        FROM users u
+        JOIN pool_picks pp ON pp.user_id = u.id
+        WHERE pp.tournament_id = ? AND u.email IS NOT NULL AND u.email != ''
+        ORDER BY u.username ASC
+      `).all(audience);
+    }
+
+    res.json({
+      count: recipients.length,
+      sample: recipients.slice(0, 5).map(r => ({ username: r.username, email: r.email })),
+    });
+  } catch (err) {
+    console.error('[admin] mass-email-preview error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /admin/dev/mass-email ─────────────────────────────────────────────────
+// Sends a mass email to all_users or past tournament players.
+// Body: { audience, tournament_id?, subject, body_text }
+router.post('/admin/dev/mass-email', superadmin, async (req, res) => {
+  const { audience, subject, body_text } = req.body;
+  if (!audience || !subject || !body_text) {
+    return res.status(400).json({ error: 'audience, subject, and body_text are required' });
+  }
+
+  try {
+    const { sendSuperAdminBlast, sendEmailBatch } = require('../mailer');
+    const { v4: uuidv4 } = require('uuid');
+
+    let recipients;
+    if (audience === 'all_users') {
+      recipients = db.prepare(
+        "SELECT u.id, u.email, u.username FROM users u WHERE u.email IS NOT NULL AND u.email != '' ORDER BY u.created_at DESC"
+      ).all();
+    } else {
+      recipients = db.prepare(`
+        SELECT DISTINCT u.id, u.email, u.username
+        FROM users u
+        JOIN pool_picks pp ON pp.user_id = u.id
+        WHERE pp.tournament_id = ? AND u.email IS NOT NULL AND u.email != ''
+        ORDER BY u.username ASC
+      `).all(audience);
+    }
+
+    if (!recipients.length) return res.status(400).json({ error: 'No recipients found for this audience' });
+
+    console.log(`[admin] Mass email: sending to ${recipients.length} recipients (audience: ${audience})`);
+
+    // Build per-recipient emails and chunk into batches of 100 (Resend limit)
+    const { emailShell, emailHeader, emailFooter } = {}; // use sendSuperAdminBlast directly
+    let sentCount = 0;
+    const CHUNK = 100;
+
+    // Build all email payloads
+    const { Resend } = require('resend');
+    // We call sendSuperAdminBlast one at a time in bulk via batch
+    // Build the payload array ourselves for batching efficiency
+    function buildEmailHtml(firstName, bodyText) {
+      const displayName = firstName
+        ? firstName.charAt(0).toUpperCase() + firstName.slice(1)
+        : 'there';
+      const personalizedBody = bodyText.replace(/\[First Name\]/gi, displayName);
+      // Convert plain text to HTML
+      const linked = personalizedBody.replace(
+        /(https?:\/\/[^\s<>"]+)/g,
+        '<a href="$1" style="color:#22c55e;text-decoration:none;word-break:break-all;">$1</a>'
+      );
+      const paras = linked.split(/\n{2,}/).map(p =>
+        `<p style="font-size:15px;color:#d1d5db;line-height:1.75;margin-top:0;margin-right:0;margin-bottom:18px;margin-left:0;">${p.replace(/\n/g, '<br>')}</p>`
+      ).join('');
+      return paras;
+    }
+
+    const mailerModule = require('../mailer');
+    for (let i = 0; i < recipients.length; i += CHUNK) {
+      const chunk = recipients.slice(i, i + CHUNK);
+      await Promise.all(chunk.map(r => {
+        const firstName = r.username ? r.username.split(/[\s_]/)[0] : r.username;
+        return mailerModule.sendSuperAdminBlast(r.email, firstName, subject, body_text);
+      }));
+      sentCount += chunk.length;
+    }
+
+    // Log the send
+    const logId = uuidv4();
+    db.prepare(
+      'INSERT INTO mass_email_log (id, sent_by, audience, subject, body_preview, recipient_count) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(logId, req.user.id, audience, subject, body_text.slice(0, 300), sentCount);
+
+    console.log(`[admin] Mass email sent: ${sentCount} emails, log_id=${logId}`);
+    res.json({ ok: true, sent: sentCount, log_id: logId });
+  } catch (err) {
+    console.error('[admin] mass-email error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/dev/mass-email-log ─────────────────────────────────────────────
+router.get('/admin/dev/mass-email-log', superadmin, (req, res) => {
+  try {
+    const logs = db.prepare(`
+      SELECT mel.*, u.username AS sent_by_username
+      FROM mass_email_log mel
+      LEFT JOIN users u ON u.id = mel.sent_by
+      ORDER BY mel.sent_at DESC
+      LIMIT 20
+    `).all();
+    res.json({ logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

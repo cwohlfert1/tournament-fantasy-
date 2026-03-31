@@ -402,6 +402,51 @@ ${emailFooter('tourneyrun.app &middot; Fantasy Golf &middot; Invite-only')}
   });
 }
 
+// ── Super-admin mass blast (platform-wide) ────────────────────────────────────
+// bodyText: plain text — double newlines become paragraph breaks,
+//           single newlines become <br>, bare URLs become clickable links.
+// firstName: display name used in greeting (from username).
+function _plainToHtml(text) {
+  // Auto-link bare URLs
+  const linked = text.replace(
+    /(https?:\/\/[^\s<>"]+)/g,
+    '<a href="$1" style="color:#22c55e;text-decoration:none;word-break:break-all;">$1</a>'
+  );
+  // Paragraphs on double newline, breaks on single newline
+  const paras = linked.split(/\n{2,}/).map(p =>
+    `<p style="font-size:15px;color:#d1d5db;line-height:1.75;margin-top:0;margin-right:0;margin-bottom:18px;margin-left:0;">${p.replace(/\n/g, '<br>')}</p>`
+  ).join('');
+  return paras;
+}
+
+async function sendSuperAdminBlast(toEmail, firstName, subject, bodyText) {
+  const displayName = firstName
+    ? firstName.charAt(0).toUpperCase() + firstName.slice(1)
+    : 'there';
+
+  // Personalize: replace [First Name] placeholder with actual name
+  const personalizedBody = bodyText.replace(/\[First Name\]/gi, displayName);
+  const bodyHtml = _plainToHtml(personalizedBody);
+
+  await sendEmail({
+    from: 'Collin @ TourneyRun <noreply@tourneyrun.app>',
+    to:   toEmail,
+    subject,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:32px;padding-right:36px;padding-bottom:8px;padding-left:36px;background-color:#0f1923;">
+        ${bodyHtml}
+        <div style="margin-top:24px;padding-top:20px;border-top-width:1px;border-top-style:solid;border-top-color:#1a2733;">
+          <p style="font-size:13px;color:#6b7280;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:0;margin-left:0;">
+            Collin @ TourneyRun &mdash; <a href="https://www.tourneyrun.app" style="color:#4b5563;text-decoration:none;">tourneyrun.app</a>
+          </p>
+        </div>
+      </td></tr>
+${emailFooter('tourneyrun.app &middot; You\'re receiving this because you have a TourneyRun account')}
+`),
+  });
+}
+
 module.exports = {
   sendEmail,
   sendEmailBatch,
@@ -415,4 +460,5 @@ module.exports = {
   sendGolfMassBlast,
   sendGolfRoundComplete,
   sendGolfInviteEmail,
+  sendSuperAdminBlast,
 };

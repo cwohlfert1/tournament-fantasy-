@@ -957,6 +957,221 @@ function FinancialsTab() {
   );
 }
 
+// ── Mass Email Card ───────────────────────────────────────────────────────────
+
+const VALERO_BODY = `Hey [First Name],
+
+One more stop before Augusta.
+
+The Valero Texas Open pool is open and this week's field is loaded — 18 of the top 50 in the world including Fleetwood, Morikawa, Spieth, and defending champ Brian Harman.
+
+Prize pool:
+🥇 1st place — $100
+🥈 2nd place — $25
+
+Make your picks:
+https://www.tourneyrun.app/golf/league/6bdb3cb1-356a-4861-a3d7-2640dce2d1fb
+
+Picks lock Thursday morning. Don't miss it.
+
+Collin @ TourneyRun`;
+
+function MassEmailCard({ tournaments }) {
+  const [audience, setAudience]     = useState('all_users');
+  const [subject, setSubject]       = useState('Last pool before the Masters — picks close Thursday');
+  const [body, setBody]             = useState(VALERO_BODY);
+  const [preview, setPreview]       = useState(null);   // { count, sample }
+  const [previewing, setPreviewing] = useState(false);
+  const [confirmed, setConfirmed]   = useState(false);
+  const [sending, setSending]       = useState(false);
+  const [result, setResult]         = useState(null);   // { sent } | { error }
+  const [log, setLog]               = useState([]);
+  const [loadingLog, setLoadingLog] = useState(false);
+
+  async function loadPreview() {
+    setPreviewing(true);
+    setPreview(null);
+    setConfirmed(false);
+    setResult(null);
+    try {
+      const params = audience === 'all_users'
+        ? `?audience=all_users`
+        : `?audience=${audience}`;
+      const r = await api.get(`/golf/admin/dev/mass-email-preview${params}`);
+      setPreview(r.data);
+    } catch (e) {
+      setPreview({ error: e.response?.data?.error || 'Preview failed' });
+    }
+    setPreviewing(false);
+  }
+
+  async function sendEmail() {
+    setSending(true);
+    setResult(null);
+    try {
+      const r = await api.post('/golf/admin/dev/mass-email', {
+        audience,
+        subject,
+        body_text: body,
+      });
+      setResult({ sent: r.data.sent });
+      setConfirmed(false);
+      setPreview(null);
+      loadLog();
+    } catch (e) {
+      setResult({ error: e.response?.data?.error || 'Send failed' });
+    }
+    setSending(false);
+  }
+
+  async function loadLog() {
+    setLoadingLog(true);
+    try {
+      const r = await api.get('/golf/admin/dev/mass-email-log');
+      setLog(r.data.logs || []);
+    } catch (_) {}
+    setLoadingLog(false);
+  }
+
+  const inputStyle = {
+    background: '#0d1117', border: '1px solid #1f2937', color: '#d1d5db',
+    borderRadius: 8, padding: '9px 12px', fontSize: 13, width: '100%',
+    boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
+  };
+
+  return (
+    <div style={{ background: '#080f1a', border: '1px solid #1e3a5f55', borderRadius: 16, padding: 24 }}>
+      <div style={{ fontSize: 28, marginBottom: 10 }}>📨</div>
+      <h4 style={{ color: '#fff', fontSize: 14, fontWeight: 700, margin: '0 0 6px' }}>Mass Email</h4>
+      <p style={{ color: '#4b5563', fontSize: 13, margin: '0 0 18px', lineHeight: 1.5 }}>
+        Send a personalized email to all TourneyRun users or players from a specific tournament. Every send is logged. [First Name] is replaced with their username.
+      </p>
+
+      {/* Audience */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Audience</label>
+        <select value={audience} onChange={e => { setAudience(e.target.value); setPreview(null); setConfirmed(false); }}
+          style={inputStyle}>
+          <option value="all_users">All TourneyRun Users</option>
+          <optgroup label="Past tournament players">
+            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name} players</option>)}
+          </optgroup>
+        </select>
+      </div>
+
+      {/* Subject */}
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Subject</label>
+        <input value={subject} onChange={e => setSubject(e.target.value)} style={inputStyle} placeholder="Subject line…" />
+      </div>
+
+      {/* Body */}
+      <div style={{ marginBottom: 18 }}>
+        <label style={{ display: 'block', color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Message Body</label>
+        <textarea
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          rows={14}
+          style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+          placeholder="Write your message here. Use [First Name] for personalization."
+        />
+        <div style={{ color: '#374151', fontSize: 11, marginTop: 4 }}>Use [First Name] for personalization · URLs auto-link · Plain text only</div>
+      </div>
+
+      {/* Preview button */}
+      {!preview && !result && (
+        <button onClick={loadPreview} disabled={previewing || !subject.trim() || !body.trim()}
+          style={{ background: previewing ? '#1e3a5f' : '#2563eb', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: previewing ? 'not-allowed' : 'pointer', marginBottom: 12 }}>
+          {previewing ? 'Loading preview…' : 'Preview Recipients →'}
+        </button>
+      )}
+
+      {/* Preview result */}
+      {preview && !result && (
+        <div style={{ background: '#0d1117', border: '1px solid #1e3a5f', borderRadius: 10, padding: 16, marginBottom: 14 }}>
+          {preview.error ? (
+            <div style={{ color: '#f87171', fontSize: 13 }}>⚠ {preview.error}</div>
+          ) : (
+            <>
+              <div style={{ color: '#60a5fa', fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+                📬 {preview.count} recipient{preview.count !== 1 ? 's' : ''}
+              </div>
+              <div style={{ color: '#4b5563', fontSize: 11, marginBottom: 10 }}>
+                Sample: {(preview.sample || []).map(r => r.username).join(', ')}{preview.count > 5 ? ` + ${preview.count - 5} more` : ''}
+              </div>
+              {!confirmed ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => setConfirmed(true)}
+                    style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    Confirm — Send to {preview.count} users
+                  </button>
+                  <button onClick={() => { setPreview(null); setConfirmed(false); }}
+                    style={{ background: '#1f2937', color: '#9ca3af', border: 'none', borderRadius: 8, padding: '9px 14px', fontSize: 13, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '8px 14px', color: '#fca5a5', fontSize: 13, fontWeight: 600 }}>
+                    ⚠ This will send {preview.count} real emails. Are you sure?
+                  </div>
+                  <button onClick={sendEmail} disabled={sending}
+                    style={{ background: sending ? '#7f1d1d' : '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer' }}>
+                    {sending ? 'Sending…' : '🚀 Send Now'}
+                  </button>
+                  <button onClick={() => setConfirmed(false)}
+                    style={{ background: '#1f2937', color: '#9ca3af', border: 'none', borderRadius: 8, padding: '9px 14px', fontSize: 13, cursor: 'pointer' }}>
+                    Back
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Send result */}
+      {result && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          {result.error
+            ? <div style={{ color: '#f87171', fontSize: 13 }}>⚠ {result.error}</div>
+            : <div style={{ color: '#4ade80', fontSize: 13, fontWeight: 700 }}>✓ Sent to {result.sent} recipients</div>
+          }
+          <button onClick={() => { setResult(null); setPreview(null); setConfirmed(false); }}
+            style={{ background: '#1f2937', color: '#9ca3af', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+            Send another
+          </button>
+        </div>
+      )}
+
+      {/* Send log */}
+      <div style={{ marginTop: 20, borderTop: '1px solid #1a2733', paddingTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Send History</div>
+          <button onClick={loadLog} disabled={loadingLog}
+            style={{ background: 'none', border: 'none', color: '#374151', fontSize: 11, cursor: 'pointer' }}>
+            {loadingLog ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
+        {log.length === 0 ? (
+          <div style={{ color: '#374151', fontSize: 12 }}>No sends yet — history will appear here after you send.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {log.map(entry => (
+              <div key={entry.id} style={{ background: '#0d1117', borderRadius: 8, padding: '8px 12px', display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{entry.recipient_count} sent</span>
+                <span style={{ color: '#d1d5db', fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.subject}</span>
+                <span style={{ color: '#4b5563', fontSize: 11, flexShrink: 0 }}>{entry.audience === 'all_users' ? 'All users' : 'Tournament'}</span>
+                <span style={{ color: '#374151', fontSize: 11, flexShrink: 0 }}>{new Date(entry.sent_at).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Tab 5: Dev Tools ──────────────────────────────────────────────────────────
 
 function DevToolsTab() {
@@ -1209,6 +1424,9 @@ function DevToolsTab() {
             </div>
           ) : <div style={{ color: '#374151', fontSize: 12 }}>Loading…</div>
         )}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <MassEmailCard tournaments={tournaments} />
+        </div>
       </div>
 
       {/* ── Tournament Management ── */}
