@@ -38,12 +38,9 @@ const FORMATS = [
     iconBg: 'bg-yellow-500/10',
     iconColor: 'text-yellow-400',
     title: 'TourneyRun',
-    badge: 'Signature',
-    badgeColor: 'bg-green-500/15 text-green-400 border-green-500/30',
-    description: 'Draft core players locked all season. Fill flex spots via waiver wire. Majors score 1.5×.',
+    description: 'Season-long fantasy golf. Draft your core roster before the season, pick up free agents weekly, and compete across every tournament. Majors score 1.5×.',
     activeBorder: 'border-green-500/50',
     activeBg: 'bg-green-500/5',
-    recommended: true,
   },
 ];
 
