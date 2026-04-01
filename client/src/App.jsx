@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Component, useEffect } from 'react';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import BossMode from './components/BossMode';
@@ -30,6 +30,19 @@ class ErrorBoundary extends Component {
 
 import { useParams } from 'react-router-dom';
 import HubLanding from './pages/HubLanding';
+
+// Auth-aware login redirects — send logged-in users to their dashboard,
+// unauthenticated users to the shared /login page.
+function GolfLoginRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={user ? '/golf/dashboard' : '/login'} replace />;
+}
+function BasketballLoginRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={user ? '/basketball/dashboard' : '/login'} replace />;
+}
 
 // Redirect /golf/join/:code → /golf/join?code=CODE
 function GolfJoinCode() {
@@ -145,6 +158,7 @@ export default function App() {
             <Route path="/basketball/games" element={<ProtectedRoute><Games /></ProtectedRoute>} />
             <Route path="/basketball/admin" element={<ProtectedRoute><SuperAdmin /></ProtectedRoute>} />
             <Route path="/basketball/home" element={<Navigate to="/basketball/dashboard" replace />} />
+            <Route path="/basketball/login" element={<BasketballLoginRedirect />} />
 
             {/* ── Basketball legacy redirects (backward compat for old bookmarks / internal nav) ── */}
             <Route path="/dashboard" element={<Navigate to="/basketball/dashboard" replace />} />
@@ -160,6 +174,10 @@ export default function App() {
             <Route path="/faq" element={<Navigate to="/basketball/faq" replace />} />
             <Route path="/games" element={<Navigate to="/basketball/games" replace />} />
             <Route path="/admin" element={<Navigate to="/basketball/admin" replace />} />
+
+            {/* ── Golf standalone redirects (outside GolfLayout to avoid layout flash) ── */}
+            <Route path="/golf/login" element={<GolfLoginRedirect />} />
+            <Route path="/golf/home" element={<Navigate to="/golf/dashboard" replace />} />
 
             {/* ── Golf ── */}
             <Route element={<GolfLayout />}>

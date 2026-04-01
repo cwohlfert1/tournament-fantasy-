@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-const DEFAULT_TITLE = 'TourneyRun | Golf Office Pools & Fantasy Golf';
+const DEFAULT_TITLE = 'TourneyRun';
 const DEFAULT_DESC  = 'Run golf office pools for the Masters and every PGA tournament. Pick players, track live scores, keep 100% of your prize pool. From $9.99/tournament.';
 const DEFAULT_IMAGE = 'https://www.tourneyrun.app/golf-og-image.png';
 const BASE_URL      = 'https://www.tourneyrun.app';
