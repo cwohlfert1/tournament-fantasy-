@@ -38,7 +38,7 @@ import HubLanding from './pages/HubLanding';
 function GolfLoginRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <GolfLoader fullScreen />;
-  return <Navigate to={user ? '/golf/dashboard' : '/login'} replace />;
+  return <Navigate to={user ? '/golf/dashboard' : '/login?then=%2Fgolf%2Fdashboard'} replace />;
 }
 function BasketballLoginRedirect() {
   const { user, loading } = useAuth();

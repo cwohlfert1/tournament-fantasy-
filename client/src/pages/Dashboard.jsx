@@ -257,7 +257,7 @@ export default function Dashboard() {
   }, [user?.id]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
-  if (loading) return <BallLoader />;
+  if (loading) return <BallLoader fullScreen />;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
