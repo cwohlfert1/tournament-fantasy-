@@ -454,7 +454,7 @@ router.get('/leagues/:id', authMiddleware, (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
+router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
   try {
     const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
@@ -463,6 +463,18 @@ router.get('/leagues/:id/standings', authMiddleware, (req, res) => {
     // ── Pool / Salary Cap format: rank by pool_picks × golf_scores ───────────
     if (['pool', 'salary_cap'].includes(league.format_type)) {
       const tid = league.pool_tournament_id || null;
+
+      // ?sync=true — trigger ESPN score sync before reading standings (used by Refresh Scores button)
+      if (req.query.sync === 'true' && tid) {
+        try {
+          const { syncTournamentScores } = require('../golfSyncService');
+          await syncTournamentScores(tid, { silent: false });
+        } catch (syncErr) {
+          console.error('[standings] sync-on-refresh error:', syncErr.message);
+          // Non-fatal — continue and return whatever is in the DB
+        }
+      }
+
       const tourn = tid ? db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid) : null;
       const members = db.prepare(`
         SELECT glm.*, u.username, u.avatar_url

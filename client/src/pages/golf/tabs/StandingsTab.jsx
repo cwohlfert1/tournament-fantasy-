@@ -182,7 +182,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
   const fetchStandings = (opts = {}) => {
     if (opts.refresh) setRefreshing(true);
-    return api.get(`/golf/leagues/${leagueId}/standings`)
+    const url = opts.refresh
+      ? `/golf/leagues/${leagueId}/standings?sync=true`
+      : `/golf/leagues/${leagueId}/standings`;
+    return api.get(url)
       .then(r => setData(r.data))
       .catch(() => {})
       .finally(() => { setLoading(false); setRefreshing(false); });
