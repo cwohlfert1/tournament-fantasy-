@@ -251,6 +251,24 @@ try {
   db.exec(`UPDATE golf_leagues SET format_type = 'salary_cap' WHERE format_type = 'dk'`);
 } catch (_) {}
 
+// Ensure Valero 2026 field players that were missing from the seed list are present.
+// INSERT OR IGNORE — safe to run every startup, never overwrites existing rows.
+try {
+  const missingValero = [
+    { name: 'Max Homa',          country: 'US', ranking: 33 },
+    { name: 'Austin Smotherman', country: 'US', ranking: 150 },
+    { name: 'Ricky Castillo',    country: 'US', ranking: 350 },
+  ];
+  const ins = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, world_ranking, is_active) VALUES (?, ?, ?, ?, 1)');
+  for (const p of missingValero) {
+    const existing = db.prepare('SELECT id FROM golf_players WHERE LOWER(name) = LOWER(?)').get(p.name);
+    if (!existing) {
+      ins.run(require('crypto').randomUUID(), p.name, p.country, p.ranking);
+      console.log('[golf-db] Added missing player:', p.name);
+    }
+  }
+} catch (_) {}
+
 // Valero Texas Open 2026 — set ESPN event ID and flip to active on startup
 // (Confirmed live 2026-04-02: ESPN event 401811940, STATUS_IN_PROGRESS R1)
 try {
@@ -618,6 +636,10 @@ const GOLF_PLAYERS = [
   { name: 'Brooks Koepka',                  country: 'USA', world_ranking: 201, salary: 200 },
   { name: 'Karl Vilips',                    country: 'AUS', world_ranking: 202, salary: 200 },
   { name: 'Gary Woodland',                  country: 'USA', world_ranking: 203, salary: 200 },
+  // Valero 2026 field players confirmed missing after reseed — must be here to survive future reseeds
+  { name: 'Max Homa',                       country: 'USA', world_ranking: 204, salary: 200 },
+  { name: 'Austin Smotherman',              country: 'USA', world_ranking: 205, salary: 200 },
+  { name: 'Ricky Castillo',                 country: 'USA', world_ranking: 206, salary: 200 },
 ];
 
 // Force-replace players when base set is incomplete.
