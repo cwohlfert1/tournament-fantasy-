@@ -492,7 +492,7 @@ function pushPoolStandings(tournamentId) {
       SELECT gl.id, gl.name, gl.scoring_style
       FROM golf_leagues gl
       WHERE gl.format_type = 'pool'
-        AND gl.status = 'lobby'
+        AND gl.status != 'archived'
         AND gl.pool_tournament_id = ?
     `).all(tournamentId);
 
@@ -502,12 +502,12 @@ function pushPoolStandings(tournamentId) {
                COALESCE(SUM(gs.fantasy_points), 0) as total_points
         FROM golf_league_members glm
         JOIN users u ON u.id = glm.user_id
-        LEFT JOIN golf_weekly_lineups wl ON wl.member_id = glm.id
-        LEFT JOIN golf_scores gs ON gs.player_id = wl.player_id AND gs.tournament_id = ?
+        LEFT JOIN pool_picks pp ON pp.user_id = glm.user_id AND pp.league_id = glm.golf_league_id AND pp.tournament_id = ?
+        LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = ?
         WHERE glm.golf_league_id = ?
         GROUP BY glm.id
         ORDER BY total_points DESC
-      `).all(tournamentId, league.id);
+      `).all(tournamentId, tournamentId, league.id);
 
       _io.to(`golf_pool_${league.id}`).emit('pool_standings_update', {
         leagueId: league.id,

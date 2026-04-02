@@ -364,6 +364,11 @@ const _espnIdSeeds = [
   // Texas Children's Houston Open 2026 (Mar 26-29, Memorial Park).
   // ID 401811939 confirmed via ESPN scoreboard API on 2026-03-23.
   { pattern: '%Houston Open%',   id: '401811939' },
+  // Valero Texas Open 2026 (Apr 2-5, TPC San Antonio) — already set by Valero migration above.
+  // Masters Tournament 2026 (Apr 6-12, Augusta National).
+  // TODO: confirm ESPN event ID before Apr 6. Look up: espn.com/golf scoreboard on tournament day.
+  // Likely ~401811941 but NOT confirmed — do not guess. Add below once verified:
+  // { pattern: '%Masters%',        id: '401811941' },
 ];
 for (const { pattern, id } of _espnIdSeeds) {
   try {
@@ -650,7 +655,12 @@ try {
   const existingCount = db.prepare('SELECT COUNT(*) as c FROM golf_players').get().c;
   const hasGotterup = db.prepare("SELECT COUNT(*) as c FROM golf_players WHERE name = 'Chris Gotterup'").get().c;
   const hasYellamaraju = db.prepare("SELECT COUNT(*) as c FROM golf_players WHERE name = 'Sudarshan Yellamaraju'").get().c;
-  if (existingCount < GOLF_PLAYERS.length || hasGotterup === 0 || hasYellamaraju === 0) {
+  // NOTE: Use a fixed low threshold (150) rather than GOLF_PLAYERS.length so adding players to the
+  // GOLF_PLAYERS array never accidentally triggers a reseed on a DB that already has those players
+  // loaded via DataGolf field sync. Sentinels catch genuinely missing players without blowing up
+  // a DB that has 157–159 players when the array grows to 160.
+  const hasHoma = db.prepare("SELECT COUNT(*) as c FROM golf_players WHERE name = 'Max Homa'").get().c;
+  if (existingCount < 150 || hasGotterup === 0 || hasYellamaraju === 0 || hasHoma === 0) {
     db.transaction(() => {
       // Remove roster/lineup/draft/core refs before dropping players
       db.prepare('DELETE FROM golf_weekly_lineups').run();
@@ -1552,11 +1562,20 @@ try {
   const _gpScheff = db.prepare("SELECT id, name FROM golf_players WHERE name = 'Scottie Scheffler'").get();
   console.log('[golf-db] golf_players Scheffler:', JSON.stringify(_gpScheff));
 
-  // Step 1: propagate from golf_players → pool_tier_players (by name, period-insensitive for initials like J.T., J.J.)
+  // Step 1: propagate from golf_players → pool_tier_players.
+  // pool_tier_players.player_name is stored as "Last, First" (DataGolf format);
+  // golf_players.name is "First Last" — flip before comparing.
   const r1 = db.prepare(`
     UPDATE pool_tier_players SET country = (
       SELECT country FROM golf_players
-        WHERE REPLACE(golf_players.name, '.', '') = REPLACE(pool_tier_players.player_name, '.', '')
+        WHERE LOWER(REPLACE(golf_players.name, '.', '')) = LOWER(REPLACE(
+          CASE WHEN INSTR(pool_tier_players.player_name, ', ') > 0
+          THEN TRIM(SUBSTR(pool_tier_players.player_name, INSTR(pool_tier_players.player_name, ', ') + 2))
+               || ' ' ||
+               TRIM(SUBSTR(pool_tier_players.player_name, 1, INSTR(pool_tier_players.player_name, ', ') - 1))
+          ELSE pool_tier_players.player_name
+          END
+        , '.', ''))
         AND golf_players.country IS NOT NULL
     ) WHERE country IS NULL AND league_id = ?
   `).run(_HOU_LEAGUE);
@@ -1573,11 +1592,19 @@ try {
     ) WHERE country IS NULL AND league_id = ?
   `).run(_HOU_LEAGUE);
 
-  // Step 3: fallback — propagate from golf_players → pool_picks for any still-null rows (period-insensitive)
+  // Step 3: fallback — propagate from golf_players → pool_picks for any still-null rows.
+  // pool_picks.player_name is "Last, First"; golf_players.name is "First Last" — flip before comparing.
   const r3 = db.prepare(`
     UPDATE pool_picks SET country = (
       SELECT country FROM golf_players
-        WHERE REPLACE(golf_players.name, '.', '') = REPLACE(pool_picks.player_name, '.', '')
+        WHERE LOWER(REPLACE(golf_players.name, '.', '')) = LOWER(REPLACE(
+          CASE WHEN INSTR(pool_picks.player_name, ', ') > 0
+          THEN TRIM(SUBSTR(pool_picks.player_name, INSTR(pool_picks.player_name, ', ') + 2))
+               || ' ' ||
+               TRIM(SUBSTR(pool_picks.player_name, 1, INSTR(pool_picks.player_name, ', ') - 1))
+          ELSE pool_picks.player_name
+          END
+        , '.', ''))
         AND golf_players.country IS NOT NULL
     ) WHERE country IS NULL AND league_id = ?
   `).run(_HOU_LEAGUE);
