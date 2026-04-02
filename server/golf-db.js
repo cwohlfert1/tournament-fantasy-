@@ -251,6 +251,16 @@ try {
   db.exec(`UPDATE golf_leagues SET format_type = 'salary_cap' WHERE format_type = 'dk'`);
 } catch (_) {}
 
+// Valero Texas Open 2026 — set ESPN event ID and flip to active on startup
+// (Confirmed live 2026-04-02: ESPN event 401811940, STATUS_IN_PROGRESS R1)
+try {
+  db.exec(`
+    UPDATE golf_tournaments
+    SET espn_event_id = '401811940', status = 'active'
+    WHERE name = 'Valero Texas Open' AND season_year = 2026 AND (espn_event_id IS NULL OR status = 'scheduled')
+  `);
+} catch (_) {}
+
 // ── player_master — persistent country lookup that survives tournament resets ──
 // This table is the source of truth for player → country mapping.
 // It is populated once and updated additively; it never gets wiped when
