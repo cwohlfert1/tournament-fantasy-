@@ -9,6 +9,9 @@
     <meta name="description" content="Run golf office pools for the Masters and every PGA tournament. Pick players, track live scores, keep 100% of your prize pool. From $9.99/tournament." />
     <meta name="keywords" content="golf office pool, fantasy golf, Masters pool, PGA pool, golf fantasy app" />
 
+    <!-- Google Search Console verification -->
+    <meta name="google-site-verification" content="%VITE_GOOGLE_SITE_VERIFICATION%" />
+
     <!-- Canonical URL -->
     <link rel="canonical" href="https://www.tourneyrun.app/" />
 
@@ -36,6 +39,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "TourneyRun",
+        "applicationCategory": "SportsApplication",
+        "operatingSystem": "Web",
+        "description": "Run fantasy pools for golf, basketball, and sports tournaments. Leaderboards, payouts, and live scoring all in one place.",
+        "url": "https://www.tourneyrun.app",
+        "offers": {
+          "@type": "Offer",
+          "price": "9.99",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
