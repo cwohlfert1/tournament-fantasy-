@@ -92,6 +92,15 @@ app.use('/uploads', express.static(uploadsDir));
 // Health check
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+// Redirect naked domain → www
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  if (host === 'tourneyrun.app') {
+    return res.redirect(301, `https://www.tourneyrun.app${req.url}`);
+  }
+  next();
+});
+
 // Serve built React client in production
 const clientDist = path.join(__dirname, '../client/dist');
 app.use(express.static(clientDist));
