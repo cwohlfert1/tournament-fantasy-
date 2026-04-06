@@ -750,8 +750,23 @@ router.get('/tournaments/:id/suggested-tiers', authMiddleware, (req, res) => {
 
 router.get('/tournaments/:id/field-players', authMiddleware, (req, res) => {
   try {
+    // Resolve tournament ID — accept UUID or slug-style name (e.g. 'masters-2026')
+    let tid = req.params.id;
+    if (!db.prepare('SELECT 1 FROM golf_tournaments WHERE id = ?').get(tid)) {
+      // Try matching by name: 'masters-2026' → search for 'Masters' in 2026
+      const parts = tid.match(/^(.+?)-?(\d{4})$/);
+      if (parts) {
+        const nameish = parts[1].replace(/-/g, ' ');
+        const year = parseInt(parts[2]);
+        const match = db.prepare(
+          "SELECT id FROM golf_tournaments WHERE LOWER(name) LIKE ? AND season_year = ?"
+        ).get(`%${nameish}%`, year);
+        if (match) tid = match.id;
+      }
+    }
+
     const fieldCount = db.prepare('SELECT COUNT(*) as cnt FROM golf_tournament_fields WHERE tournament_id = ?')
-      .get(req.params.id).cnt;
+      .get(tid).cnt;
     const rawPlayers = fieldCount > 0
       ? db.prepare(`
           SELECT gp.id, gp.name, gp.world_ranking,
@@ -759,7 +774,7 @@ router.get('/tournaments/:id/field-players', authMiddleware, (req, res) => {
                  COALESCE(tf.odds_decimal, gp.odds_decimal) as odds_decimal
           FROM golf_players gp
           INNER JOIN golf_tournament_fields tf ON tf.player_id = gp.id AND tf.tournament_id = ?
-        `).all(req.params.id)
+        `).all(tid)
       : db.prepare('SELECT id, name, world_ranking, odds_display, odds_decimal FROM golf_players WHERE is_active = 1').all();
 
     const players = rawPlayers.map(p => {

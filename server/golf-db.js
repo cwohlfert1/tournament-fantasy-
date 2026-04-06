@@ -2126,4 +2126,25 @@ runOnce('masters-2026-real-odds-and-tiers', () => {
   }
 });
 
+// ── Ensure Spaun is in Masters 2026 field (won Valero, earned invite) ────────
+runOnce('ensure-spaun-in-masters-2026-field', () => {
+  try {
+    const masters = db.prepare(
+      "SELECT id FROM golf_tournaments WHERE name = 'Masters Tournament' AND season_year = 2026"
+    ).get();
+    if (!masters) return;
+    const spaun = db.prepare("SELECT id, name FROM golf_players WHERE name = 'J.J. Spaun'").get();
+    if (!spaun) return;
+    const inField = db.prepare('SELECT 1 FROM golf_tournament_fields WHERE tournament_id = ? AND player_id = ?').get(masters.id, spaun.id);
+    if (inField) { console.log('[migration] spaun-masters: already in field'); return; }
+
+    db.prepare(
+      "INSERT INTO golf_tournament_fields (id, tournament_id, player_id, player_name, odds_display, odds_decimal) VALUES (lower(hex(randomblob(16))), ?, ?, ?, '60:1', 61)"
+    ).run(masters.id, spaun.id, spaun.name);
+    console.log('[migration] spaun-masters: added J.J. Spaun to Masters field (Valero 2026 winner)');
+  } catch (e) {
+    console.error('[migration] spaun-masters error:', e.message);
+  }
+});
+
 module.exports = db;
