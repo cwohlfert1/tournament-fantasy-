@@ -495,6 +495,7 @@ const DEFAULT_FORM = {
     { tier: 4, odds_min: '101:1', odds_max: '',       picks: 2, approxPlayers: null },
   ],
   pool_drop_count: 0,
+  pool_max_entries: 1,
   pool_salary_cap: 50000,
   pool_cap_unit: 50000,
   // DK
@@ -831,6 +832,28 @@ export default function CreateGolfLeague() {
                     <span className="text-gray-400 text-sm">worst players</span>
                   </div>
                 )}
+              </div>
+
+              {/* Additional Entries */}
+              <div>
+                <label className="label mb-2">Entries Per Player</label>
+                <p className="text-gray-600 text-xs mb-3">Allow each member to submit multiple independent pick sets. Default is 1.</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => set('pool_max_entries', n)}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors border ${
+                        form.pool_max_entries === n
+                          ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                          : 'border-gray-700 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                      }`}
+                    >
+                      {n === 1 ? '1 entry' : `${n} entries`}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Scoring Style */}

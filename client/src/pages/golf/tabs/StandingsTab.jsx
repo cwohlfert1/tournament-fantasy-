@@ -220,9 +220,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   // True for ALL stroke-based styles: 'stroke_play', 'total_score', 'total_strokes'
   // This controls color direction (negative=green), sort order, and display format.
   const isTotalStrokes = isStrokeBased(scoringStyle);
+  const winningScore = data?.winning_score ?? null;
   const ranks = useMemo(
-    () => computeRanks(standings, scoringStyle),
-    [standings, scoringStyle],
+    () => computeRanks(standings, scoringStyle, winningScore),
+    [standings, scoringStyle, winningScore],
   );
 
   if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading standings…</div>;

@@ -53,18 +53,31 @@ export function isStrokeBased(scoringStyle) {
  * Returns an array of { rank, tied } objects, one per standing entry,
  * in the same order as the input array.
  *
- * @param {Array<{season_points: number}>} standings
+ * @param {Array<{season_points: number, tiebreaker_score?: number}>} standings
  * @param {string} scoringStyle
+ * @param {number|null} [winningScore] - actual winning score for tiebreaker resolution
  * @returns {Array<{rank: number, tied: boolean}>}
  */
-export function computeRanks(standings, scoringStyle) {
+export function computeRanks(standings, scoringStyle, winningScore = null) {
   const lowerIsBetter = isStrokeBased(scoringStyle);
-  const arr = standings.map((s) => ({ pts: s.season_points ?? 0 }));
-  return arr.map(({ pts }) => {
-    const rank = lowerIsBetter
-      ? arr.filter((x) => x.pts < pts).length + 1   // count how many are BETTER (lower)
-      : arr.filter((x) => x.pts > pts).length + 1;  // count how many are BETTER (higher)
-    const tied = arr.filter((x) => x.pts === pts).length > 1;
+  const arr = standings.map((s) => ({
+    pts: s.season_points ?? 0,
+    tbDelta: winningScore != null && s.tiebreaker_score != null
+      ? Math.abs(s.tiebreaker_score - winningScore) : Infinity,
+  }));
+
+  function isBetter(a, b) {
+    const ptsCmp = lowerIsBetter ? a.pts - b.pts : b.pts - a.pts;
+    if (ptsCmp !== 0) return ptsCmp < 0;
+    return a.tbDelta < b.tbDelta;
+  }
+  function isSame(a, b) {
+    return a.pts === b.pts && a.tbDelta === b.tbDelta;
+  }
+
+  return arr.map((me) => {
+    const rank = arr.filter((x) => isBetter(x, me)).length + 1;
+    const tied = arr.filter((x) => isSame(x, me)).length > 1;
     return { rank, tied };
   });
 }

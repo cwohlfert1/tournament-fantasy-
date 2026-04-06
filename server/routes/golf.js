@@ -333,6 +333,8 @@ router.post('/leagues', authMiddleware, (req, res) => {
     const poolDropCount = parseInt(req.body.pool_drop_count);
     const poolDropFinal = isNaN(poolDropCount) ? 2 : Math.max(0, poolDropCount);
 
+    const poolMaxEntries = Math.max(1, Math.min(3, parseInt(req.body.pool_max_entries) || 1));
+
     db.prepare(`
       INSERT INTO golf_leagues (
         id, name, commissioner_id, invite_code, status, max_teams,
@@ -344,8 +346,8 @@ router.post('/leagues', authMiddleware, (req, res) => {
         payment_methods, payout_places,
         pick_sheet_format, pool_tiers, pool_salary_cap, pool_cap_unit,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds,
-        pool_tournament_id, pool_drop_count
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        pool_tournament_id, pool_drop_count, pool_max_entries
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, name, req.user.id, invite_code, 'pending_payment', parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
@@ -359,7 +361,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
       pickSheetFmt, poolTiersJson, parseInt(pool_salary_cap) || 50000, parseInt(pool_cap_unit) || 50000,
       parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100,
       dtFinal, parseInt(bid_timer_seconds) || 30,
-      poolTournamentIdFinal, poolDropFinal
+      poolTournamentIdFinal, poolDropFinal, poolMaxEntries
     );
 
     // Persist pool_tiers to normalized table when Pool format
@@ -656,16 +658,22 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
       const _globalLocked = tourn ? new Date() >= new Date(computeLockTime(tourn.start_date)) : !!league.picks_locked;
       const picksRevealed = _globalLocked || tourn?.status === 'active' || tourn?.status === 'completed';
 
-      // Stroke-based scoring: sort ascending (lowest score wins).
+      // Sort standings. Tiebreaker: closest prediction to actual winning score wins.
       const scoringStyle = league.scoring_style || 'fantasy_points';
       const isStrokeSort = ['stroke_play', 'total_score', 'total_strokes'].includes(scoringStyle);
+
+      function tiebreakerDelta(s) {
+        if (winning_score == null || s.tiebreaker_score == null) return Infinity;
+        return Math.abs(s.tiebreaker_score - winning_score);
+      }
+
       if (isStrokeSort) {
         const withScores    = standings.filter(s => s.submitted);
         const withoutScores = standings.filter(s => !s.submitted);
-        withScores.sort((a, b) => a.season_points - b.season_points);
+        withScores.sort((a, b) => a.season_points - b.season_points || tiebreakerDelta(a) - tiebreakerDelta(b));
         standings.splice(0, standings.length, ...withScores, ...withoutScores);
       } else {
-        standings.sort((a, b) => b.season_points - a.season_points);
+        standings.sort((a, b) => b.season_points - a.season_points || tiebreakerDelta(a) - tiebreakerDelta(b));
       }
       standings.forEach((s, i) => { s.rank = i + 1; });
 
