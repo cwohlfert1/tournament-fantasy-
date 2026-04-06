@@ -404,12 +404,14 @@ router.get('/leagues/:id/picks/my', authMiddleware, (req, res) => {
     const totalTarget = tiersConfig.reduce((s, t) => s + (parseInt(t.picks) || 0), 0);
 
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
-    const lockTime = (tourn && league.picks_lock_time) ? league.picks_lock_time : (tourn ? computeLockTime(tourn.start_date).toISOString() : null);
+    // Always derive lock time from tournament start_date — never trust stale DB value
+    const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : (league.picks_lock_time || null);
+    const isLocked = lockTime ? new Date() >= new Date(lockTime) : !!league.picks_locked;
 
     res.json({
       picks,
       submitted: picks.length > 0,
-      picks_locked: !!league.picks_locked,
+      picks_locked: isLocked,
       lock_time: lockTime,
       tournament: tourn,
       total_target: totalTarget,
@@ -430,12 +432,20 @@ router.post('/leagues/:id/picks', authMiddleware, (req, res) => {
     const member = db.prepare('SELECT * FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!member) return res.status(403).json({ error: 'Not a member' });
 
-    if (league.picks_locked) return res.status(403).json({ error: 'Picks are locked for this tournament.' });
-
     const { tournament_id, picks, tiebreaker_score, entry_number = 1, entry_team_name } = req.body;
     const tid = tournament_id || league.pool_tournament_id;
     if (!tid) return res.status(400).json({ error: 'tournament_id required' });
     if (!Array.isArray(picks) || picks.length === 0) return res.status(400).json({ error: 'picks array required' });
+
+    const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
+    if (!tourn) return res.status(404).json({ error: 'Tournament not found' });
+
+    // Always derive lock time from tournament start_date — never trust stale DB value
+    const lockTime = computeLockTime(tourn.start_date).toISOString();
+    if (new Date() >= new Date(lockTime)) {
+      db.prepare('UPDATE golf_leagues SET picks_locked = 1, picks_lock_time = ? WHERE id = ?').run(lockTime, req.params.id);
+      return res.status(403).json({ error: 'Picks are locked — tee time has passed.' });
+    }
 
     // Validate tiebreaker for pool format
     if (league.format_type !== 'salary_cap') {
@@ -452,16 +462,6 @@ router.post('/leagues/:id/picks', authMiddleware, (req, res) => {
       return res.status(400).json({ error: `Maximum ${maxEntries} entr${maxEntries === 1 ? 'y' : 'ies'} allowed per player.` });
     }
     const entryTeamName = (entry_team_name || '').trim() || null;
-
-    const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
-    if (!tourn) return res.status(404).json({ error: 'Tournament not found' });
-
-    // Check lock time
-    const lockTime = league.picks_lock_time || computeLockTime(tourn.start_date).toISOString();
-    if (new Date() >= new Date(lockTime)) {
-      db.prepare('UPDATE golf_leagues SET picks_locked = 1 WHERE id = ?').run(req.params.id);
-      return res.status(403).json({ error: 'Picks are locked — tee time has passed.' });
-    }
 
     // Validate picks vs tier config (pool only — salary_cap uses budget check instead)
     if (league.format_type !== 'salary_cap') {
@@ -602,7 +602,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     if (picks.length) console.log('[my-roster] pick[0] country:', picks[0].country, '| player:', picks[0].player_name);
 
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
-    const lockTime = league.picks_lock_time || (tourn ? computeLockTime(tourn.start_date).toISOString() : null);
+    const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : (league.picks_lock_time || null);
 
     // Build tiers with available players so the UI can render the pick sheet
     let tiersConfig = [];
