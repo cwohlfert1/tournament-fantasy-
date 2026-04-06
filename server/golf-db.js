@@ -1831,4 +1831,45 @@ runOnce('reset-valero-status-to-scheduled-2026', () => {
   }
 });
 
+// ── Fix Masters 2026 picks lock times ────────────────────────────────────────
+// Previous getDay()/midnight-UTC bugs caused picks_lock_time to be set to the
+// wrong Thursday (e.g. April 2 instead of April 9). This migration:
+// 1. Ensures Masters 2026 has correct dates and ESPN event ID
+// 2. Links any unlinked Masters leagues to the tournament
+// 3. Resets picks_locked + picks_lock_time for all Masters leagues
+runOnce('fix-masters-2026-lock-times', () => {
+  try {
+    // Ensure Masters tournament has correct dates
+    const masters = db.prepare(
+      "SELECT id FROM golf_tournaments WHERE name = 'Masters Tournament' AND season_year = 2026"
+    ).get();
+    if (!masters) { console.log('[migration] fix-masters-locks: Masters tournament not found'); return; }
+
+    db.prepare(`
+      UPDATE golf_tournaments
+      SET start_date = '2026-04-09', end_date = '2026-04-13', espn_event_id = '401811941'
+      WHERE id = ?
+    `).run(masters.id);
+
+    // Link any unlinked leagues that should point to Masters
+    // (leagues with "Masters" in the name but no pool_tournament_id)
+    const linked = db.prepare(`
+      UPDATE golf_leagues SET pool_tournament_id = ?
+      WHERE pool_tournament_id IS NULL
+        AND (name LIKE '%Masters%' OR name LIKE '%masters%')
+    `).run(masters.id);
+    if (linked.changes > 0) console.log(`[migration] fix-masters-locks: linked ${linked.changes} league(s) to Masters`);
+
+    // Fix ALL leagues joined to Masters: reset lock time to correct Thursday
+    const fixed = db.prepare(`
+      UPDATE golf_leagues
+      SET picks_locked = 0, picks_lock_time = '2026-04-09T12:00:00.000Z'
+      WHERE pool_tournament_id = ?
+    `).run(masters.id);
+    console.log(`[migration] fix-masters-locks: reset ${fixed.changes} league(s) → lock at 2026-04-09T12:00:00Z, picks_locked=0`);
+  } catch (e) {
+    console.error('[migration] fix-masters-locks error:', e.message);
+  }
+});
+
 module.exports = db;

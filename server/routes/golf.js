@@ -10,6 +10,7 @@ const ESPN_CACHE_TTL = 60_000; // 60 seconds
 require('../golf-db');
 const db = require('../db');
 const { applyDropScoring } = require('../pool-utils');
+const { computeLockTime } = require('../golfPoolLockService');
 
 const router = express.Router();
 
@@ -224,6 +225,16 @@ router.get('/leagues', authMiddleware, (req, res) => {
       WHERE (gl.is_sandbox = 0 OR gl.is_sandbox IS NULL)
       ORDER BY gl.created_at DESC
     `).all(req.user.id);
+
+    // Recompute picks_locked from tournament start_date so stale DB values can't lie
+    for (const l of leagues) {
+      if (l.pool_tournament_start) {
+        const correctLock = computeLockTime(l.pool_tournament_start).toISOString();
+        l.picks_locked = new Date() >= new Date(correctLock) ? 1 : 0;
+        l.picks_lock_time = correctLock;
+      }
+    }
+
     res.json({ leagues });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
@@ -441,6 +452,14 @@ router.get('/leagues/:id', authMiddleware, (req, res) => {
       WHERE gl.id = ?
     `).get(req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
+
+    // Recompute picks_locked from tournament start_date so stale DB values can't lie
+    if (league.pool_tournament_start) {
+      const correctLock = computeLockTime(league.pool_tournament_start).toISOString();
+      league.picks_locked = new Date() >= new Date(correctLock) ? 1 : 0;
+      league.picks_lock_time = correctLock;
+    }
+
     const members = db.prepare(`
       SELECT glm.*, u.username, u.avatar_url
       FROM golf_league_members glm JOIN users u ON glm.user_id = u.id

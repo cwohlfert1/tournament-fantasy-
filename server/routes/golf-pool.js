@@ -404,9 +404,10 @@ router.get('/leagues/:id/picks/my', authMiddleware, (req, res) => {
     const totalTarget = tiersConfig.reduce((s, t) => s + (parseInt(t.picks) || 0), 0);
 
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
-    // Always derive lock time from tournament start_date — never trust stale DB value
-    const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : (league.picks_lock_time || null);
-    const isLocked = lockTime ? new Date() >= new Date(lockTime) : !!league.picks_locked;
+    // Always derive lock time from tournament start_date — if tournament is missing,
+    // default to UNLOCKED (never fall back to stale DB picks_lock_time)
+    const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : null;
+    const isLocked = lockTime ? new Date() >= new Date(lockTime) : false;
 
     res.json({
       picks,
@@ -602,7 +603,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     if (picks.length) console.log('[my-roster] pick[0] country:', picks[0].country, '| player:', picks[0].player_name);
 
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
-    const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : (league.picks_lock_time || null);
+    const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : null;
 
     // Build tiers with available players so the UI can render the pick sheet
     let tiersConfig = [];

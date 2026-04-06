@@ -49,7 +49,7 @@ export default function TieredPickSheet({ leagueId, league }) {
 
         const myPicks = pickRes.data.picks || [];
         setSubmitted(pickRes.data.submitted || false);
-        setLocked(pickRes.data.picks_locked || !!league.picks_locked);
+        setLocked(!!pickRes.data.picks_locked);
         setLockTime(pickRes.data.lock_time || null);
         setTotalTarget(pickRes.data.total_target || 0);
         setTournament(pickRes.data.tournament || null);
