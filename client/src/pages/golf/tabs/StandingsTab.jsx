@@ -151,18 +151,21 @@ const LeaderboardRow = memo(function LeaderboardRow({
               : '—'}
           </div>
           <div style={{ color: '#4b5563', fontSize: 10 }}>{isTotalStrokes ? '' : 'pts'}</div>
-          {/* Tiebreaker — show when tied and score exists */}
-          {rankInfo.tied && s.tiebreaker_score != null && (
-            <div style={{ fontSize: 9, color: '#6366f1', fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
-              TB {s.tiebreaker_score > 0 ? '+' : ''}{s.tiebreaker_score}
+          {/* Tiebreaker — always show when entry has one */}
+          {s.tiebreaker_score != null && (
+            <div style={{ fontSize: 9, color: rankInfo.tied ? '#6366f1' : '#4b5563', fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
+              Tiebreaker: {s.tiebreaker_score > 0 ? '+' : ''}{s.tiebreaker_score}
             </div>
           )}
-          {/* Tiebreaker result for completed tournaments */}
-          {winningScore != null && s.tiebreaker_score != null && (
-            <div style={{ fontSize: 9, color: Math.abs(s.tiebreaker_score - winningScore) === 0 ? '#22c55e' : '#4b5563', fontWeight: 600, marginTop: 1 }}>
-              {Math.abs(s.tiebreaker_score - winningScore) === 0 ? '🎯' : `±${Math.abs(s.tiebreaker_score - winningScore)}`}
-            </div>
-          )}
+          {/* Tiebreaker proximity to actual winning score */}
+          {winningScore != null && s.tiebreaker_score != null && (() => {
+            const delta = Math.abs(s.tiebreaker_score - winningScore);
+            return (
+              <div style={{ fontSize: 9, color: delta === 0 ? '#22c55e' : '#4b5563', fontWeight: 600, marginTop: 1 }}>
+                {delta === 0 ? 'Exact match' : `Off by ${delta}`}
+              </div>
+            );
+          })()}
         </div>
         {canExpand && (
           <svg style={{ width: 12, height: 12, color: '#4b5563', flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

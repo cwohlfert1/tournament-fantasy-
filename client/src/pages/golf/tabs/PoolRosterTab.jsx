@@ -463,7 +463,9 @@ export default function PoolRosterTab({ leagueId, league }) {
   const totalTarget = picksPerTeam;
   const totalDone   = Object.values(selected).flat().length;
   const allPicksMade = tiers.length > 0 && tiers.every(t => (selected[t.tier] || []).length === (t.picks || 0));
-  const canSubmit   = allPicksMade && tiebreakerScore !== '';
+  const tbNum = tiebreakerScore !== '' ? parseInt(tiebreakerScore) : null;
+  const tbValid = tbNum !== null && !isNaN(tbNum) && tbNum >= -30 && tbNum <= 10;
+  const canSubmit   = allPicksMade && tbValid;
   const maxEntries  = data?.pool_max_entries || league.pool_max_entries || 1;
   // Count entries already submitted (picks.length > 0 means entry 1 submitted; check entry_numbers from data)
   const submittedEntryNumbers = data?.submitted_entries || (data?.submitted ? [1] : []);
@@ -619,27 +621,35 @@ export default function PoolRosterTab({ leagueId, league }) {
           {/* Tiebreaker input — shown once all picks are made */}
           {tiers.length > 0 && allPicksMade && (
             <div style={{ marginTop: 24, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, padding: '16px 18px' }}>
-              <label style={{ display: 'block', color: '#a5b4fc', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                🏆 Tiebreaker — Predict the winning score (vs par)
+              <label style={{ display: 'block', color: '#a5b4fc', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                Tiebreaker — Tournament Winning Score
               </label>
-              <p style={{ color: '#6b7280', fontSize: 12, marginBottom: 10 }}>
-                If two teams tie, whoever is closest to the actual winning score wins the tiebreaker.
+              <p style={{ color: '#9ca3af', fontSize: 12, marginBottom: 10, lineHeight: 1.5 }}>
+                Enter the winner's final score to par (e.g. <strong style={{ color: '#c7d2fe' }}>-14</strong>). Used to break ties only.
               </p>
-              <input
-                type="number"
-                value={tiebreakerScore}
-                onChange={e => setTiebreakerScore(e.target.value)}
-                placeholder="e.g. -18"
-                style={{
-                  width: 110, background: '#111827', border: `1.5px solid ${tiebreakerScore !== '' ? '#6366f1' : 'rgba(255,255,255,0.12)'}`,
-                  borderRadius: 10, padding: '10px 14px', color: '#f1f5f9', fontSize: 16, fontWeight: 700,
-                  outline: 'none', transition: 'border-color 0.15s', fontVariantNumeric: 'tabular-nums',
-                }}
-                onFocus={e => { e.target.style.borderColor = '#6366f1'; }}
-                onBlur={e => { e.target.style.borderColor = tiebreakerScore !== '' ? '#6366f1' : 'rgba(255,255,255,0.12)'; }}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="number"
+                  min={-30}
+                  max={10}
+                  value={tiebreakerScore}
+                  onChange={e => setTiebreakerScore(e.target.value)}
+                  placeholder="-14"
+                  style={{
+                    width: 100, background: '#111827', border: `1.5px solid ${tbValid ? '#6366f1' : tiebreakerScore !== '' ? '#ef4444' : 'rgba(255,255,255,0.12)'}`,
+                    borderRadius: 10, padding: '10px 14px', color: '#f1f5f9', fontSize: 16, fontWeight: 700,
+                    outline: 'none', transition: 'border-color 0.15s', fontVariantNumeric: 'tabular-nums',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = '#6366f1'; }}
+                  onBlur={e => { e.target.style.borderColor = tbValid ? '#6366f1' : tiebreakerScore !== '' ? '#ef4444' : 'rgba(255,255,255,0.12)'; }}
+                />
+                <span style={{ color: '#4b5563', fontSize: 11 }}>Score to par, not total strokes</span>
+              </div>
               {tiebreakerScore === '' && (
-                <p style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>Required before submitting</p>
+                <p style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>Please enter a tiebreaker score to submit your picks</p>
+              )}
+              {tiebreakerScore !== '' && !tbValid && (
+                <p style={{ color: '#f87171', fontSize: 11, marginTop: 6 }}>Must be between -30 and +10</p>
               )}
             </div>
           )}
@@ -664,8 +674,8 @@ export default function PoolRosterTab({ leagueId, league }) {
                 >
                   {!allPicksMade
                     ? `${totalTarget - totalDone} more pick${totalTarget - totalDone !== 1 ? 's' : ''} needed`
-                    : tiebreakerScore === ''
-                      ? 'Enter tiebreaker score above ↑'
+                    : !tbValid
+                      ? 'Enter tiebreaker score above'
                       : 'Submit Picks →'}
                 </Button>
               </div>
@@ -864,7 +874,7 @@ export default function PoolRosterTab({ leagueId, league }) {
             </div>
             {/* Tiebreaker summary */}
             <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ color: '#a5b4fc', fontSize: 12, fontWeight: 600 }}>🏆 Tiebreaker</span>
+              <span style={{ color: '#a5b4fc', fontSize: 12, fontWeight: 600 }}>Tiebreaker (winning score)</span>
               <span style={{ color: '#f1f5f9', fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                 {parseInt(tiebreakerScore) > 0 ? '+' : ''}{tiebreakerScore}
               </span>

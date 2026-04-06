@@ -448,10 +448,14 @@ router.post('/leagues/:id/picks', authMiddleware, (req, res) => {
       return res.status(403).json({ error: 'Picks are locked — tee time has passed.' });
     }
 
-    // Validate tiebreaker for pool format
+    // Validate tiebreaker for pool format — always stroke play score to par
     if (league.format_type !== 'salary_cap') {
       if (tiebreaker_score === undefined || tiebreaker_score === null || tiebreaker_score === '') {
-        return res.status(400).json({ error: 'Tiebreaker score is required — predict the winning score (vs par).' });
+        return res.status(400).json({ error: 'Tiebreaker score is required — enter the predicted winning score to par.' });
+      }
+      const tbParsed = parseInt(tiebreaker_score);
+      if (isNaN(tbParsed) || tbParsed < -30 || tbParsed > 10) {
+        return res.status(400).json({ error: 'Tiebreaker must be between -30 and +10 (score to par).' });
       }
     }
     const tiebreakerScore = tiebreaker_score !== undefined && tiebreaker_score !== '' ? parseInt(tiebreaker_score) : null;
