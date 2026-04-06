@@ -2147,4 +2147,62 @@ runOnce('ensure-spaun-in-masters-2026-field', () => {
   }
 });
 
+// ── Bulk-add missing PGA players for ESPN score matching ─────────────────────
+// ESPN returns ~130+ competitors per event. Our golf_players table only had 157,
+// missing many players who appear at the Masters (past champions, LIV golfers,
+// special invitees). Without a DB record, their scores can't be synced.
+// This adds known missing players so the name matcher can find them Thursday.
+runOnce('bulk-add-missing-pga-players-2026', () => {
+  try {
+    const ins = db.prepare(
+      'INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking) VALUES (lower(hex(randomblob(16))), ?, ?, 1, ?)'
+    );
+    // Masters invitees / LIV golfers / past champions not on normal PGA schedule
+    const players = [
+      ['Dustin Johnson', 'US', 45], ['Phil Mickelson', 'US', 150],
+      ['Sergio Garcia', 'ES', 120], ['Bubba Watson', 'US', 180],
+      ['Charl Schwartzel', 'ZA', 170], ['Danny Willett', 'GB', 160],
+      ['Cameron Smith', 'AU', 40], ['Joaquin Niemann', 'CL', 60],
+      ['Fred Couples', 'US', 999], ['Jose Maria Olazabal', 'ES', 999],
+      ['Vijay Singh', 'FJ', 999], ['Zach Johnson', 'US', 999],
+      ['Larry Mize', 'US', 999], ['Mike Weir', 'CA', 999],
+      // PGA Tour regulars missing from seed data
+      ['Will Zalatoris', 'US', 35], ['Webb Simpson', 'US', 90],
+      ['Matt Kuchar', 'US', 85], ['Charley Hoffman', 'US', 100],
+      ['Séamus Power', 'IE', 42], ['K.H. Lee', 'KR', 75],
+      ['S.H. Kim', 'KR', 70], ['Erik van Rooyen', 'ZA', 65],
+      ['Brendon Todd', 'US', 110], ['Keith Mitchell', 'US', 95],
+      ['Nick Dunlap', 'US', 55], ['Luke Clanton', 'US', 80],
+      ['Andrew Putnam', 'US', 88], ['Matthieu Pavon', 'FR', 38],
+      ['Dylan Wu', 'US', 105], ['Frankie Capan III', 'US', 115],
+      ['Adrien Dumont de Chassart', 'BE', 125], ['Chandler Phillips', 'US', 130],
+      ['Alex Smalley', 'US', 108], ['Sam Ryder', 'US', 112],
+      ['Adam Schenk', 'US', 102], ['Adam Svensson', 'CA', 118],
+      ['Peter Malnati', 'US', 98], ['Brice Garnett', 'US', 140],
+      ['Vince Whaley', 'US', 135], ['Doug Ghim', 'US', 122],
+      ['Justin Lower', 'US', 128], ['Ryan Palmer', 'US', 132],
+      ['Jimmy Walker', 'US', 138], ['Patton Kizzire', 'US', 142],
+      ['Nick Hardy', 'US', 107], ['Steven Fisk', 'US', 116],
+      ['David Ford', 'US', 124], ['Hank Lebioda', 'US', 134],
+      ['Danny Walker', 'US', 145], ['Camilo Villegas', 'CO', 170],
+      ['Gordon Sargent', 'US', 148], ['Chad Ramey', 'US', 126],
+      ['Brandt Snedeker', 'US', 155], ['Christo Lamprecht', 'ZA', 160],
+      ['Takumi Kanaya', 'JP', 68], ['Jeffrey Kang', 'US', 144],
+      ['Marcelo Rozo', 'CO', 165], ['Zecheng Dou', 'CN', 145],
+      ['Thorbjorn Olesen', 'DK', 72], ['Lanto Griffin', 'US', 120],
+    ];
+
+    let added = 0;
+    db.transaction(() => {
+      for (const [name, country, ranking] of players) {
+        const exists = db.prepare('SELECT 1 FROM golf_players WHERE name = ?').get(name);
+        if (!exists) { ins.run(name, country, ranking); added++; }
+      }
+    })();
+    console.log(`[migration] bulk-add-players: added ${added} missing PGA players`);
+  } catch (e) {
+    console.error('[migration] bulk-add-players error:', e.message);
+  }
+});
+
 module.exports = db;
