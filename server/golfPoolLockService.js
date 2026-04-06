@@ -2,7 +2,7 @@ const db = require('./db');
 
 function computeLockTime(startDate) {
   const d = new Date(startDate);
-  const dow = d.getDay();
+  const dow = d.getUTCDay();
   const daysBack = (dow + 3) % 7;
   d.setDate(d.getDate() - daysBack);
   d.setUTCHours(12, 0, 0, 0);
