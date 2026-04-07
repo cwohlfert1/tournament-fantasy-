@@ -2433,10 +2433,12 @@ runOnce('fix-masters-2026-name-spellings', () => {
 });
 
 // ── Rebuild pool_tier_players for Masters 2026 from corrected field ───────────
-// The field correction migration removed/added players in golf_tournament_fields
-// but pool_tier_players wasn't rebuilt for the new players. This ensures every
-// player in the field has a tier assignment in every Masters league.
+// Uses each league's own pool_tiers config (odds ranges) to assign tiers correctly.
+// Leagues may have 4, 5, or 6 tiers — the migration respects whatever the commissioner configured.
 runOnce('rebuild-masters-2026-pool-tier-players', () => {
+  // no-op: replaced by v2 below
+});
+runOnce('rebuild-masters-2026-pool-tier-players-v2', () => {
   try {
     const masters = db.prepare(
       "SELECT id FROM golf_tournaments WHERE name = 'Masters Tournament' AND season_year = 2026"
@@ -2447,16 +2449,33 @@ runOnce('rebuild-masters-2026-pool-tier-players', () => {
     const leagues = db.prepare(
       'SELECT id, pool_tiers FROM golf_leagues WHERE pool_tournament_id = ?'
     ).all(tid);
-    if (!leagues.length) { console.log('[migration] rebuild-masters-tiers: no leagues to rebuild'); return; }
+    if (!leagues.length) { console.log('[migration] rebuild-masters-tiers-v2: no leagues'); return; }
 
-    // Tier boundaries from the real odds migration
-    function getTier(decimal) {
-      if (decimal <= 21)  return { tier: 1, salary: 900 };
-      if (decimal <= 51)  return { tier: 2, salary: 700 };
-      if (decimal <= 81)  return { tier: 3, salary: 500 };
-      if (decimal <= 151) return { tier: 4, salary: 300 };
-      return { tier: 5, salary: 150 };
+    // Parse "N:1" odds string → decimal number (e.g. "25:1" → 26)
+    function oddsToDecimal(str) {
+      if (!str) return null;
+      const parts = String(str).split(':').map(Number);
+      if (parts.length !== 2 || isNaN(parts[0]) || !parts[1]) return null;
+      return parts[0] / parts[1] + 1;
     }
+
+    // Assign tier based on league's own config (odds ranges)
+    function assignTier(oddsDecimal, tiersConfig) {
+      if (!tiersConfig.length) return { tier: 1, salary: 500 };
+      for (const t of tiersConfig) {
+        const min = oddsToDecimal(t.odds_min) || 0;
+        const max = oddsToDecimal(t.odds_max) || Infinity;
+        if (oddsDecimal >= min && oddsDecimal <= max) {
+          return { tier: t.tier, salary: t.salary || 500 };
+        }
+      }
+      // Player's odds don't fit any tier range → put in the last (highest) tier
+      const lastTier = tiersConfig[tiersConfig.length - 1];
+      return { tier: lastTier.tier, salary: lastTier.salary || 150 };
+    }
+
+    // Salary by tier number (fallback when league config doesn't specify salary)
+    const TIER_SALARY = { 1: 900, 2: 700, 3: 500, 4: 300, 5: 150, 6: 100 };
 
     const fieldPlayers = db.prepare(`
       SELECT tf.player_id, tf.player_name, tf.odds_display, tf.odds_decimal, tf.world_ranking,
@@ -2474,31 +2493,40 @@ runOnce('rebuild-masters-2026-pool-tier-players', () => {
     `);
 
     for (const league of leagues) {
-      // Get existing tier players to preserve manually_overridden ones
-      const existing = new Map();
-      db.prepare('SELECT player_id, tier_number, salary, manually_overridden FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?')
+      let tiersConfig = [];
+      try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch {}
+      // Sort by tier number so assignment works correctly
+      tiersConfig.sort((a, b) => a.tier - b.tier);
+
+      // Preserve manually_overridden assignments
+      const overridden = new Set();
+      db.prepare('SELECT player_id FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 1')
         .all(league.id, tid)
-        .forEach(r => existing.set(r.player_id, r));
+        .forEach(r => overridden.add(r.player_id));
 
       let added = 0;
       db.transaction(() => {
         for (const p of fieldPlayers) {
-          const ex = existing.get(p.player_id);
-          if (ex?.manually_overridden) continue; // don't touch manual overrides
+          if (overridden.has(p.player_id)) continue;
 
-          const { tier, salary } = getTier(p.odds_decimal || 999);
+          const oddsDecimal = p.odds_decimal || 999;
+          const { tier } = tiersConfig.length
+            ? assignTier(oddsDecimal, tiersConfig)
+            : { tier: oddsDecimal <= 21 ? 1 : oddsDecimal <= 51 ? 2 : oddsDecimal <= 81 ? 3 : oddsDecimal <= 151 ? 4 : 5 };
+          const salary = TIER_SALARY[tier] || 150;
+
           ins.run(league.id, tid, p.player_id, p.player_name, tier,
-            p.odds_display, p.odds_decimal, p.world_ranking, salary, p.country);
+            p.odds_display, oddsDecimal, p.world_ranking, salary, p.country);
           added++;
         }
       })();
 
       const dist = db.prepare('SELECT tier_number, COUNT(*) as cnt FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? GROUP BY tier_number ORDER BY tier_number')
         .all(league.id, tid);
-      console.log(`[migration] rebuild-masters-tiers: league ${league.id} — ${added} players, tiers: ${dist.map(d => 'T' + d.tier_number + '=' + d.cnt).join(' ')}`);
+      console.log(`[migration] rebuild-masters-tiers-v2: league ${league.id} — ${added} players, tiers: ${dist.map(d => 'T' + d.tier_number + '=' + d.cnt).join(' ')}`);
     }
   } catch (e) {
-    console.error('[migration] rebuild-masters-tiers error:', e.message);
+    console.error('[migration] rebuild-masters-tiers-v2 error:', e.message);
   }
 });
 
