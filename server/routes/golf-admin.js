@@ -1948,4 +1948,50 @@ router.get('/admin/dev/mass-email-log', superadmin, (req, res) => {
   }
 });
 
+// ── Temporary tier diagnostic endpoint ────────────────────────────────────────
+router.post('/admin/dev/tier-diag', superadmin, (req, res) => {
+  try {
+    const leagues = db.prepare(`
+      SELECT id, name, pool_tiers FROM golf_leagues
+      WHERE name LIKE '%dhaul%' OR name LIKE '%Dhaul%'
+        OR name LIKE '%masters%' OR name LIKE '%Masters%'
+      LIMIT 5
+    `).all();
+
+    const leagueId = db.prepare(
+      "SELECT id FROM golf_leagues WHERE name LIKE '%dhaul%' LIMIT 1"
+    ).get()?.id;
+
+    let tier_distribution = [];
+    let null_odds_count = 0;
+    let sample_players = [];
+
+    if (leagueId) {
+      tier_distribution = db.prepare(`
+        SELECT tier_number, COUNT(*) as cnt,
+          MIN(odds_decimal) as min_odds, MAX(odds_decimal) as max_odds
+        FROM pool_tier_players
+        WHERE league_id = ?
+        GROUP BY tier_number ORDER BY tier_number
+      `).all(leagueId);
+
+      null_odds_count = db.prepare(`
+        SELECT COUNT(*) as cnt FROM pool_tier_players
+        WHERE league_id = ? AND (odds_decimal IS NULL OR odds_decimal = 0)
+      `).get(leagueId)?.cnt || 0;
+
+      sample_players = db.prepare(`
+        SELECT player_name, tier_number, odds_display, odds_decimal
+        FROM pool_tier_players WHERE league_id = ?
+        ORDER BY tier_number ASC, odds_decimal ASC LIMIT 20
+      `).all(leagueId);
+    }
+
+    res.json({ leagues, tier_distribution, null_odds_count, sample_players, league_id: leagueId });
+  } catch (err) {
+    console.error('[tier-diag]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
