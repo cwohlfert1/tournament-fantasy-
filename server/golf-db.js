@@ -2579,4 +2579,25 @@ runOnce('fix-dhaul-tier3-odds-typo', () => {
   }
 });
 
+// ── Delete stale Masters golf_scores (pre-tournament) ────────────────────────
+// ESPN scoreboard fallback previously wrote Valero scores under the Masters
+// tournament_id. These stale rows cause MC badges to show pre-tournament.
+runOnce('delete-stale-masters-2026-scores-v2', () => {
+  try {
+    const masters = db.prepare(
+      "SELECT id, status FROM golf_tournaments WHERE name = 'Masters Tournament' AND season_year = 2026"
+    ).get();
+    if (!masters) return;
+    if (masters.status === 'active' || masters.status === 'completed') {
+      console.log('[migration] delete-stale-masters-scores-v2: Masters is active/complete, skipping');
+      return;
+    }
+    const del = db.prepare('DELETE FROM golf_scores WHERE tournament_id = ?').run(masters.id);
+    if (del.changes > 0) console.log(`[migration] delete-stale-masters-scores-v2: deleted ${del.changes} stale score rows`);
+    else console.log('[migration] delete-stale-masters-scores-v2: no stale scores found');
+  } catch (e) {
+    console.error('[migration] delete-stale-masters-scores-v2 error:', e.message);
+  }
+});
+
 module.exports = db;

@@ -612,6 +612,14 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
     if (picks.length) console.log('[my-roster] pick[0] country:', picks[0].country, '| player:', picks[0].player_name);
 
     const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid);
+
+    // Pre-tournament guard: zero out stale score data so MC/WD badges don't show
+    if (tourn && tourn.status === 'scheduled') {
+      for (const p of picks) {
+        p.round1 = null; p.round2 = null; p.round3 = null; p.round4 = null;
+        p.made_cut = null; p.finish_position = null; p.fantasy_points = null;
+      }
+    }
     const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : null;
 
     // Build tiers with available players so the UI can render the pick sheet

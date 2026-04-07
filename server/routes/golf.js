@@ -579,6 +579,15 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
           ORDER BY pp.tier_number ASC
         `).all(tid, req.params.id, tid, m.user_id, m.entry_number) : [];
 
+        // Pre-tournament guard: zero out all score data so stale golf_scores
+        // (e.g. from a different tournament's ESPN sync) don't show MC/WD badges.
+        if (tourn && tourn.status === 'scheduled') {
+          for (const p of picks) {
+            p.round1 = null; p.round2 = null; p.round3 = null; p.round4 = null;
+            p.made_cut = null; p.finish_position = null; p.fantasy_points = null;
+          }
+        }
+
         // Tiebreaker — read from first pick row (same value across all rows for this entry)
         const tiebreaker_score = picks.length > 0 ? (picks[0].tiebreaker_score ?? null) : null;
 

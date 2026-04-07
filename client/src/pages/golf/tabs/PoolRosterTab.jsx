@@ -263,7 +263,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
   // is often an ESPN name-match false positive and should not surface as WD to users.
   const isPreTournWD = !!pick.is_withdrawn && (isLive || isComplete);
   const isWD  = !isPreTournWD && pick.made_cut === 0 && pick.finish_position == null && (isLive || isComplete);
-  const isCUT = (pick.made_cut === 0 && pick.finish_position != null) || espnCut;
+  const isCUT = ((pick.made_cut === 0 && pick.finish_position != null) || espnCut) && (isLive || isComplete);
   const showTeeTime = !hasScores && !isCUT && !isWD && !isPreTournWD && !isPending && teeTimeRaw;
   const teeTxt = showTeeTime ? fmtTeeTimeShort(teeTimeRaw) : null;
 
