@@ -414,9 +414,12 @@ export default function PoolRosterTab({ leagueId, league }) {
   const [currentEntryNumber, setCurrentEntryNumber] = useState(1);
   const [entryTeamName, setEntryTeamName] = useState(''); // only used for entries 2+
 
-  async function load() {
+  const [viewingEntry, setViewingEntry] = useState(1);
+
+  async function load(entryNum) {
     try {
-      const r = await api.get(`/golf/leagues/${leagueId}/my-roster`);
+      const entry = entryNum || viewingEntry || 1;
+      const r = await api.get(`/golf/leagues/${leagueId}/my-roster?entry_number=${entry}`);
       setData(r.data);
       setLocalSubmitted(null);
     } catch { setData(null); }
@@ -513,10 +516,12 @@ export default function PoolRosterTab({ leagueId, league }) {
         entry_team_name: currentEntryNumber > 1 ? entryTeamName : undefined,
       });
       setShowConfirm(false);
+      const submittedEntry = currentEntryNumber;
       setCurrentEntryNumber(1);
       setEntryTeamName('');
       setTiebreakerScore('');
-      await load();
+      setViewingEntry(submittedEntry);
+      await load(submittedEntry);
     } catch (err) {
       setSubmitError(err.response?.data?.error || 'Submission failed. Try again.');
     }
@@ -629,19 +634,23 @@ export default function PoolRosterTab({ leagueId, league }) {
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <input
-                  type="number"
-                  min={-30}
-                  max={10}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="-?[0-9]*"
                   value={tiebreakerScore}
-                  onChange={e => setTiebreakerScore(e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    // Allow empty, lone minus, or integer (positive/negative)
+                    if (v === '' || v === '-' || /^-?\d+$/.test(v)) setTiebreakerScore(v);
+                  }}
                   placeholder="-14"
                   style={{
-                    width: 100, background: '#111827', border: `1.5px solid ${tbValid ? '#6366f1' : tiebreakerScore !== '' ? '#ef4444' : 'rgba(255,255,255,0.12)'}`,
+                    width: 100, background: '#111827', border: `1.5px solid ${tbValid ? '#6366f1' : tiebreakerScore !== '' && tiebreakerScore !== '-' ? '#ef4444' : 'rgba(255,255,255,0.12)'}`,
                     borderRadius: 10, padding: '10px 14px', color: '#f1f5f9', fontSize: 16, fontWeight: 700,
                     outline: 'none', transition: 'border-color 0.15s', fontVariantNumeric: 'tabular-nums',
                   }}
                   onFocus={e => { e.target.style.borderColor = '#6366f1'; }}
-                  onBlur={e => { e.target.style.borderColor = tbValid ? '#6366f1' : tiebreakerScore !== '' ? '#ef4444' : 'rgba(255,255,255,0.12)'; }}
+                  onBlur={e => { e.target.style.borderColor = tbValid ? '#6366f1' : tiebreakerScore !== '' && tiebreakerScore !== '-' ? '#ef4444' : 'rgba(255,255,255,0.12)'; }}
                 />
                 <span style={{ color: '#4b5563', fontSize: 11 }}>Score to par, not total strokes</span>
               </div>
@@ -730,6 +739,72 @@ export default function PoolRosterTab({ leagueId, league }) {
               </div>
               {!picksLocked && lockTime && <PicksCountdown lockTime={lockTime} />}
             </div>
+
+            {/* Entry switcher + edit button (multi-entry) */}
+            {maxEntries > 1 && submittedEntryNumbers.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                {submittedEntryNumbers.map(en => (
+                  <button
+                    key={en}
+                    onClick={() => { setViewingEntry(en); load(en); }}
+                    style={{
+                      padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none',
+                      background: viewingEntry === en ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
+                      color: viewingEntry === en ? '#a5b4fc' : '#6b7280',
+                    }}
+                  >
+                    Entry {en}
+                  </button>
+                ))}
+                {!picksLocked && tournStatus !== 'active' && tournStatus !== 'completed' && (
+                  <button
+                    onClick={() => {
+                      // Load current entry's picks into selection mode for editing
+                      const newSelected = {};
+                      const newNames = {};
+                      for (const p of picks) {
+                        if (!newSelected[p.tier_number]) newSelected[p.tier_number] = [];
+                        newSelected[p.tier_number].push(p.player_id);
+                        newNames[p.player_id] = p.player_name;
+                      }
+                      setSelected(newSelected);
+                      setNames(newNames);
+                      setCurrentEntryNumber(viewingEntry);
+                      const tb = picks[0]?.tiebreaker_score;
+                      setTiebreakerScore(tb != null ? String(tb) : '');
+                      setLocalSubmitted(false);
+                    }}
+                    style={{ marginLeft: 'auto', padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1.5px solid rgba(99,102,241,0.4)', background: 'transparent', color: '#a5b4fc' }}
+                  >
+                    Edit Entry {viewingEntry}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Single entry edit button (when max_entries = 1) */}
+            {maxEntries <= 1 && !picksLocked && tournStatus !== 'active' && tournStatus !== 'completed' && (
+              <button
+                onClick={() => {
+                  const newSelected = {};
+                  const newNames = {};
+                  for (const p of picks) {
+                    if (!newSelected[p.tier_number]) newSelected[p.tier_number] = [];
+                    newSelected[p.tier_number].push(p.player_id);
+                    newNames[p.player_id] = p.player_name;
+                  }
+                  setSelected(newSelected);
+                  setNames(newNames);
+                  setCurrentEntryNumber(1);
+                  const tb = picks[0]?.tiebreaker_score;
+                  setTiebreakerScore(tb != null ? String(tb) : '');
+                  setLocalSubmitted(false);
+                }}
+                style={{ display: 'block', width: '100%', marginBottom: 16, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1.5px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.06)', color: '#a5b4fc' }}
+              >
+                Edit My Picks
+              </button>
+            )}
 
             {tierNums.map(tierNum => {
               const tc = ROSTER_TIER_COLORS[tierNum] || ROSTER_TIER_COLORS[4];
