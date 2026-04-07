@@ -2432,4 +2432,74 @@ runOnce('fix-masters-2026-name-spellings', () => {
   }
 });
 
+// ── Rebuild pool_tier_players for Masters 2026 from corrected field ───────────
+// The field correction migration removed/added players in golf_tournament_fields
+// but pool_tier_players wasn't rebuilt for the new players. This ensures every
+// player in the field has a tier assignment in every Masters league.
+runOnce('rebuild-masters-2026-pool-tier-players', () => {
+  try {
+    const masters = db.prepare(
+      "SELECT id FROM golf_tournaments WHERE name = 'Masters Tournament' AND season_year = 2026"
+    ).get();
+    if (!masters) return;
+    const tid = masters.id;
+
+    const leagues = db.prepare(
+      'SELECT id, pool_tiers FROM golf_leagues WHERE pool_tournament_id = ?'
+    ).all(tid);
+    if (!leagues.length) { console.log('[migration] rebuild-masters-tiers: no leagues to rebuild'); return; }
+
+    // Tier boundaries from the real odds migration
+    function getTier(decimal) {
+      if (decimal <= 21)  return { tier: 1, salary: 900 };
+      if (decimal <= 51)  return { tier: 2, salary: 700 };
+      if (decimal <= 81)  return { tier: 3, salary: 500 };
+      if (decimal <= 151) return { tier: 4, salary: 300 };
+      return { tier: 5, salary: 150 };
+    }
+
+    const fieldPlayers = db.prepare(`
+      SELECT tf.player_id, tf.player_name, tf.odds_display, tf.odds_decimal, tf.world_ranking,
+             gp.country
+      FROM golf_tournament_fields tf
+      LEFT JOIN golf_players gp ON gp.id = tf.player_id
+      WHERE tf.tournament_id = ?
+      ORDER BY tf.odds_decimal ASC
+    `).all(tid);
+
+    const ins = db.prepare(`
+      INSERT OR REPLACE INTO pool_tier_players
+        (id, league_id, tournament_id, player_id, player_name, tier_number, odds_display, odds_decimal, world_ranking, salary, country)
+      VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const league of leagues) {
+      // Get existing tier players to preserve manually_overridden ones
+      const existing = new Map();
+      db.prepare('SELECT player_id, tier_number, salary, manually_overridden FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?')
+        .all(league.id, tid)
+        .forEach(r => existing.set(r.player_id, r));
+
+      let added = 0;
+      db.transaction(() => {
+        for (const p of fieldPlayers) {
+          const ex = existing.get(p.player_id);
+          if (ex?.manually_overridden) continue; // don't touch manual overrides
+
+          const { tier, salary } = getTier(p.odds_decimal || 999);
+          ins.run(league.id, tid, p.player_id, p.player_name, tier,
+            p.odds_display, p.odds_decimal, p.world_ranking, salary, p.country);
+          added++;
+        }
+      })();
+
+      const dist = db.prepare('SELECT tier_number, COUNT(*) as cnt FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? GROUP BY tier_number ORDER BY tier_number')
+        .all(league.id, tid);
+      console.log(`[migration] rebuild-masters-tiers: league ${league.id} — ${added} players, tiers: ${dist.map(d => 'T' + d.tier_number + '=' + d.cnt).join(' ')}`);
+    }
+  } catch (e) {
+    console.error('[migration] rebuild-masters-tiers error:', e.message);
+  }
+});
+
 module.exports = db;
