@@ -295,9 +295,14 @@ router.get('/leagues/:id/tier-players', authMiddleware, (req, res) => {
     const tid = req.query.tournament_id || league.pool_tournament_id;
     if (!tid) return res.json({ tiers: [], tournament_id: null });
 
-    const players = db.prepare(
-      'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND (is_withdrawn IS NULL OR is_withdrawn = 0) GROUP BY player_id ORDER BY tier_number ASC, world_ranking ASC'
-    ).all(league.id, tid);
+    const players = db.prepare(`
+      SELECT ptp.*, COALESCE(ptp.country, gp.country) AS country
+      FROM pool_tier_players ptp
+      LEFT JOIN golf_players gp ON gp.id = ptp.player_id
+      WHERE ptp.league_id = ? AND ptp.tournament_id = ? AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
+      GROUP BY ptp.player_id
+      ORDER BY ptp.tier_number ASC, ptp.world_ranking ASC
+    `).all(league.id, tid);
 
     let tiersConfig = [];
     try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}

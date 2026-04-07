@@ -2290,4 +2290,22 @@ runOnce('dedup-golf-players-by-name', () => {
   }
 });
 
+// ── Backfill country on pool_tier_players from golf_players ──────────────────
+// Tier players created by seed migrations or early DataGolf syncs may have
+// NULL country, causing the golf emoji instead of a flag in the UI.
+runOnce('backfill-ptp-country-from-golf-players', () => {
+  try {
+    const fixed = db.prepare(`
+      UPDATE pool_tier_players SET country = (
+        SELECT gp.country FROM golf_players gp WHERE gp.id = pool_tier_players.player_id
+      )
+      WHERE (country IS NULL OR country = '')
+        AND player_id IN (SELECT id FROM golf_players WHERE country IS NOT NULL AND country != '')
+    `).run();
+    console.log(`[migration] backfill-ptp-country: updated ${fixed.changes} rows`);
+  } catch (e) {
+    console.error('[migration] backfill-ptp-country error:', e.message);
+  }
+});
+
 module.exports = db;
