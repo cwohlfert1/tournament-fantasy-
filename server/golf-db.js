@@ -2530,4 +2530,37 @@ runOnce('rebuild-masters-2026-pool-tier-players-v2', () => {
   }
 });
 
+// ── URGENT: dedup pool_tier_players on every boot ────────────────────────────
+// NOT a runOnce — runs every startup to catch dupes created between deploys.
+// Safe because it's idempotent (no-op when no dupes exist).
+try {
+  const dupes = db.prepare(`
+    DELETE FROM pool_tier_players
+    WHERE rowid NOT IN (
+      SELECT MIN(rowid) FROM pool_tier_players
+      GROUP BY league_id, player_id
+    )
+  `).run();
+  if (dupes.changes > 0) console.log(`[boot] Deduped pool_tier_players: removed ${dupes.changes} duplicate rows`);
+
+  // Ensure unique index exists — stricter than the previous (league_id, tournament_id, player_id)
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_ptp_league_player ON pool_tier_players(league_id, player_id)');
+} catch (e) {
+  // If index creation fails due to remaining dupes, force-dedup by tournament too
+  console.error('[boot] ptp dedup/index error:', e.message);
+  try {
+    db.prepare(`
+      DELETE FROM pool_tier_players
+      WHERE rowid NOT IN (
+        SELECT MIN(rowid) FROM pool_tier_players
+        GROUP BY league_id, player_id
+      )
+    `).run();
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_ptp_league_player ON pool_tier_players(league_id, player_id)');
+    console.log('[boot] ptp dedup retry succeeded');
+  } catch (e2) {
+    console.error('[boot] ptp dedup retry failed:', e2.message);
+  }
+}
+
 module.exports = db;

@@ -1994,4 +1994,117 @@ router.post('/admin/dev/tier-diag', superadmin, (req, res) => {
   }
 });
 
+// ── Rebuild tiers for a specific league from its pool_tiers config ────────────
+router.post('/admin/dev/rebuild-league-tiers', superadmin, (req, res) => {
+  try {
+    const { league_id } = req.body;
+    if (!league_id) return res.status(400).json({ error: 'league_id required' });
+
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(league_id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (!league.pool_tournament_id) return res.status(400).json({ error: 'No tournament linked' });
+
+    const tid = league.pool_tournament_id;
+    let tiersConfig = [];
+    try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
+    if (!tiersConfig.length) return res.status(400).json({ error: 'No tier config on league' });
+    tiersConfig.sort((a, b) => a.tier - b.tier);
+
+    function oddsToDecimal(str) {
+      if (!str) return Infinity;
+      const parts = String(str).split(':').map(Number);
+      if (parts.length !== 2 || isNaN(parts[0]) || !parts[1]) return Infinity;
+      return parts[0] / parts[1] + 1;
+    }
+
+    // Get all field players with odds
+    const fieldPlayers = db.prepare(`
+      SELECT tf.player_id, tf.player_name, tf.odds_display, tf.odds_decimal, tf.world_ranking,
+             gp.country
+      FROM golf_tournament_fields tf
+      LEFT JOIN golf_players gp ON gp.id = tf.player_id
+      WHERE tf.tournament_id = ?
+      ORDER BY tf.odds_decimal ASC
+    `).all(tid);
+
+    // Also include picked players not in field (WDs)
+    const pickedNotInField = db.prepare(`
+      SELECT DISTINCT pp.player_id, pp.player_name, gp.country,
+        ptp.odds_display, ptp.odds_decimal, ptp.world_ranking, ptp.tier_number
+      FROM pool_picks pp
+      LEFT JOIN golf_players gp ON gp.id = pp.player_id
+      LEFT JOIN pool_tier_players ptp ON ptp.league_id = pp.league_id AND ptp.player_id = pp.player_id
+      WHERE pp.league_id = ? AND pp.tournament_id = ?
+        AND pp.player_id NOT IN (SELECT player_id FROM golf_tournament_fields WHERE tournament_id = ?)
+    `).all(league_id, tid, tid);
+
+    // Preserve manual overrides
+    const overridden = new Map();
+    db.prepare('SELECT player_id, tier_number, salary FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 1')
+      .all(league_id, tid)
+      .forEach(r => overridden.set(r.player_id, r));
+
+    // Clear and rebuild
+    db.prepare('DELETE FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 0')
+      .run(league_id, tid);
+
+    const TIER_SALARY = { 1: 900, 2: 700, 3: 500, 4: 300, 5: 150, 6: 100 };
+
+    const ins = db.prepare(`
+      INSERT OR REPLACE INTO pool_tier_players
+        (id, league_id, tournament_id, player_id, player_name, tier_number,
+         odds_display, odds_decimal, world_ranking, salary, country, is_withdrawn)
+      VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let assigned = 0;
+    db.transaction(() => {
+      for (const p of fieldPlayers) {
+        if (overridden.has(p.player_id)) continue;
+        const od = p.odds_decimal || 999;
+
+        // Match to league's tier config
+        let tierNum = tiersConfig[tiersConfig.length - 1]?.tier || 1;
+        for (const t of tiersConfig) {
+          const min = oddsToDecimal(t.odds_min) || 0;
+          const max = oddsToDecimal(t.odds_max) || Infinity;
+          if (od >= min && od <= max) { tierNum = t.tier; break; }
+        }
+
+        const salary = TIER_SALARY[tierNum] || 150;
+        ins.run(league_id, tid, p.player_id, p.player_name, tierNum,
+          p.odds_display, od, p.world_ranking, salary, p.country, 0);
+        assigned++;
+      }
+
+      // Re-add WD players (picked but not in field)
+      for (const p of pickedNotInField) {
+        if (overridden.has(p.player_id)) continue;
+        const tierNum = p.tier_number || tiersConfig[tiersConfig.length - 1]?.tier || 1;
+        const salary = TIER_SALARY[tierNum] || 150;
+        ins.run(league_id, tid, p.player_id, p.player_name, tierNum,
+          p.odds_display, p.odds_decimal, p.world_ranking, salary, p.country, 1);
+        assigned++;
+      }
+    })();
+
+    // Get final distribution
+    const dist = db.prepare('SELECT tier_number, COUNT(*) as cnt FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? GROUP BY tier_number ORDER BY tier_number')
+      .all(league_id, tid);
+
+    res.json({
+      ok: true,
+      league: league.name,
+      assigned,
+      wd_players: pickedNotInField.length,
+      overridden: overridden.size,
+      tier_distribution: dist,
+      tiers_config: tiersConfig,
+    });
+  } catch (err) {
+    console.error('[rebuild-tiers]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
