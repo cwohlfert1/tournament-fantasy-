@@ -637,11 +637,24 @@ export default function PoolRosterTab({ leagueId, league }) {
                   type="text"
                   inputMode="decimal"
                   pattern="-?[0-9]*"
+                  autoComplete="off"
+                  autoCorrect="off"
                   value={tiebreakerScore}
+                  onKeyDown={e => {
+                    const val = e.currentTarget.value;
+                    // Allow: digits, minus (only at start), backspace, tab, arrow keys
+                    if (['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete'].includes(e.key)) return;
+                    if (/\d/.test(e.key)) return;
+                    if (e.key === '-' && val.length === 0) return;
+                    e.preventDefault();
+                  }}
                   onChange={e => {
-                    const v = e.target.value;
-                    // Allow empty, lone minus, or integer (positive/negative)
-                    if (v === '' || v === '-' || /^-?\d+$/.test(v)) setTiebreakerScore(v);
+                    const raw = e.target.value.replace(/[^0-9-]/g, '');
+                    // Ensure minus only at start, no double minus
+                    const cleaned = raw.startsWith('-')
+                      ? '-' + raw.slice(1).replace(/-/g, '')
+                      : raw.replace(/-/g, '');
+                    setTiebreakerScore(cleaned);
                   }}
                   placeholder="-14"
                   style={{
