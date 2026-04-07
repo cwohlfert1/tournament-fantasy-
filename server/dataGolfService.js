@@ -667,6 +667,19 @@ async function syncDgOddsTiers(tournamentId) {
   const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
   if (!tourn) return { error: 'tournament_not_found' };
 
+  // Guard: never re-tier after picks are locked for any league linked to this tournament.
+  // Odds shift throughout the week, but tiers must be frozen once picks close.
+  const lockedLeague = db.prepare(`
+    SELECT gl.id, gl.name FROM golf_leagues gl
+    WHERE gl.pool_tournament_id = ?
+      AND (gl.picks_locked = 1 OR gl.picks_lock_time <= datetime('now'))
+    LIMIT 1
+  `).get(tournamentId);
+  if (lockedLeague) {
+    console.log(`[datagolf] Odds tiers SKIPPED for "${tourn.name}" — picks locked for league "${lockedLeague.name}"`);
+    return { skipped: true, reason: 'tiers_locked', league: lockedLeague.name };
+  }
+
   // Fetch DG betting odds (1hr cache keyed per tournament)
   const cacheKey = `dg_odds_${tournamentId}`;
   let oddsData = _cacheGet(cacheKey);

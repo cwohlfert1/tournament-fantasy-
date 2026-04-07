@@ -2205,4 +2205,27 @@ runOnce('bulk-add-missing-pga-players-2026', () => {
   }
 });
 
+// ── Dedup pool_tier_players + add unique constraint ──────────────────────────
+// DataGolf odds sync could insert duplicate rows when re-tiering.
+// This cleans up existing dupes and adds a UNIQUE index so it can't recur.
+runOnce('dedup-pool-tier-players-unique-constraint', () => {
+  try {
+    // Remove duplicate rows, keeping the one with the highest rowid (most recent)
+    const deleted = db.prepare(`
+      DELETE FROM pool_tier_players
+      WHERE rowid NOT IN (
+        SELECT MAX(rowid) FROM pool_tier_players
+        GROUP BY league_id, tournament_id, player_id
+      )
+    `).run();
+    if (deleted.changes > 0) console.log(`[migration] dedup-ptp: removed ${deleted.changes} duplicate rows`);
+
+    // Add unique index (CREATE UNIQUE INDEX IF NOT EXISTS is safe to run always)
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_ptp_league_tourn_player ON pool_tier_players (league_id, tournament_id, player_id)');
+    console.log('[migration] dedup-ptp: unique index created on pool_tier_players (league_id, tournament_id, player_id)');
+  } catch (e) {
+    console.error('[migration] dedup-ptp error:', e.message);
+  }
+});
+
 module.exports = db;
