@@ -407,12 +407,18 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   });
   const [entryPaidMap, setEntryPaidMap] = useState({});
 
-  // Pool standings (for winner announcement)
+  // Pool standings (for winner announcement + entry paid status)
   const [poolStandings, setPoolStandings] = useState([]);
   useEffect(() => {
     if (league?.format_type !== 'pool') return;
     api.get(`/golf/leagues/${leagueId}/standings`)
-      .then(r => setPoolStandings(r.data.standings || []))
+      .then(r => {
+        setPoolStandings(r.data.standings || []);
+        // Merge entry-level paid status into paidMap
+        if (r.data.entry_paid) {
+          setPaidMap(prev => ({ ...prev, ...r.data.entry_paid }));
+        }
+      })
       .catch(() => {});
   }, [leagueId, league?.format_type]); // eslint-disable-line
 

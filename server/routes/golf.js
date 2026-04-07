@@ -693,6 +693,20 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
       const hasScores = isStrokeSort
         ? standings.some(s => s.picks?.some(p => p.round1 != null || p.round2 != null || p.round3 != null || p.round4 != null))
         : standings.some(s => s.season_points !== 0);
+      // Entry-level paid status for commissioner roster
+      let entry_paid = {};
+      if (league.commissioner_id === req.user.id) {
+        // Entry 1 paid status from members
+        for (const m of members) entry_paid[`${m.user_id}_1`] = !!m.is_paid;
+        // Entry 2+ from pool_entry_paid
+        if (tid) {
+          const extraPaid = db.prepare(
+            'SELECT user_id, entry_number, is_paid FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ?'
+          ).all(req.params.id, tid);
+          for (const ep of extraPaid) entry_paid[`${ep.user_id}_${ep.entry_number}`] = !!ep.is_paid;
+        }
+      }
+
       return res.json({
         standings, format: 'pool',
         scoring_style: scoringStyle,
@@ -704,6 +718,7 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
         tournament: tourn,
         has_scores: hasScores,
         winning_score,
+        entry_paid,
       });
     }
 
