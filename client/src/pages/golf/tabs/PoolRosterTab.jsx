@@ -56,7 +56,7 @@ function scoreColor(val) {
 
 // Flag emoji from 2-letter ISO country code
 const toFlag = code => {
-  if (!code || code.length !== 2) return '🏌️';
+  if (!code || code.length !== 2) return '⛳';
   return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397));
 };
 

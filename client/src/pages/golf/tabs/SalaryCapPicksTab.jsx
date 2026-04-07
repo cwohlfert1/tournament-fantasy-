@@ -34,7 +34,7 @@ function scoreColor(val) {
 }
 
 const toFlag = code => {
-  if (!code || code.length !== 2) return '🏌️';
+  if (!code || code.length !== 2) return '⛳';
   return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397));
 };
 

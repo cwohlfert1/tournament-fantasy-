@@ -14,7 +14,7 @@ const TIER_NAMES = { 1: 'Tier 1 · Elite', 2: 'Tier 2 · Premium', 3: 'Tier 3 ·
 
 // Flag emoji from 2-letter ISO country code
 const toFlag = code => {
-  if (!code || code.length !== 2) return '🏌️';
+  if (!code || code.length !== 2) return '⛳';
   return code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397));
 };
 
