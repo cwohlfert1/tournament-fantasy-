@@ -2228,4 +2228,66 @@ runOnce('dedup-pool-tier-players-unique-constraint', () => {
   }
 });
 
+// ── Dedup golf_players by name + fix pool_tier_players references ─────────────
+// DataGolf sync creates players by datagolf_id; seed migrations create by name.
+// This produces two rows for the same person (e.g. "Jordan Spieth" with and
+// without datagolf_id). Merge keeps the row with datagolf_id (or highest rowid)
+// and re-points pool_tier_players, golf_tournament_fields, and pool_picks.
+runOnce('dedup-golf-players-by-name', () => {
+  try {
+    const dupes = db.prepare(`
+      SELECT name, COUNT(*) as cnt FROM golf_players GROUP BY name HAVING cnt > 1
+    `).all();
+
+    if (dupes.length === 0) { console.log('[migration] dedup-golf-players: no duplicates'); return; }
+
+    let merged = 0;
+    db.transaction(() => {
+      for (const { name } of dupes) {
+        const rows = db.prepare('SELECT id, datagolf_id, world_ranking FROM golf_players WHERE name = ? ORDER BY datagolf_id DESC NULLS LAST, rowid DESC').all(name);
+        const keep = rows[0]; // prefer the one with datagolf_id
+        const remove = rows.slice(1);
+
+        for (const dup of remove) {
+          // Re-point all references from dup.id → keep.id
+          db.prepare('UPDATE pool_tier_players SET player_id = ? WHERE player_id = ?').run(keep.id, dup.id);
+          db.prepare('UPDATE golf_tournament_fields SET player_id = ? WHERE player_id = ?').run(keep.id, dup.id);
+          db.prepare('UPDATE pool_picks SET player_id = ? WHERE player_id = ?').run(keep.id, dup.id);
+          db.prepare('UPDATE golf_scores SET player_id = ? WHERE player_id = ?').run(keep.id, dup.id);
+          db.prepare('DELETE FROM golf_players WHERE id = ?').run(dup.id);
+          merged++;
+        }
+
+        // If the kept row is missing datagolf_id or ranking, fill from removed rows
+        if (!keep.world_ranking || keep.world_ranking > 500) {
+          const best = rows.find(r => r.world_ranking && r.world_ranking < 500);
+          if (best) db.prepare('UPDATE golf_players SET world_ranking = ? WHERE id = ?').run(best.world_ranking, keep.id);
+        }
+      }
+    })();
+
+    // Now dedup pool_tier_players again (merging player_ids may have created new dupes)
+    const ptpDupes = db.prepare(`
+      DELETE FROM pool_tier_players
+      WHERE rowid NOT IN (
+        SELECT MAX(rowid) FROM pool_tier_players GROUP BY league_id, tournament_id, player_id
+      )
+    `).run();
+    if (ptpDupes.changes > 0) console.log(`[migration] dedup-golf-players: cleaned ${ptpDupes.changes} pool_tier_players dupes after merge`);
+
+    // Dedup golf_tournament_fields too
+    const tfDupes = db.prepare(`
+      DELETE FROM golf_tournament_fields
+      WHERE rowid NOT IN (
+        SELECT MAX(rowid) FROM golf_tournament_fields GROUP BY tournament_id, player_id
+      )
+    `).run();
+    if (tfDupes.changes > 0) console.log(`[migration] dedup-golf-players: cleaned ${tfDupes.changes} tournament_fields dupes after merge`);
+
+    console.log(`[migration] dedup-golf-players: merged ${merged} duplicate player(s) from ${dupes.length} name(s)`);
+  } catch (e) {
+    console.error('[migration] dedup-golf-players error:', e.message);
+  }
+});
+
 module.exports = db;
