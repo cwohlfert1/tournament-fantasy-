@@ -2436,6 +2436,8 @@ router.post('/admin/dev/emergency-reset-league', superadmin, (req, res) => {
       picks_locked: league.picks_locked,
       picks_lock_time: league.picks_lock_time,
       pool_tournament_id: league.pool_tournament_id,
+      format_type: league.format_type,
+      pick_sheet_format: league.pick_sheet_format,
     };
 
     // Reset to lobby + unlocked

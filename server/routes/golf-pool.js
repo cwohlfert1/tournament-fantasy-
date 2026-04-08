@@ -621,6 +621,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, (req, res) => {
       }
     }
     const lockTime = tourn ? computeLockTime(tourn.start_date).toISOString() : null;
+    const isLocked = lockTime ? new Date() >= new Date(lockTime) : false;
 
     // Build tiers with available players so the UI can render the pick sheet
     let tiersConfig = [];
