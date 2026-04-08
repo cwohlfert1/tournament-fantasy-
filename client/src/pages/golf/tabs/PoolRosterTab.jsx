@@ -919,7 +919,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                           espnCountryAlt={espnData?.countryAlt}
                           isStrokeBased={isStrokeBased}
                           sgEntry={sgEntry}
-                          onRemove={!picksLocked && !pick.is_dropped && tournStatus !== 'active' && tournStatus !== 'completed' && (!lockTime || Date.now() < new Date(lockTime).getTime()) ? () => handleRemoveSubmittedPick(pick) : undefined}
+                          onRemove={undefined}
                         />
                       );
                     })}
