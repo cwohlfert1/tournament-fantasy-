@@ -529,22 +529,21 @@ export default function PoolRosterTab({ leagueId, league }) {
       }
     }
 
-    // Use viewingEntry as ground truth when editing an existing entry.
-    // currentEntryNumber can reset to 1 on mobile remount, but viewingEntry
-    // is set by the entry switcher tab click which happens before edit.
-    // For new entries (not yet submitted), currentEntryNumber is correct
-    // because it was just set by "+ Add Another Entry".
-    let entryToSubmit = currentEntryNumber;
+    // Determine which entry we're submitting for.
+    // Two modes: EDIT (re-submitting an existing entry) vs NEW (adding a fresh entry).
     const existingEntries = data?.submitted_entries || [];
+    const isEditing = existingEntries.includes(currentEntryNumber);
+    let entryToSubmit = currentEntryNumber;
 
-    // If we're in edit mode viewing a specific entry, use that entry number
-    if (viewingEntry > 1 && existingEntries.includes(viewingEntry)) {
+    // EDIT mode: use currentEntryNumber as-is (set by "Edit Entry N" button).
+    // Also handle viewingEntry as fallback for mobile remount.
+    if (!isEditing && existingEntries.includes(viewingEntry)) {
+      // Mobile remount lost currentEntryNumber but viewingEntry is correct
       entryToSubmit = viewingEntry;
     }
 
-    // Safety: if still entry 1 but entry 1 already submitted and we have empty
-    // localSubmitted (new entry mode), find the next available slot
-    if (entryToSubmit === 1 && existingEntries.includes(1) && !submitted) {
+    // NEW mode: if entry 1 already exists and we're not editing it, find next slot
+    if (!isEditing && entryToSubmit === 1 && existingEntries.includes(1)) {
       for (let n = 2; n <= (league.pool_max_entries || 3); n++) {
         if (!existingEntries.includes(n)) { entryToSubmit = n; break; }
       }
@@ -564,10 +563,9 @@ export default function PoolRosterTab({ leagueId, league }) {
       setEntryTeamName('');
       setViewingEntry(submittedEntry);
       await load(submittedEntry);
-      // Show team name prompt on FIRST submission only (no existing team name)
-      // Skip on re-edits where team name already exists
-      const existingName = submittedEntry === 1 ? data?.team_name : data?.entry_team_name;
-      if (!picksLocked && !existingName) {
+      // Show team name prompt ONLY on first submission of a NEW entry.
+      // Skip entirely when editing an existing entry (isEditing = true).
+      if (!isEditing && !picksLocked) {
         const member = league.team_name || '';
         const defaultName = submittedEntry === 1 ? member : `${member}_${submittedEntry}`;
         setTeamNameInput(defaultName);
