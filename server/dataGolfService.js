@@ -367,6 +367,15 @@ function _applyFieldToTournament(tourn, field) {
 
   const leagueResults = [];
   for (const league of affectedLeagues) {
+    // Guard: never rebuild tiers for leagues with locked odds
+    const hasLockedOdds = db.prepare(
+      'SELECT 1 FROM pool_tier_players WHERE league_id = ? AND odds_locked_at IS NOT NULL LIMIT 1'
+    ).get(league.id);
+    if (hasLockedOdds) {
+      leagueResults.push({ league: league.name, skipped: 'odds_locked' });
+      continue;
+    }
+
     let tiersConfig = [];
     try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
     if (!tiersConfig.length) { leagueResults.push({ league: league.name, skipped: 'no_tier_config' }); continue; }
