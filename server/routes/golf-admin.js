@@ -2421,4 +2421,49 @@ router.post('/admin/dev/restore-league-from-datagolf', superadmin, async (req, r
   }
 });
 
+// ── EMERGENCY: reset league to pre-tournament state ──────────────────────────
+router.post('/admin/dev/emergency-reset-league', superadmin, (req, res) => {
+  try {
+    const { league_id } = req.body;
+    if (!league_id) return res.status(400).json({ error: 'league_id required' });
+
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(league_id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+
+    // Snapshot current state before reset
+    const before = {
+      status: league.status,
+      picks_locked: league.picks_locked,
+      picks_lock_time: league.picks_lock_time,
+      pool_tournament_id: league.pool_tournament_id,
+    };
+
+    // Reset to lobby + unlocked
+    db.prepare(`
+      UPDATE golf_leagues
+      SET status = 'lobby', picks_locked = 0
+      WHERE id = ?
+    `).run(league_id);
+
+    // Also ensure tournament is scheduled (not accidentally flipped)
+    if (league.pool_tournament_id) {
+      const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(league.pool_tournament_id);
+      if (tourn && tourn.status !== 'completed') {
+        // Only reset if tournament hasn't actually started
+        const started = new Date() >= new Date(tourn.start_date + 'T12:00:00Z');
+        if (!started) {
+          db.prepare("UPDATE golf_tournaments SET status = 'scheduled' WHERE id = ?").run(tourn.id);
+        }
+      }
+    }
+
+    const after = db.prepare('SELECT status, picks_locked, picks_lock_time FROM golf_leagues WHERE id = ?').get(league_id);
+
+    res.json({ ok: true, league: league.name, before, after });
+  } catch (err) {
+    console.error('[emergency-reset]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
