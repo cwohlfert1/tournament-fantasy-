@@ -1439,12 +1439,13 @@ router.get('/leagues/:id/admin/entry-picks', authMiddleware, (req, res) => {
       ORDER BY pp.tier_number ASC
     `).all(req.params.id, tid, userId, entryNum);
 
-    // Available replacements per tier (for swap modal)
+    // Available replacements per tier — only exclude players picked by THIS entry
     const pickedIds = new Set(picks.map(p => p.player_id));
     const tiers = {};
     for (const pick of picks) {
       if (!tiers[pick.tier_number]) {
-        const available = db.prepare(`
+        // Get ALL players in this tier (not filtered by any picks from other entries/users)
+        const allInTier = db.prepare(`
           SELECT ptp.player_id, ptp.player_name, ptp.odds_display, ptp.odds_decimal,
                  COALESCE(ptp.country, gp.country) AS country
           FROM pool_tier_players ptp
@@ -1453,11 +1454,12 @@ router.get('/leagues/:id/admin/entry-picks', authMiddleware, (req, res) => {
             AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
           ORDER BY ptp.odds_decimal ASC
         `).all(req.params.id, pick.tier_number);
-        tiers[pick.tier_number] = available.filter(p => !pickedIds.has(p.player_id));
+        // Only exclude players already picked by THIS specific entry
+        tiers[pick.tier_number] = allInTier.filter(p => !pickedIds.has(p.player_id));
       }
     }
 
-    res.json({ picks, available_by_tier: tiers });
+    res.json({ picks, available_by_tier: tiers, _debug: { picked_count: pickedIds.size, tiers_queried: Object.keys(tiers).map(t => ({ tier: t, total: tiers[t].length })) } });
   } catch (err) {
     console.error('[entry-picks]', err);
     res.status(500).json({ error: err.message });
