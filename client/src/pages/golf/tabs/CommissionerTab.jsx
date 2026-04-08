@@ -400,7 +400,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [editingEntry, setEditingEntry] = useState(null); // { userId, entryNumber, username, teamName }
   const [entryPicks, setEntryPicks] = useState([]);
   const [availableByTier, setAvailableByTier] = useState({});
-  const [swapping, setSwapping] = useState(null); // { pick, tier } when replacing
+  const [swapping, setSwapping] = useState(null); // { pick } when browsing replacements
+  const [swapConfirm, setSwapConfirm] = useState(null); // { oldPick, newPlayer } when confirming
   const [swapLoading, setSwapLoading] = useState(false);
 
   // Delete entry
@@ -850,10 +851,12 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                           <div className="text-gray-500 text-xs">{row.username}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <button
-                            onClick={() => openRosterEditor(row.userId, row.entryNumber, row.username, row.team_name)}
-                            style={{ padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)', color: '#a5b4fc' }}
-                          >Edit</button>
+                          {(league?.picks_locked || league?.pool_tournament_status === 'active' || league?.pool_tournament_status === 'completed') && (
+                            <button
+                              onClick={() => openRosterEditor(row.userId, row.entryNumber, row.username, row.team_name)}
+                              style={{ padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)', color: '#a5b4fc' }}
+                            >Edit</button>
+                          )}
                           <button
                             onClick={() => setDeletingEntry({ userId: row.userId, entryNumber: row.entryNumber, username: row.username, teamName: row.team_name })}
                             style={{ padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#f87171' }}
@@ -1516,7 +1519,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflow: 'auto' }}>
                   {(availableByTier[swapping.pick.tier_number] || []).map(p => (
                     <button key={p.player_id} disabled={swapLoading}
-                      onClick={() => { if (confirm(`Replace ${swapping.pick.player_name} with ${p.player_name}? This cannot be undone.`)) confirmSwap(swapping.pick, p); }}
+                      onClick={() => setSwapConfirm({ oldPick: swapping.pick, newPlayer: p })}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid #1f2937', cursor: 'pointer', textAlign: 'left' }}>
                       <span style={{ fontSize: 16 }}>{p.country && p.country.length === 2 ? p.country.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397)) : '⛳'}</span>
                       <div style={{ flex: 1 }}>
@@ -1573,6 +1576,35 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
               <button onClick={confirmDeleteEntry} disabled={deleteLoading}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Swap Confirmation Modal ── */}
+      {swapConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => { if (!swapLoading) setSwapConfirm(null); }}>
+          <div style={{ background: '#111827', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 16, width: '100%', maxWidth: 400, padding: 24 }}
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: '#fff', fontSize: 16, fontWeight: 800, margin: '0 0 12px' }}>Confirm Swap</h3>
+            <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: 1.6, margin: '0 0 16px' }}>
+              Replace <strong style={{ color: '#f87171' }}>{swapConfirm.oldPick.player_name}</strong> with{' '}
+              <strong style={{ color: '#22c55e' }}>{swapConfirm.newPlayer.player_name}</strong>{' '}
+              for <strong style={{ color: '#fff' }}>{editingEntry?.teamName}</strong>?
+              <br /><span style={{ fontSize: 11, color: '#4b5563' }}>This cannot be undone.</span>
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setSwapConfirm(null)} disabled={swapLoading}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: '#1f2937', border: 'none', color: '#9ca3af', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => { confirmSwap(swapConfirm.oldPick, swapConfirm.newPlayer); setSwapConfirm(null); }}
+                disabled={swapLoading}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(34,197,94,0.2)', border: '1px solid rgba(34,197,94,0.4)', color: '#22c55e', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {swapLoading ? 'Swapping...' : 'Confirm Swap'}
               </button>
             </div>
           </div>

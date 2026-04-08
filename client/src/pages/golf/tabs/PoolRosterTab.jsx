@@ -564,8 +564,10 @@ export default function PoolRosterTab({ leagueId, league }) {
       setEntryTeamName('');
       setViewingEntry(submittedEntry);
       await load(submittedEntry);
-      // Show team name prompt after successful submit (pre-lock only)
-      if (!picksLocked) {
+      // Show team name prompt on FIRST submission only (no existing team name)
+      // Skip on re-edits where team name already exists
+      const existingName = submittedEntry === 1 ? data?.team_name : data?.entry_team_name;
+      if (!picksLocked && !existingName) {
         const member = league.team_name || '';
         const defaultName = submittedEntry === 1 ? member : `${member}_${submittedEntry}`;
         setTeamNameInput(defaultName);
