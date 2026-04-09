@@ -2487,4 +2487,89 @@ router.post('/admin/dev/emergency-reset-league', superadmin, (req, res) => {
   }
 });
 
+// ── Test lock confirmation email ──────────────────────────────────────────────
+router.post('/admin/dev/test-lock-email', superadmin, async (req, res) => {
+  try {
+    const { sendPicksLockConfirmation } = require('../mailer');
+    const to = req.body.email || 'wohlbuiltventures@gmail.com';
+
+    await sendPicksLockConfirmation(to, {
+      username: 'TestUser',
+      leagueName: "Dhaul's Masters Golf Pool",
+      tournamentName: 'Masters Tournament',
+      entries: [
+        {
+          entryNumber: 1, teamName: 'Dhaul42',
+          tiebreaker: -14,
+          picks: [
+            { playerName: 'Scottie Scheffler', tierNumber: 1, odds: '5:1' },
+            { playerName: 'Rory McIlroy', tierNumber: 2, odds: '12:1' },
+            { playerName: 'Tommy Fleetwood', tierNumber: 2, odds: '20:1' },
+            { playerName: 'Russell Henley', tierNumber: 3, odds: '50:1' },
+            { playerName: 'Sepp Straka', tierNumber: 3, odds: '60:1' },
+            { playerName: 'Jake Knapp', tierNumber: 4, odds: '70:1' },
+            { playerName: 'Sam Stevens', tierNumber: 5, odds: '100:1' },
+          ],
+        },
+        {
+          entryNumber: 2, teamName: 'The Backup Plan',
+          tiebreaker: -16,
+          picks: [
+            { playerName: 'Jon Rahm', tierNumber: 1, odds: '9.5:1' },
+            { playerName: 'Xander Schauffele', tierNumber: 2, odds: '16:1' },
+            { playerName: 'Collin Morikawa', tierNumber: 2, odds: '30:1' },
+            { playerName: 'Brooks Koepka', tierNumber: 3, odds: '50:1' },
+            { playerName: 'Justin Thomas', tierNumber: 3, odds: '65:1' },
+            { playerName: 'Adam Scott', tierNumber: 4, odds: '70:1' },
+            { playerName: 'Gary Woodland', tierNumber: 5, odds: '100:1' },
+          ],
+        },
+      ],
+      leagueUrl: 'https://www.tourneyrun.app/golf/league/test?tab=standings',
+    });
+
+    res.json({ ok: true, sent_to: to });
+  } catch (err) {
+    console.error('[test-lock-email]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Test round standings email ───────────────────────────────────────────────
+router.post('/admin/dev/test-round-email', superadmin, async (req, res) => {
+  try {
+    const { sendRoundStandings } = require('../mailer');
+    const to = req.body.email || 'wohlbuiltventures@gmail.com';
+    const isFinal = !!req.body.final;
+
+    await sendRoundStandings(to, {
+      username: 'TestUser',
+      leagueName: "Dhaul's Masters Golf Pool",
+      tournamentName: 'Masters Tournament',
+      roundNumber: isFinal ? 4 : 1,
+      isFinal,
+      winnerName: isFinal ? 'Scottie Scheffler' : null,
+      totalEntries: 34,
+      scoringStyle: 'stroke_play',
+      top5: [
+        { rank: 1, teamName: 'BirdieMachine', score: -22 },
+        { rank: 2, teamName: 'GolfDegen420', score: -20 },
+        { rank: 3, teamName: 'Dhaul42', score: -18 },
+        { rank: 4, teamName: 'AcesHigh', score: -16 },
+        { rank: 5, teamName: 'FairwayFinder', score: -15 },
+      ],
+      userEntries: [
+        { entryNumber: 1, teamName: 'TestUser', rank: 12, score: -9 },
+        { entryNumber: 2, teamName: 'The Backup Plan', rank: 21, score: -6 },
+      ],
+      leagueUrl: 'https://www.tourneyrun.app/golf/league/test?tab=standings',
+    });
+
+    res.json({ ok: true, sent_to: to, final: isFinal });
+  } catch (err) {
+    console.error('[test-round-email]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

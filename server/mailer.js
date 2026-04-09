@@ -447,6 +447,142 @@ ${emailFooter('tourneyrun.app &middot; You\'re receiving this because you have a
   });
 }
 
+// ── Picks Lock Confirmation ───────────────────────────────────────────────────
+// Sends one email per user with ALL their entries listed.
+// entries: [{ entryNumber, teamName, tiebreaker, picks: [{ playerName, tierName, odds }] }]
+async function sendPicksLockConfirmation(toEmail, { username, leagueName, tournamentName, entries, leagueUrl }) {
+  const TIER_NAMES = { 1: 'Elite', 2: 'Premium', 3: 'Contenders', 4: 'Mid-Field', 5: 'Long Shots', 6: 'Deep Field', 7: 'Longshots' };
+
+  const entrySections = entries.map(entry => {
+    const entryLabel = entries.length > 1
+      ? `<div style="font-size:12px;color:#22c55e;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;margin-top:${entries.indexOf(entry) > 0 ? '24px' : '0'};">Entry ${entry.entryNumber}${entry.teamName ? ` — ${entry.teamName}` : ''}</div>`
+      : '';
+
+    const pickRows = (entry.picks || []).map(p =>
+      `<tr>
+        <td style="padding-top:8px;padding-right:8px;padding-bottom:8px;padding-left:12px;font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;">T${p.tierNumber} · ${TIER_NAMES[p.tierNumber] || 'Tier ' + p.tierNumber}</td>
+        <td style="padding-top:8px;padding-right:12px;padding-bottom:8px;padding-left:8px;font-size:14px;color:#ffffff;font-weight:600;">${p.playerName}</td>
+        <td style="padding-top:8px;padding-right:12px;padding-bottom:8px;padding-left:8px;font-size:12px;color:#4b5563;text-align:right;">${p.odds || ''}</td>
+      </tr>`
+    ).join('');
+
+    const tbLine = entry.tiebreaker != null
+      ? `<div style="margin-top:10px;padding-top:8px;border-top-width:1px;border-top-style:solid;border-top-color:#1e293b;font-size:12px;color:#6b7280;">Tiebreaker: <span style="color:#a5b4fc;font-weight:700;">${entry.tiebreaker > 0 ? '+' : ''}${entry.tiebreaker}</span></div>`
+      : '';
+
+    return `${entryLabel}
+      <div style="background-color:#1a2733;border-radius:8px;overflow:hidden;margin-bottom:8px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tbody>${pickRows}</tbody>
+        </table>
+        ${tbLine ? `<div style="padding-right:12px;padding-bottom:10px;padding-left:12px;">${tbLine}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `Your picks are locked in — ${leagueName}`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(34,197,94,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#22c55e;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Picks Confirmed</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:24px;font-weight:700;color:#ffffff;">Your picks are locked in</h1>
+        <p style="font-size:14px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">
+          <strong style="color:#ffffff;">${leagueName}</strong> &middot; ${tournamentName}
+        </p>
+        ${entrySections}
+        <div style="margin-top:20px;">
+          ${ctaButton(leagueUrl, 'View Standings &rarr;')}
+        </div>
+        <p style="font-size:12px;color:#4b5563;text-align:center;margin-top:0;margin-bottom:0;">Good luck, ${username}!</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; You're in ${leagueName} &middot; <a href="mailto:support@tourneyrun.app" style="color:#6b7280;">Unsubscribe</a>`)}
+`),
+  });
+}
+
+// ── Round End Standings Update ────────────────────────────────────────────────
+// standings: [{ rank, teamName, score, isUser, entries: [{ entryNumber, teamName, rank, score }] }]
+async function sendRoundStandings(toEmail, { username, leagueName, tournamentName, roundNumber, isFinal, winnerName, totalEntries, top5, userEntries, leagueUrl, scoringStyle }) {
+  const isStroke = ['stroke_play', 'total_score', 'total_strokes'].includes(scoringStyle);
+  const fmtScore = s => isStroke ? (s === 0 ? 'E' : (s > 0 ? '+' : '') + s) : s + ' pts';
+  const ROUND_DAYS = { 1: 'Thursday', 2: 'Friday', 3: 'Saturday', 4: 'Sunday' };
+
+  const subject = isFinal
+    ? `${winnerName} wins ${leagueName}!`
+    : `Round ${roundNumber} complete — ${tournamentName} standings`;
+
+  const headingBadge = isFinal
+    ? `<div style="display:inline-block;background-color:rgba(251,191,36,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#fbbf24;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Final Results</div>`
+    : `<div style="display:inline-block;background-color:rgba(0,180,216,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#00b4d8;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Round ${roundNumber} Complete</div>`;
+
+  const heading = isFinal
+    ? `<h1 style="margin-top:0;margin-right:0;margin-bottom:4px;margin-left:0;font-size:24px;font-weight:700;color:#ffffff;">🏆 ${winnerName} wins!</h1>`
+    : `<h1 style="margin-top:0;margin-right:0;margin-bottom:4px;margin-left:0;font-size:24px;font-weight:700;color:#ffffff;">Round ${roundNumber} complete</h1>`;
+
+  const top5Rows = top5.map((s, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${s.rank}.`;
+    return `<tr>
+      <td style="padding-top:9px;padding-right:8px;padding-bottom:9px;padding-left:12px;font-size:14px;color:#6b7280;font-weight:600;">${medal}</td>
+      <td style="padding-top:9px;padding-right:8px;padding-bottom:9px;padding-left:8px;font-size:14px;color:#ffffff;font-weight:600;">${s.teamName}</td>
+      <td style="padding-top:9px;padding-right:12px;padding-bottom:9px;padding-left:8px;font-size:14px;color:${isStroke ? (s.score < 0 ? '#22c55e' : '#ef4444') : '#22c55e'};font-weight:700;text-align:right;">${fmtScore(s.score)}</td>
+    </tr>`;
+  }).join('');
+
+  const userSection = userEntries.map(e =>
+    `<div style="background-color:#1a2733;border-radius:8px;padding-top:12px;padding-right:16px;padding-bottom:12px;padding-left:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:14px;color:#ffffff;font-weight:600;">${e.teamName}${userEntries.length > 1 ? ` <span style="color:#6b7280;font-size:11px;">Entry ${e.entryNumber}</span>` : ''}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:2px;">${ordinal(e.rank)} of ${totalEntries}</div>
+      </div>
+      <div style="font-size:18px;font-weight:800;color:${isStroke ? (e.score < 0 ? '#22c55e' : '#ef4444') : '#22c55e'};">${fmtScore(e.score)}</div>
+    </div>`
+  ).join('');
+
+  const nextRound = !isFinal && roundNumber < 4
+    ? `<p style="font-size:13px;color:#6b7280;text-align:center;margin-top:16px;margin-bottom:0;">Round ${roundNumber + 1} begins ${ROUND_DAYS[roundNumber + 1] || 'tomorrow'} at ~8am ET</p>`
+    : isFinal
+      ? `<p style="font-size:14px;color:#9ca3af;text-align:center;margin-top:16px;margin-bottom:0;">Thanks for playing! 🏌️</p>`
+      : '';
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        ${headingBadge}
+        ${heading}
+        <p style="font-size:14px;color:#9ca3af;margin-top:0;margin-bottom:24px;">
+          <strong style="color:#ffffff;">${leagueName}</strong> &middot; ${tournamentName} &middot; ${totalEntries} entries
+        </p>
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Leaderboard</div>
+        <div style="background-color:#1a2733;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tbody>${top5Rows}</tbody>
+          </table>
+        </div>
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">${isFinal ? 'Your final position' : 'Your entry'}</div>
+        ${userSection}
+        <div style="margin-top:20px;">
+          ${ctaButton(leagueUrl, 'View Full Standings &rarr;')}
+        </div>
+        ${nextRound}
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; You're in ${leagueName} &middot; <a href="mailto:support@tourneyrun.app" style="color:#6b7280;">Unsubscribe</a>`)}
+`),
+  });
+}
+
+// Ordinal helper: 1→1st, 2→2nd, 3→3rd, etc.
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 module.exports = {
   sendEmail,
   sendEmailBatch,
@@ -461,4 +597,6 @@ module.exports = {
   sendGolfRoundComplete,
   sendGolfInviteEmail,
   sendSuperAdminBlast,
+  sendPicksLockConfirmation,
+  sendRoundStandings,
 };
