@@ -287,6 +287,16 @@ async function syncFieldForTournament(tournamentId) {
 function _applyFieldToTournament(tourn, field) {
   console.log(`[datagolf] Applying field of ${field.length} players to ${tourn.name}`);
 
+  // NUCLEAR GUARD: if ANY league linked to this tournament has locked odds,
+  // skip the entire tier rebuild section. WD detection and field update still run.
+  const _anyLockedLeague = db.prepare(`
+    SELECT 1 FROM pool_tier_players ptp
+    JOIN golf_leagues gl ON gl.id = ptp.league_id
+    WHERE gl.pool_tournament_id = ? AND ptp.odds_locked_at IS NOT NULL
+    LIMIT 1
+  `).get(tourn.id);
+  const _skipTierRebuild = !!_anyLockedLeague;
+
   const _getGP  = db.prepare('SELECT * FROM golf_players WHERE datagolf_id = ? LIMIT 1');
   const _getGPN = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
   const _insGP  = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking, datagolf_id) VALUES (?, ?, ?, 1, ?, ?)');
@@ -360,6 +370,11 @@ function _applyFieldToTournament(tourn, field) {
   }
 
   // ── Rebuild pool_tier_players for affected leagues ────────────────────────
+  if (_skipTierRebuild) {
+    console.log(`[datagolf] SKIPPING tier rebuild for "${tourn.name}" — locked odds detected`);
+    return { inserted, created, wdCount, leagueResults: [{ skipped: 'odds_locked_global' }] };
+  }
+
   const { _oddsToDecimal, _rankToOdds } = _getTierHelpers();
   const affectedLeagues = db.prepare(
     "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'"
