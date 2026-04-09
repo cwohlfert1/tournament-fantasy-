@@ -2613,4 +2613,61 @@ router.post('/admin/dev/test-round-email', superadmin, async (req, res) => {
   }
 });
 
+// ── EMERGENCY: flip Last,First → First Last in pool_picks + re-anchor IDs ────
+router.post('/admin/dev/fix-pick-names', superadmin, (req, res) => {
+  try {
+    const tid = req.body.tournament_id || null;
+
+    // Step 1: count before
+    const whereTid = tid ? 'AND tournament_id = ?' : '';
+    const args = tid ? [tid] : [];
+    const before = db.prepare(`SELECT COUNT(*) as c FROM pool_picks WHERE player_name LIKE '%, %' ${whereTid}`).get(...args).c;
+
+    // Step 2: flip all "Last, First" → "First Last"
+    const flip = db.prepare(`
+      UPDATE pool_picks
+      SET player_name =
+        TRIM(SUBSTR(player_name, INSTR(player_name, ', ') + 2))
+        || ' ' ||
+        TRIM(SUBSTR(player_name, 1, INSTR(player_name, ', ') - 1))
+      WHERE player_name LIKE '%, %' ${whereTid}
+    `).run(...args);
+
+    const after = db.prepare(`SELECT COUNT(*) as c FROM pool_picks WHERE player_name LIKE '%, %' ${whereTid}`).get(...args).c;
+
+    // Step 3: re-anchor player_ids by name
+    const reanchor = db.prepare(`
+      UPDATE pool_picks SET player_id = (
+        SELECT gp.id FROM golf_players gp WHERE LOWER(gp.name) = LOWER(pool_picks.player_name) LIMIT 1
+      )
+      WHERE EXISTS (
+        SELECT 1 FROM golf_players gp WHERE LOWER(gp.name) = LOWER(pool_picks.player_name) AND gp.id != COALESCE(pool_picks.player_id, '')
+      )
+    `).run();
+
+    // Step 4: check for any still-null player_ids
+    const nullIds = db.prepare(`SELECT COUNT(*) as c FROM pool_picks WHERE player_id IS NULL ${whereTid}`).get(...args).c;
+    const orphanIds = db.prepare(`SELECT COUNT(*) as c FROM pool_picks WHERE player_id NOT IN (SELECT id FROM golf_players) ${whereTid}`).get(...args).c;
+
+    const unresolved = db.prepare(`
+      SELECT DISTINCT player_name FROM pool_picks
+      WHERE (player_id IS NULL OR player_id NOT IN (SELECT id FROM golf_players)) ${whereTid}
+    `).all(...args).map(r => r.player_name);
+
+    res.json({
+      ok: true,
+      last_first_before: before,
+      last_first_after: after,
+      flipped: flip.changes,
+      reanchored: reanchor.changes,
+      null_player_ids: nullIds,
+      orphan_player_ids: orphanIds,
+      unresolved: unresolved,
+    });
+  } catch (err) {
+    console.error('[fix-pick-names]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
