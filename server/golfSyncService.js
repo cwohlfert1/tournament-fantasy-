@@ -544,6 +544,7 @@ async function runAutoSync() {
 
   for (const tournament of tournaments) {
     try {
+      const statusBefore = tournament.status;
       const result = await syncTournamentScores(tournament.id, { silent: false });
       _lastSyncTime = new Date().toISOString();
       _lastSyncResult = { ...result, tournamentName: tournament.name };
@@ -552,6 +553,41 @@ async function runAutoSync() {
       console.log(`[golf-sync] DB check: golf_scores rows for "${tournament.name}" = ${dbCount.c}`);
       if (result.synced > 0) {
         pushPoolStandings(tournament.id);
+      }
+
+      // ── Round completion email detection ────────────────────────────────
+      const tournAfter = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournament.id);
+      const isFinal = tournAfter.status === 'completed' && statusBefore !== 'completed';
+
+      if (isFinal || (result.synced > 0 && tournAfter.status === 'active')) {
+        // Detect which round just completed by checking scores
+        let completedRound = 0;
+        if (isFinal) {
+          completedRound = 4;
+        } else {
+          // Check how many rounds have scores for most players
+          const roundCounts = db.prepare(`
+            SELECT
+              SUM(CASE WHEN round1 IS NOT NULL THEN 1 ELSE 0 END) as r1,
+              SUM(CASE WHEN round2 IS NOT NULL THEN 1 ELSE 0 END) as r2,
+              SUM(CASE WHEN round3 IS NOT NULL THEN 1 ELSE 0 END) as r3,
+              SUM(CASE WHEN round4 IS NOT NULL THEN 1 ELSE 0 END) as r4,
+              COUNT(*) as total
+            FROM golf_scores WHERE tournament_id = ?
+          `).get(tournament.id);
+          // A round is "complete" if >60% of players have scores (accounts for cut)
+          const threshold = Math.max(10, (roundCounts.total || 0) * 0.6);
+          if (roundCounts.r4 >= threshold) completedRound = 4;
+          else if (roundCounts.r3 >= threshold) completedRound = 3;
+          else if (roundCounts.r2 >= threshold) completedRound = 2;
+          else if (roundCounts.r1 >= threshold) completedRound = 1;
+        }
+
+        if (completedRound > 0) {
+          sendRoundEmails(tournament.id, completedRound, isFinal).catch(err =>
+            console.error(`[golf-sync] Round email error for "${tournament.name}" R${completedRound}:`, err.message)
+          );
+        }
       }
     } catch (e) {
       console.error(`[golf-sync] Auto-sync error for "${tournament.name}":`, e.message, e.stack);
@@ -689,6 +725,131 @@ async function syncTournamentField(tournamentId) {
     }
     if (wdCount === 0 && clearedCount === 0) {
       console.log(`[field-sync] ${tourn.name}: field in sync, no changes`);
+    }
+  }
+}
+
+// ── Round completion emails ───────────────────────────────────────────────────
+async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
+  const { v4: uuidv4 } = require('uuid');
+  const { sendRoundStandings } = require('./mailer');
+
+  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  if (!tourn) return;
+
+  // Get all pool leagues for this tournament
+  const leagues = db.prepare(`
+    SELECT gl.* FROM golf_leagues gl
+    WHERE gl.pool_tournament_id = ? AND gl.status != 'archived'
+  `).all(tournamentId);
+
+  for (const league of leagues) {
+    // Check if already sent for this round
+    const already = db.prepare('SELECT 1 FROM round_emails_sent WHERE league_id = ? AND round_number = ?')
+      .get(league.id, roundNumber);
+    if (already) {
+      console.log(`[round-email] R${roundNumber} already sent for "${league.name}", skipping`);
+      continue;
+    }
+
+    try {
+      const scoringStyle = league.scoring_style || 'fantasy_points';
+      const isStroke = ['stroke_play', 'total_score', 'total_strokes'].includes(scoringStyle);
+      const baseUrl = 'https://www.tourneyrun.app';
+      const leagueUrl = `${baseUrl}/golf/league/${league.id}?tab=standings`;
+
+      // Build standings (same logic as the standings API)
+      const { applyDropScoring } = require('./pool-utils');
+      const members = db.prepare(`
+        SELECT glm.user_id, glm.team_name, u.email, u.username
+        FROM golf_league_members glm JOIN users u ON u.id = glm.user_id
+        WHERE glm.golf_league_id = ?
+      `).all(league.id);
+
+      // Get all entries (including multi-entry)
+      const extraEntries = db.prepare(`
+        SELECT DISTINCT pp.user_id, COALESCE(pp.entry_number, 1) as entry_number, pp.entry_team_name
+        FROM pool_picks pp
+        WHERE pp.league_id = ? AND pp.tournament_id = ? AND COALESCE(pp.entry_number, 1) > 1
+      `).all(league.id, tournamentId);
+
+      const allEntries = [
+        ...members.map(m => ({ ...m, entry_number: 1 })),
+        ...extraEntries.map(e => {
+          const m = members.find(m => m.user_id === e.user_id);
+          return { user_id: e.user_id, email: m?.email, username: m?.username, team_name: e.entry_team_name || `Entry ${e.entry_number}`, entry_number: e.entry_number };
+        }),
+      ];
+
+      // Score each entry
+      const standings = allEntries.map(entry => {
+        const picks = db.prepare(`
+          SELECT pp.player_id, pp.player_name, pp.tier_number, pp.is_dropped,
+                 gs.fantasy_points, gs.round1, gs.round2, gs.round3, gs.round4,
+                 gs.finish_position, gs.made_cut
+          FROM pool_picks pp
+          LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = ?
+          WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
+            AND COALESCE(pp.entry_number, 1) = ?
+        `).all(tournamentId, league.id, tournamentId, entry.user_id, entry.entry_number);
+
+        let score;
+        if (isStroke) {
+          const dropCount = league.pool_drop_count ?? 2;
+          const dropResult = applyDropScoring(picks, dropCount);
+          score = dropResult.team_score;
+        } else {
+          score = Math.round(picks.reduce((s, p) => s + (p.fantasy_points || 0), 0) * 10) / 10;
+        }
+
+        return { ...entry, score, submitted: picks.length > 0 };
+      }).filter(e => e.submitted);
+
+      // Sort: stroke=ascending, fantasy=descending
+      standings.sort((a, b) => isStroke ? a.score - b.score : b.score - a.score);
+      standings.forEach((s, i) => { s.rank = i + 1; });
+
+      const top5 = standings.slice(0, 5).map(s => ({ rank: s.rank, teamName: s.team_name, score: s.score }));
+      const winnerName = isFinal && standings[0] ? standings[0].team_name : null;
+      const totalEntries = standings.length;
+
+      // Send one email per unique user (not per entry)
+      const userMap = new Map();
+      for (const s of standings) {
+        if (!userMap.has(s.user_id)) userMap.set(s.user_id, { email: s.email, username: s.username, entries: [] });
+        userMap.get(s.user_id).entries.push({ entryNumber: s.entry_number, teamName: s.team_name, rank: s.rank, score: s.score });
+      }
+
+      let sent = 0;
+      for (const [userId, data] of userMap) {
+        if (!data.email) continue;
+        try {
+          await sendRoundStandings(data.email, {
+            username: data.username,
+            leagueName: league.name,
+            tournamentName: tourn.name,
+            roundNumber,
+            isFinal,
+            winnerName,
+            totalEntries,
+            scoringStyle,
+            top5,
+            userEntries: data.entries,
+            leagueUrl,
+          });
+          sent++;
+        } catch (err) {
+          console.error(`[round-email] Failed for ${data.email}:`, err.message);
+        }
+      }
+
+      // Mark as sent
+      db.prepare('INSERT OR IGNORE INTO round_emails_sent (id, league_id, round_number) VALUES (?, ?, ?)')
+        .run(uuidv4(), league.id, roundNumber);
+
+      console.log(`[round-email] R${roundNumber}${isFinal ? ' (FINAL)' : ''} sent to ${sent}/${userMap.size} members of "${league.name}"`);
+    } catch (err) {
+      console.error(`[round-email] Error for league "${league.name}":`, err.message);
     }
   }
 }
