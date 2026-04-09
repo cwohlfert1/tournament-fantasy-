@@ -396,9 +396,6 @@ export default function PGALiveTab({ leagueId, league }) {
         })}
       </div>
 
-      <p style={{ color: '#374151', fontSize: 11, textAlign: 'center' }}>
-        Data from ESPN · Refreshes every 60s
-      </p>
     </div>
   );
 }
