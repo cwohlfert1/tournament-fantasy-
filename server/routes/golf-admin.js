@@ -2645,7 +2645,27 @@ router.post('/admin/dev/fix-pick-names', superadmin, (req, res) => {
       )
     `).run();
 
-    // Step 4: check for any still-null player_ids
+    // Step 4: JS-level fuzzy match for diacritics (Åberg vs Aberg)
+    const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const allPlayers = db.prepare('SELECT id, name FROM golf_players').all();
+    const playerByNorm = new Map(allPlayers.map(p => [norm(p.name), p.id]));
+
+    const broken = db.prepare(`
+      SELECT id, player_name, player_id FROM pool_picks
+      WHERE (player_id IS NULL OR player_id NOT IN (SELECT id FROM golf_players)) ${whereTid}
+    `).all(...args);
+
+    let fuzzyFixed = 0;
+    const updPick = db.prepare('UPDATE pool_picks SET player_id = ? WHERE id = ?');
+    for (const pick of broken) {
+      const match = playerByNorm.get(norm(pick.player_name));
+      if (match) {
+        updPick.run(match, pick.id);
+        fuzzyFixed++;
+      }
+    }
+
+    // Step 5: final check
     const nullIds = db.prepare(`SELECT COUNT(*) as c FROM pool_picks WHERE player_id IS NULL ${whereTid}`).get(...args).c;
     const orphanIds = db.prepare(`SELECT COUNT(*) as c FROM pool_picks WHERE player_id NOT IN (SELECT id FROM golf_players) ${whereTid}`).get(...args).c;
 
@@ -2660,6 +2680,7 @@ router.post('/admin/dev/fix-pick-names', superadmin, (req, res) => {
       last_first_after: after,
       flipped: flip.changes,
       reanchored: reanchor.changes,
+      fuzzy_fixed: fuzzyFixed,
       null_player_ids: nullIds,
       orphan_player_ids: orphanIds,
       unresolved: unresolved,
