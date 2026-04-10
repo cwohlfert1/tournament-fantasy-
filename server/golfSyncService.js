@@ -852,10 +852,10 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
       }
 
       let sent = 0;
-      for (const [userId, data] of userMap) {
+      for (const [, data] of userMap) {
         if (!data.email) continue;
         try {
-          await sendRoundStandings(data.email, {
+          const result = await sendRoundStandings(data.email, {
             username: data.username,
             leagueName: league.name,
             tournamentName: tourn.name,
@@ -868,17 +868,21 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
             userEntries: data.entries,
             leagueUrl,
           });
+          console.log(`[round-email] Resend OK for ${data.email}`);
           sent++;
         } catch (err) {
-          console.error(`[round-email] Failed for ${data.email}:`, err.message);
+          console.error(`[round-email] Resend FAILED for ${data.email}:`, err.message);
         }
       }
 
-      // Mark as sent
-      db.prepare('INSERT OR IGNORE INTO round_emails_sent (id, league_id, round_number) VALUES (?, ?, ?)')
-        .run(uuidv4(), league.id, roundNumber);
-
-      console.log(`[round-email] R${roundNumber}${isFinal ? ' (FINAL)' : ''} sent to ${sent}/${userMap.size} members of "${league.name}"`);
+      // Only mark as sent if at least one email succeeded
+      if (sent > 0) {
+        db.prepare('INSERT OR IGNORE INTO round_emails_sent (id, league_id, round_number) VALUES (?, ?, ?)')
+          .run(uuidv4(), league.id, roundNumber);
+        console.log(`[round-email] R${roundNumber}${isFinal ? ' (FINAL)' : ''} sent to ${sent}/${userMap.size} members of "${league.name}"`);
+      } else {
+        console.error(`[round-email] R${roundNumber} — ALL sends failed for "${league.name}", will retry next cycle`);
+      }
     } catch (err) {
       console.error(`[round-email] Error for league "${league.name}":`, err.message);
     }

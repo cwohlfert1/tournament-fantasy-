@@ -2767,4 +2767,12 @@ runOnce('migrate-is-paid-to-pool-entry-paid', () => {
   } catch (e) { console.error('[migration] migrate-is-paid error:', e.message); }
 });
 
+// ── Clear stale R1 round_emails_sent so emails retry after Resend fix ────────
+runOnce('clear-stale-r1-round-emails-sent', () => {
+  try {
+    const del = db.prepare("DELETE FROM round_emails_sent WHERE round_number = 1").run();
+    if (del.changes > 0) console.log(`[migration] clear-stale-r1: deleted ${del.changes} stale R1 sent record(s) — will retry`);
+  } catch (e) { console.error('[migration] clear-stale-r1 error:', e.message); }
+});
+
 module.exports = db;
