@@ -367,10 +367,22 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [scScoringStyle, setScScoringStyle] = useState(league?.scoring_style ?? 'tourneyrun');
 
   // Pool settings
-  const [buyIn,   setBuyIn]   = useState(String(league?.buy_in_amount  ?? 0));
-  const [payout1, setPayout1] = useState(String(league?.payout_first   ?? 70));
-  const [payout2, setPayout2] = useState(String(league?.payout_second  ?? 20));
-  const [payout3, setPayout3] = useState(String(league?.payout_third   ?? 10));
+  const [buyIn, setBuyIn] = useState(String(league?.buy_in_amount ?? 0));
+
+  // Dynamic payout splits — initialize from JSON or legacy scalars
+  const [payoutSplits, setPayoutSplits] = useState(() => {
+    let places = [];
+    try { places = JSON.parse(league?.payout_places || '[]'); } catch {}
+    if (places.length > 0) return places;
+    // Fallback to legacy scalar columns
+    const splits = [];
+    if (league?.payout_first)  splits.push({ place: 1, pct: league.payout_first });
+    if (league?.payout_second) splits.push({ place: 2, pct: league.payout_second });
+    if (league?.payout_third)  splits.push({ place: 3, pct: league.payout_third });
+    return splits.length > 0 ? splits : [{ place: 1, pct: 70 }, { place: 2, pct: 20 }, { place: 3, pct: 10 }];
+  });
+  const [adminFeePct, setAdminFeePct] = useState(String(league?.admin_fee_pct ?? 0));
+  const [adminFeeEnabled, setAdminFeeEnabled] = useState((league?.admin_fee_pct ?? 0) > 0);
   const [picksPerTeam, setPicksPerTeam] = useState(String(league?.picks_per_team ?? 8));
   const [dropCount, setDropCount] = useState(String(league?.pool_drop_count ?? 2));
   const [maxEntries, setMaxEntries] = useState(String(league?.pool_max_entries ?? 1));
@@ -468,7 +480,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const thursdayStart   = league?.pool_tournament_start
     ? new Date(league.pool_tournament_start + 'T12:00:00.000Z') : null;
   const settingsLocked  = !!thursdayStart && new Date() >= thursdayStart;
-  const payoutsSum      = (parseFloat(payout1) || 0) + (parseFloat(payout2) || 0) + (parseFloat(payout3) || 0);
+  const payoutsSum      = payoutSplits.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
   const payoutsValid    = Math.abs(payoutsSum - 100) < 0.5;
 
   // Total picks per player (from pool_tiers JSON)
@@ -481,10 +493,9 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   })();
 
   // Prize pool
-  const prizePool = members.length * (parseFloat(buyIn) || league?.buy_in_amount || 0);
-  const p1pct = parseFloat(payout1) || league?.payout_first  || 70;
-  const p2pct = parseFloat(payout2) || league?.payout_second || 20;
-  const p3pct = parseFloat(payout3) || league?.payout_third  || 10;
+  const grossPool = members.length * (parseFloat(buyIn) || league?.buy_in_amount || 0);
+  const adminFee = adminFeeEnabled ? (parseFloat(adminFeePct) || 0) : 0;
+  const prizePool = Math.round(grossPool * (1 - adminFee / 100) * 100) / 100;
 
   // Scoring label
   const scoringLabel = league?.scoring_style === 'fantasy_points'
@@ -559,7 +570,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   }
 
   async function saveSettings() {
-    if (!payoutsValid) { setSettingsError('Payouts must sum to exactly 100%'); return; }
+    if (!payoutsValid) { setSettingsError(`Payouts must sum to 100% (currently ${payoutsSum.toFixed(0)}%)`); return; }
     setSettingsSaving(true);
     setSettingsError('');
     try {
@@ -568,9 +579,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       const isSalaryCap = league?.format_type === 'salary_cap';
       await api.patch(`/golf/leagues/${leagueId}/settings`, {
         buy_in_amount: parseFloat(buyIn) || 0,
-        payout_1st: parseFloat(payout1) || 0,
-        payout_2nd: parseFloat(payout2) || 0,
-        payout_3rd: parseFloat(payout3) || 0,
+        payout_splits: payoutSplits,
+        admin_fee_pct: adminFeeEnabled ? (parseFloat(adminFeePct) || 0) : 0,
         ...(!isSalaryCap && {
           picks_per_team: Math.max(1, parseInt(picksPerTeam) || 8),
           pool_drop_count: Math.max(0, parseInt(dropCount) || 0),
@@ -904,35 +914,96 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                   />
                 </div>
 
-                {/* Payout splits */}
+                {/* Dynamic payout splits */}
                 <div>
                   <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
                     Payout splits
                   </label>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {[
-                      { label: '1st %', val: payout1, set: setPayout1 },
-                      { label: '2nd %', val: payout2, set: setPayout2 },
-                      { label: '3rd %', val: payout3, set: setPayout3 },
-                    ].map(({ label, val, set }) => (
-                      <div key={label} className="flex items-center gap-1.5">
-                        <span className="text-gray-500 text-xs w-9">{label}</span>
-                        <input
-                          type="number" min="0" max="100" step="1" value={val}
-                          onChange={e => set(e.target.value)}
-                          className="input w-16 text-sm text-center"
-                        />
-                      </div>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {payoutSplits.map((split, i) => {
+                      const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th','13th','14th','15th','16th','17th','18th','19th','20th'];
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ color: '#6b7280', fontSize: 12, width: 32, flexShrink: 0 }}>{ordinals[i] || `${i+1}th`}</span>
+                          <input
+                            type="number" min="1" max="99" step="1"
+                            value={split.pct}
+                            onChange={e => {
+                              const next = [...payoutSplits];
+                              next[i] = { ...next[i], pct: parseFloat(e.target.value) || 0 };
+                              setPayoutSplits(next);
+                            }}
+                            className="input w-16 text-sm text-center"
+                          />
+                          <span style={{ color: '#4b5563', fontSize: 11 }}>%</span>
+                          {payoutSplits.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setPayoutSplits(payoutSplits.filter((_, j) => j !== i))}
+                              style={{ color: '#6b7280', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+                            >&times;</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                    {payoutSplits.length < 20 && (
+                      <button
+                        type="button"
+                        onClick={() => setPayoutSplits([...payoutSplits, { place: payoutSplits.length + 1, pct: 0 }])}
+                        style={{ color: '#22c55e', fontSize: 12, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer' }}
+                      >+ Add Place</button>
+                    )}
                     <span style={{ fontSize: 12, fontWeight: 600, color: payoutsValid ? '#4ade80' : '#f87171' }}>
-                      {payoutsSum.toFixed(0)}%
+                      {payoutsValid
+                        ? '100% allocated'
+                        : payoutsSum < 100
+                          ? `${payoutsSum.toFixed(0)}% allocated · ${(100 - payoutsSum).toFixed(0)}% remaining`
+                          : `${payoutsSum.toFixed(0)}% — exceeds 100%`
+                      }
                     </span>
                   </div>
-                  {!payoutsValid && (
-                    <p style={{ color: '#f87171', fontSize: 12, marginTop: 4 }}>
-                      Must sum to 100% (currently {payoutsSum.toFixed(0)}%)
-                    </p>
+                </div>
+
+                {/* Admin fee (commissioner only) */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Admin Fee</label>
+                    <button
+                      type="button"
+                      onClick={() => { setAdminFeeEnabled(!adminFeeEnabled); if (adminFeeEnabled) setAdminFeePct('0'); }}
+                      style={{
+                        width: 36, height: 20, borderRadius: 10, padding: 2,
+                        background: adminFeeEnabled ? '#22c55e' : '#374151',
+                        border: 'none', cursor: 'pointer', transition: 'background 0.15s',
+                        display: 'flex', alignItems: 'center',
+                      }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                        transition: 'transform 0.15s',
+                        transform: adminFeeEnabled ? 'translateX(16px)' : 'translateX(0)',
+                      }} />
+                    </button>
+                  </div>
+                  {adminFeeEnabled && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="number" min="1" max="50" step="1"
+                        value={adminFeePct}
+                        onChange={e => setAdminFeePct(e.target.value)}
+                        className="input w-16 text-sm text-center"
+                      />
+                      <span style={{ color: '#4b5563', fontSize: 11 }}>% of pool</span>
+                      {grossPool > 0 && (
+                        <span style={{ color: '#6b7280', fontSize: 11 }}>
+                          (${(grossPool * (parseFloat(adminFeePct) || 0) / 100).toFixed(2)} fee · ${prizePool.toFixed(2)} prize pool)
+                        </span>
+                      )}
+                    </div>
                   )}
+                  <p style={{ color: '#374151', fontSize: 10, marginTop: 4 }}>Only visible to you. Members see prize pool after fee.</p>
                 </div>
 
                 {/* Total picks per team */}

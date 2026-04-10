@@ -1428,17 +1428,39 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
     const { buy_in_amount, payout_1st, payout_2nd, payout_3rd, venmo, zelle, paypal, pool_drop_count, pool_tiers, picks_per_team,
             pool_max_entries, weekly_salary_cap, starters_per_week, scoring_style } = req.body;
 
-    // Payout settings — only if provided
-    if (payout_1st !== undefined) {
+    // Payout settings — supports both legacy scalar and new JSON format
+    if (req.body.payout_splits !== undefined) {
+      // New JSON format: [{ place: 1, pct: 50 }, { place: 2, pct: 30 }, ...]
+      let splits = req.body.payout_splits;
+      if (typeof splits === 'string') try { splits = JSON.parse(splits); } catch { splits = []; }
+      if (!Array.isArray(splits) || splits.length === 0) return res.status(400).json({ error: 'At least 1 payout place required' });
+      if (splits.length > 20) return res.status(400).json({ error: 'Maximum 20 payout places' });
+      const sum = splits.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
+      if (Math.abs(sum - 100) > 0.5) return res.status(400).json({ error: `Payouts must sum to 100% (currently ${sum.toFixed(1)}%)` });
+      for (const p of splits) {
+        if ((parseFloat(p.pct) || 0) < 1 || (parseFloat(p.pct) || 0) > 99) return res.status(400).json({ error: 'Each place must be 1-99%' });
+      }
+      const splitsJson = JSON.stringify(splits.map((p, i) => ({ place: i + 1, pct: Math.round(parseFloat(p.pct) * 100) / 100 })));
+      // Update JSON + keep legacy scalars in sync
+      const p1 = parseFloat(splits[0]?.pct) || 0;
+      const p2 = parseFloat(splits[1]?.pct) || 0;
+      const p3 = parseFloat(splits[2]?.pct) || 0;
+      db.prepare('UPDATE golf_leagues SET payout_places = ?, payout_first = ?, payout_second = ?, payout_third = ?, buy_in_amount = ? WHERE id = ?')
+        .run(splitsJson, p1, p2, p3, parseFloat(buy_in_amount) || league.buy_in_amount || 0, req.params.id);
+    } else if (payout_1st !== undefined) {
+      // Legacy scalar format
       const p1 = Math.round((parseFloat(payout_1st) || 0) * 100) / 100;
       const p2 = Math.round((parseFloat(payout_2nd) || 0) * 100) / 100;
       const p3 = Math.round((parseFloat(payout_3rd) || 0) * 100) / 100;
-      if (Math.abs(p1 + p2 + p3 - 100) > 0.5) {
-        return res.status(400).json({ error: 'Payouts must sum to 100%' });
-      }
-      db.prepare(
-        'UPDATE golf_leagues SET buy_in_amount = ?, payout_first = ?, payout_second = ?, payout_third = ? WHERE id = ?'
-      ).run(parseFloat(buy_in_amount) || 0, p1, p2, p3, req.params.id);
+      if (Math.abs(p1 + p2 + p3 - 100) > 0.5) return res.status(400).json({ error: 'Payouts must sum to 100%' });
+      db.prepare('UPDATE golf_leagues SET buy_in_amount = ?, payout_first = ?, payout_second = ?, payout_third = ? WHERE id = ?')
+        .run(parseFloat(buy_in_amount) || 0, p1, p2, p3, req.params.id);
+    }
+
+    // Admin fee
+    if (req.body.admin_fee_pct !== undefined) {
+      const fee = Math.max(0, Math.min(50, parseFloat(req.body.admin_fee_pct) || 0));
+      db.prepare('UPDATE golf_leagues SET admin_fee_pct = ? WHERE id = ?').run(fee, req.params.id);
     }
 
     // Pool-specific settings

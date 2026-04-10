@@ -2725,4 +2725,7 @@ try {
   }
 } catch (e) { console.error('[boot] diacritic normalization error:', e.message); }
 
+// ── Admin fee column ─────────────────────────────────────────────────────────
+try { db.exec('ALTER TABLE golf_leagues ADD COLUMN admin_fee_pct REAL DEFAULT 0'); } catch (_) {}
+
 module.exports = db;

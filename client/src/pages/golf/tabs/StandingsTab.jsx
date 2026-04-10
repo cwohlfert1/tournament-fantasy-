@@ -46,18 +46,18 @@ function AvatarCircle({ name, isMe }) {
   );
 }
 
-function PrizeCard({ prizeTotal, buyIn, memberCount, p1, p2, p3 }) {
+function PrizeCard({ prizeTotal, buyIn, memberCount, payoutSplits }) {
   const total  = prizeTotal || (buyIn * memberCount);
   const isOverride = prizeTotal && prizeTotal !== buyIn * memberCount;
-  const amt1   = Math.round(total * p1 / 100);
-  const amt2   = Math.round(total * p2 / 100);
-  const amt3   = Math.round(total * p3 / 100);
   const fmtAmt = n => n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `$${n}`;
-  const places = [
-    { icon: '🥇', label: '1st', pct: p1, amt: amt1 },
-    { icon: '🥈', label: '2nd', pct: p2, amt: amt2 },
-    { icon: '🥉', label: '3rd', pct: p3, amt: amt3 },
-  ];
+  const ICONS = ['🥇', '🥈', '🥉'];
+  const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
+  const places = (payoutSplits || []).map((s, i) => ({
+    icon: ICONS[i] || `${i + 1}.`,
+    label: ordinals[i] || `${i + 1}th`,
+    pct: s.pct,
+    amt: Math.round(total * s.pct / 100),
+  }));
   return (
     <div style={{ background: '#111827', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -75,11 +75,11 @@ function PrizeCard({ prizeTotal, buyIn, memberCount, p1, p2, p3 }) {
           }
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
-        {places.map(({ icon, label, pct, amt }, i) => (
-          <div key={label} style={{ padding: '12px 14px', borderRight: i < 2 ? '1px solid rgba(245,158,11,0.1)' : 'none', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>{fmtAmt(amt)}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(places.length, 5)}, 1fr)`, gap: 0 }}>
+        {places.slice(0, 10).map(({ icon, label, pct, amt }, i) => (
+          <div key={label} style={{ padding: '12px 14px', borderRight: i < Math.min(places.length, 5) - 1 ? '1px solid rgba(245,158,11,0.1)' : 'none', textAlign: 'center' }}>
+            <div style={{ fontSize: places.length > 5 ? 14 : 18, marginBottom: 4 }}>{icon}</div>
+            <div style={{ color: '#fff', fontWeight: 800, fontSize: places.length > 5 ? 14 : 16 }}>{fmtAmt(amt)}</div>
             <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{label} · {pct}%</div>
           </div>
         ))}
@@ -92,14 +92,14 @@ function PrizeCard({ prizeTotal, buyIn, memberCount, p1, p2, p3 }) {
 const LeaderboardRow = memo(function LeaderboardRow({
   s, rankInfo, expandContent, canExpand,
   currentUserId, expanded, setExpanded, rowRefs,
-  hasPrize, prizeTotal, p1, p2, p3, isTotalStrokes, hasScores,
+  hasPrize, prizeTotal, payoutSplits, isTotalStrokes, hasScores,
   winningScore,
 }) {
   const isMe   = s.user_id === currentUserId;
   const rowKey = `${s.user_id}_${s.entry_number || 1}`;
   const isOpen = expanded === rowKey;
   const pts    = s.season_points ?? 0;
-  const myPrize = hasPrize ? prizeForRank(rankInfo.rank, prizeTotal, p1, p2, p3) : null;
+  const myPrize = hasPrize ? prizeForRank(rankInfo.rank, prizeTotal, payoutSplits) : null;
   // isTotalStrokes is already the full isStrokeBased() check — pass the right convention
   const ptColor = scoreColor(pts, isTotalStrokes ? 'stroke_play' : 'tourneyrun');
   const isBot  = /^bot[\s_]?\d/i.test(s.username || '');
@@ -182,12 +182,11 @@ const LeaderboardRow = memo(function LeaderboardRow({
   );
 });
 
-function prizeForRank(rank, total, p1, p2, p3) {
-  if (!total) return null;
-  if (rank === 1) return Math.round(total * p1 / 100);
-  if (rank === 2) return Math.round(total * p2 / 100);
-  if (rank === 3) return Math.round(total * p3 / 100);
-  return null;
+function prizeForRank(rank, total, payoutSplits) {
+  if (!total || !payoutSplits) return null;
+  const split = payoutSplits.find(p => p.place === rank);
+  if (!split) return null;
+  return Math.round(total * split.pct / 100);
 }
 
 export default function StandingsTab({ leagueId, league, currentUserId }) {
@@ -236,12 +235,22 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   const isLive      = tournament?.status === 'active';
   const hasScores   = data?.has_scores;
 
-  const p1         = league?.payout_first  ?? 70;
-  const p2         = league?.payout_second ?? 20;
-  const p3         = league?.payout_third  ?? 10;
-  const prizeTotal = league?.payout_pool_override
+  // Parse payout splits — prefer JSON, fall back to legacy scalars
+  const payoutSplits = (() => {
+    let places = [];
+    try { places = JSON.parse(league?.payout_places || '[]'); } catch {}
+    if (places.length > 0) return places;
+    const splits = [];
+    if (league?.payout_first)  splits.push({ place: 1, pct: league.payout_first });
+    if (league?.payout_second) splits.push({ place: 2, pct: league.payout_second });
+    if (league?.payout_third)  splits.push({ place: 3, pct: league.payout_third });
+    return splits.length > 0 ? splits : [{ place: 1, pct: 70 }, { place: 2, pct: 20 }, { place: 3, pct: 10 }];
+  })();
+  const adminFee = league?.admin_fee_pct || 0;
+  const grossPool = league?.payout_pool_override
     ? league.payout_pool_override
     : (league?.buy_in_amount || 0) * standings.length;
+  const prizeTotal = Math.round(grossPool * (1 - adminFee / 100) * 100) / 100;
   const hasPrize = prizeTotal > 0 && standings.length > 0;
 
   if (standings.length === 0) {
@@ -416,7 +425,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
           </div>
         )}
 
-        {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} p1={p1} p2={p2} p3={p3} />}
+        {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} payoutSplits={payoutSplits} />}
 
 {isTotalStrokes && dropCount > 0 && (
           <div style={{ background: 'rgba(107,114,128,0.08)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -444,7 +453,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
               canExpand={!!s.submitted && (s.picks?.length > 0) && (picksRevealed || s.user_id === currentUserId)}
               expandContent={s.picks?.length > 0 && (picksRevealed || s.user_id === currentUserId) ? <PoolExpandContent picks={s.picks} dropsLocked={dropsApplied} /> : null}
               currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
-              hasPrize={hasPrize} prizeTotal={prizeTotal} p1={p1} p2={p2} p3={p3}
+              hasPrize={hasPrize} prizeTotal={prizeTotal} payoutSplits={payoutSplits}
               isTotalStrokes={isTotalStrokes} hasScores={hasScores} winningScore={winningScore}
             />
           ))}
@@ -485,7 +494,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
   return (
     <div className="space-y-4">
-      {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} p1={p1} p2={p2} p3={p3} />}
+      {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} payoutSplits={payoutSplits} />}
 
       <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px 8px 11px', borderBottom: '1px solid #1f2937' }}>
@@ -505,7 +514,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
             canExpand={true}
             expandContent={<TourneyExpandContent s={s} />}
             currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
-            hasPrize={hasPrize} prizeTotal={prizeTotal} p1={p1} p2={p2} p3={p3}
+            hasPrize={hasPrize} prizeTotal={prizeTotal} payoutSplits={payoutSplits}
             isTotalStrokes={isTotalStrokes} hasScores={hasScores}
           />
         ))}
