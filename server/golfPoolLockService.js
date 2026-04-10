@@ -37,12 +37,14 @@ function checkPoolLocks() {
     for (const league of activeLeagues) {
       const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(league.pool_tournament_id);
       if (!tourn) continue;
+      const tournDone = ['active', 'completed', 'complete'].includes(tourn.status);
+
       const lockTime = league.picks_lock_time ? new Date(league.picks_lock_time) : computeLockTime(tourn.start_date);
       const now = new Date();
       const hoursUntilLock = (lockTime - now) / 3600000;
 
-      // 24h reminder for unpaid entries
-      if (hoursUntilLock > 0 && hoursUntilLock <= 24 && league.buy_in_amount > 0) {
+      // 24h reminder for unpaid entries — only for pre-tournament leagues
+      if (!tournDone && hoursUntilLock > 0 && hoursUntilLock <= 24 && league.buy_in_amount > 0) {
         send24hReminders(league, tourn, lockTime).catch(err =>
           console.error(`[golf-pool-lock] 24h reminder error for "${league.name}":`, err.message)
         );
@@ -58,10 +60,12 @@ function checkPoolLocks() {
           console.error(`[golf-pool-lock] Email error for "${league.name}":`, err.message)
         );
 
-        // Send commissioner notification about unpaid entries
-        sendLockUnpaidNotice(league, tourn).catch(err =>
-          console.error(`[golf-pool-lock] Unpaid notice error for "${league.name}":`, err.message)
-        );
+        // Send commissioner notification about unpaid entries (not for completed tournaments)
+        if (!tournDone) {
+          sendLockUnpaidNotice(league, tourn).catch(err =>
+            console.error(`[golf-pool-lock] Unpaid notice error for "${league.name}":`, err.message)
+          );
+        }
       }
     }
   } catch (err) {
