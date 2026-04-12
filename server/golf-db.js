@@ -2775,4 +2775,12 @@ runOnce('clear-stale-r1-round-emails-sent', () => {
   } catch (e) { console.error('[migration] clear-stale-r1 error:', e.message); }
 });
 
+// ── Clear R4 round_emails_sent so final winner email can fire ────────────────
+runOnce('clear-r4-round-emails-for-final', () => {
+  try {
+    const del = db.prepare("DELETE FROM round_emails_sent WHERE round_number = 4").run();
+    if (del.changes > 0) console.log(`[migration] clear-r4: deleted ${del.changes} R4 sent record(s) — final email will retry`);
+  } catch (e) { console.error('[migration] clear-r4 error:', e.message); }
+});
+
 module.exports = db;

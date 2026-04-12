@@ -569,13 +569,15 @@ async function runAutoSync() {
       const period = result.currentPeriod || 0;
 
       const roundStatus = result.espnStatusName || '';
-      if (period > 0 || isFinal) {
+      // Also detect final for tournaments already marked completed (missed the transition)
+      const isAlreadyComplete = tournAfter.status === 'completed';
+      if (period > 0 || isFinal || isAlreadyComplete) {
         const isPlayComplete = roundStatus === 'STATUS_PLAY_COMPLETE';
         const completedRounds = [];
-        if (period >= 2 || (period === 1 && isPlayComplete)) completedRounds.push(1);
-        if (period >= 3 || (period === 2 && isPlayComplete)) completedRounds.push(2);
-        if (period >= 4 || (period === 3 && isPlayComplete)) completedRounds.push(3);
-        if (isFinal || roundStatus === 'STATUS_FINAL') completedRounds.push(4);
+        if (period >= 2 || (period === 1 && isPlayComplete) || isAlreadyComplete) completedRounds.push(1);
+        if (period >= 3 || (period === 2 && isPlayComplete) || isAlreadyComplete) completedRounds.push(2);
+        if (period >= 4 || (period === 3 && isPlayComplete) || isAlreadyComplete) completedRounds.push(3);
+        if (isFinal || isAlreadyComplete || roundStatus === 'STATUS_FINAL') completedRounds.push(4);
 
         if (completedRounds.length > 0) {
           console.log(`[golf-sync] ESPN period=${period}, completed rounds: ${completedRounds.join(',')}`);
