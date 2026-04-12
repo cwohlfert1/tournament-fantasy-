@@ -23,7 +23,7 @@ function resetFaabIfNeeded(leagueId, memberId, weeklyBudget) {
   if (!budget) return weeklyBudget;
   const now = new Date();
   const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  thisMonday.setDate(now.getDate() - ((now.getUTCDay() + 6) % 7));
   thisMonday.setHours(0, 0, 0, 0);
   if (!budget.faab_last_reset || new Date(budget.faab_last_reset) < thisMonday) {
     db.prepare('UPDATE golf_auction_budgets SET faab_credits_remaining = ?, faab_last_reset = CURRENT_TIMESTAMP WHERE league_id = ? AND member_id = ?').run(weeklyBudget, leagueId, memberId);

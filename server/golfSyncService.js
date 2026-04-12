@@ -312,6 +312,12 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
       const data = await fetchJson(fastUrl);
       const events = data?.events || [];
       const event = events.find(ev => String(ev.id) === String(tournament.espn_event_id)) || events[0];
+      // Guard: verify ESPN returned the tournament we asked for
+      const returnedEventId = event?.id;
+      if (returnedEventId && String(returnedEventId) !== String(tournament.espn_event_id)) {
+        console.error(`[golf-sync] ESPN returned wrong event: ${returnedEventId}, expected: ${tournament.espn_event_id}`);
+        return { error: 'wrong_event', returned: returnedEventId };
+      }
       if (event) {
         const competitors = (event?.competitions?.[0]?.competitors) || (event?.competitors) || [];
         if (!silent) console.log(`[golf-sync] Fast path: "${event.name || event.shortName}" — ${competitors.length} competitor(s)`);
@@ -529,7 +535,7 @@ function pushPoolStandings(tournamentId) {
 
 async function runAutoSync() {
   const now = new Date();
-  const dow = now.getDay(); // 0=Sun, 4=Thu, 5=Fri, 6=Sat
+  const dow = now.getUTCDay(); // 0=Sun, 4=Thu, 5=Fri, 6=Sat
   console.log(`[golf-sync] runAutoSync triggered at ${now.toISOString()} (dow=${dow}, Thu=4 Fri=5 Sat=6 Sun=0)`);
 
   // Only sync Thu–Sun (tournament days)
