@@ -233,7 +233,9 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   const isPool      = data?.format === 'pool';
   const tournament  = data?.tournament;
   const isLive      = tournament?.status === 'active';
+  const isComplete  = tournament?.status === 'completed' || tournament?.status === 'complete';
   const hasScores   = data?.has_scores;
+  const tournamentWinner = data?.tournament_winner;
 
   // Parse payout splits — prefer JSON, fall back to legacy scalars
   const payoutSplits = (() => {
@@ -263,6 +265,21 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
       </div>
     );
   }
+
+  // ── Completed tournament banner
+  const CompletedBanner = isComplete && tournament ? (
+    <div style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.1), rgba(245,158,11,0.05))', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 14, padding: '16px 20px', marginBottom: 16, textAlign: 'center' }}>
+      <div style={{ fontSize: 28, marginBottom: 6 }}>🏆</div>
+      <div style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+        {tournament.name} — Final Results
+      </div>
+      {tournamentWinner && (
+        <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginTop: 4 }}>
+          Winner: {tournamentWinner} · {winningScore != null ? (winningScore === 0 ? 'E' : (winningScore > 0 ? '+' : '') + winningScore) : ''}
+        </div>
+      )}
+    </div>
+  ) : null;
 
   // ── Pool leaderboard
   if (isPool) {
@@ -425,6 +442,8 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
           </div>
         )}
 
+        {CompletedBanner}
+
         {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} payoutSplits={payoutSplits} />}
 
 {isTotalStrokes && dropCount > 0 && (
@@ -494,6 +513,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
   return (
     <div className="space-y-4">
+      {CompletedBanner}
       {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} payoutSplits={payoutSplits} />}
 
       <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>

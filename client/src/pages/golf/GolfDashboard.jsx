@@ -354,7 +354,11 @@ export default function GolfDashboard() {
 
   const [nextTournament, setNextTournament]   = useState(null);
   const [tournamentsLoaded, setTournamentsLoaded] = useState(false);
-  const [pastOpen, setPastOpen]               = useState(false);
+  // Auto-expand past leagues for 7 days after most recent tournament ends
+  const [pastOpen, setPastOpen] = useState(() => {
+    // Will be re-evaluated after leagues load — default to false initially
+    return false;
+  });
   const [nameBannerDismissed, setNameBannerDismissed] = useState(
     () => localStorage.getItem('tr_name_banner_dismissed') === '1'
   );
@@ -392,6 +396,18 @@ export default function GolfDashboard() {
   };
   const activeLeagues = leagues.filter(isActiveLeague);
   const pastLeagues   = leagues.filter(l => !isActiveLeague(l));
+
+  // Auto-expand past leagues if any tournament ended within 7 days
+  useEffect(() => {
+    if (pastLeagues.length > 0) {
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const hasRecent = pastLeagues.some(l => {
+        const endDate = l.pool_tournament_end ? new Date(l.pool_tournament_end + 'T23:59:59').getTime() : 0;
+        return endDate > sevenDaysAgo;
+      });
+      if (hasRecent) setPastOpen(true);
+    }
+  }, [leagues.length]); // eslint-disable-line
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-10">
