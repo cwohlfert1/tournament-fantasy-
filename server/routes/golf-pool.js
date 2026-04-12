@@ -1589,5 +1589,108 @@ router.get('/leagues/:id/admin/entry-picks', authMiddleware, (req, res) => {
   }
 });
 
+// ── GET /leagues/:id/export-members ──────────────────────────────────────────
+// Commissioner-only: returns member list with picks for CSV/Excel export
+
+router.get('/leagues/:id/export-members', authMiddleware, (req, res) => {
+  try {
+    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+
+    const tid = league.pool_tournament_id;
+
+    // Get all members with user info
+    const members = db.prepare(`
+      SELECT
+        glm.user_id,
+        u.full_name,
+        u.username,
+        u.email,
+        glm.team_name,
+        glm.is_paid
+      FROM golf_league_members glm
+      JOIN users u ON u.id = glm.user_id
+      WHERE glm.golf_league_id = ?
+      ORDER BY u.full_name ASC, u.username ASC
+    `).all(req.params.id);
+
+    // Get all picks grouped by user+entry (only if tournament is set)
+    let picksByUserEntry = {};
+    let tiebreakerByUserEntry = {};
+    if (tid) {
+      const picks = db.prepare(`
+        SELECT user_id, COALESCE(entry_number, 1) AS entry_number,
+               player_name, tiebreaker_score, entry_team_name
+        FROM pool_picks
+        WHERE league_id = ? AND tournament_id = ?
+        ORDER BY user_id, entry_number, tier_number ASC
+      `).all(req.params.id, tid);
+
+      for (const p of picks) {
+        const key = `${p.user_id}::${p.entry_number}`;
+        if (!picksByUserEntry[key]) picksByUserEntry[key] = [];
+        picksByUserEntry[key].push(p.player_name);
+        if (p.tiebreaker_score != null) tiebreakerByUserEntry[key] = p.tiebreaker_score;
+      }
+    }
+
+    // Get paid status per entry from pool_entry_paid
+    let paidByUserEntry = {};
+    if (tid) {
+      const paidRows = db.prepare(`
+        SELECT user_id, entry_number, is_paid
+        FROM pool_entry_paid
+        WHERE league_id = ? AND tournament_id = ?
+      `).all(req.params.id, tid);
+      for (const r of paidRows) {
+        paidByUserEntry[`${r.user_id}::${r.entry_number}`] = r.is_paid;
+      }
+    }
+
+    // Determine which entries each user has
+    const entryNumbers = {};
+    if (tid) {
+      const entries = db.prepare(`
+        SELECT DISTINCT user_id, COALESCE(entry_number, 1) AS entry_number
+        FROM pool_picks
+        WHERE league_id = ? AND tournament_id = ?
+        ORDER BY user_id, entry_number
+      `).all(req.params.id, tid);
+      for (const e of entries) {
+        if (!entryNumbers[e.user_id]) entryNumbers[e.user_id] = [];
+        entryNumbers[e.user_id].push(e.entry_number);
+      }
+    }
+
+    // Build one row per entry
+    const rows = [];
+    for (const m of members) {
+      const userEntries = entryNumbers[m.user_id] || [1];
+      for (const entryNum of userEntries) {
+        const key = `${m.user_id}::${entryNum}`;
+        const entryPaid = paidByUserEntry[key];
+        // Use entry-level paid if available, fall back to member-level
+        const isPaid = entryPaid !== undefined ? entryPaid : (m.is_paid || 0);
+        rows.push({
+          full_name: m.full_name || '',
+          username: m.username,
+          team_name: m.team_name || '',
+          entry_number: entryNum,
+          email: m.email || '',
+          paid: isPaid ? 'Yes' : 'No',
+          tiebreaker_score: tiebreakerByUserEntry[key] ?? '',
+          players: (picksByUserEntry[key] || []).join(', ')
+        });
+      }
+    }
+
+    res.json(rows);
+  } catch (err) {
+    console.error('[export-members]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.assignSalaryCapSalaries = assignSalaryCapSalaries;

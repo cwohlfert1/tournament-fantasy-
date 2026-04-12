@@ -173,6 +173,108 @@ function ReferralSection() {
   );
 }
 
+// ── Export Members (CSV / Excel) ─────────────────────────────────────────────
+function ExportMembers({ leagueId, leagueName }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const prefix  = (leagueName || 'league').replace(/\s+/g, '-');
+
+  async function fetchData() {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.get(`/golf/leagues/${leagueId}/export-members`);
+      return res.data;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Export failed');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadCsv() {
+    const data = await fetchData();
+    if (!data) return;
+    const header = ['Full Name', 'Username', 'Team Name', 'Entry #', 'Email', 'Paid', 'Tiebreaker', 'Players Picked'];
+    const rows = data.map(r => [
+      r.full_name, r.username, r.team_name, r.entry_number,
+      r.email, r.paid, r.tiebreaker_score,
+      `"${(r.players || '').replace(/"/g, '""')}"`
+    ]);
+    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+    triggerDownload(new Blob([csv], { type: 'text/csv' }), `${prefix}-members-${dateStr}.csv`);
+  }
+
+  async function downloadExcel() {
+    const data = await fetchData();
+    if (!data) return;
+    try {
+      const XLSX = await import('xlsx');
+      const sheetData = data.map(r => ({
+        'Full Name':      r.full_name,
+        'Username':       r.username,
+        'Team Name':      r.team_name,
+        'Entry #':        r.entry_number,
+        'Email':          r.email,
+        'Paid':           r.paid,
+        'Tiebreaker':     r.tiebreaker_score,
+        'Players Picked': r.players || ''
+      }));
+      const ws = XLSX.utils.json_to_sheet(sheetData);
+      // Auto-width columns
+      const colWidths = Object.keys(sheetData[0] || {}).map(key => {
+        const maxLen = Math.max(key.length, ...sheetData.map(r => String(r[key] || '').length));
+        return { wch: Math.min(maxLen + 2, 60) };
+      });
+      ws['!cols'] = colWidths;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Members');
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      triggerDownload(
+        new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        `${prefix}-members-${dateStr}.xlsx`
+      );
+    } catch (err) {
+      setError('Excel export failed: ' + err.message);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-gray-500 text-xs mb-2">Full member list with emails, picks, and payment status.</p>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={downloadCsv}
+          disabled={loading}
+          className="text-sm text-blue-400 hover:text-blue-300 underline underline-offset-2 disabled:opacity-40"
+        >
+          {loading ? 'Exporting…' : '📥 Export Members CSV'}
+        </button>
+        <button
+          onClick={downloadExcel}
+          disabled={loading}
+          className="text-sm text-blue-400 hover:text-blue-300 underline underline-offset-2 disabled:opacity-40"
+        >
+          {loading ? 'Exporting…' : '📥 Export Members Excel'}
+        </button>
+      </div>
+      {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+    </div>
+  );
+}
+
 // ── CSV template download helper ─────────────────────────────────────────────
 function downloadCsvTemplate() {
   const csv = 'Name,Email\nAlice Smith,alice@example.com\nBob Jones,bob@example.com\n';
@@ -1398,6 +1500,10 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
             >
               Download standings CSV
             </button>
+
+            {/* Export Members */}
+            <div style={{ borderTop: '1px solid #1f2937', margin: '12px 0' }} />
+            <ExportMembers leagueId={leagueId} leagueName={leagueName} />
           </div>
 
           {/* Auto-Balance Tiers (pool format only) */}
