@@ -39,14 +39,31 @@ function ensureUserReferralCode(userId) {
 }
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+// Rate limited: 5 registrations per IP per hour (limiter applied in index.js)
+router.post('/register', (req, res, next) => { const limiter = req.app.get('registerLimiter'); return limiter ? limiter(req, res, next) : next(); }, async (req, res) => {
   try {
     const { email, username, password, full_name, agreement_accepted, age_confirmed, state_eligible, ref_code } = req.body;
     if (!email || !username || !password) {
       return res.status(400).json({ error: 'Email, username, and password are required' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    // Input validation — OWASP: validate format, length, and type
+    if (typeof email !== 'string' || typeof username !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Invalid input types' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    if (email.length > 254) {
+      return res.status(400).json({ error: 'Email too long' });
+    }
+    if (!/^[a-zA-Z0-9_-]{2,30}$/.test(username)) {
+      return res.status(400).json({ error: 'Username must be 2-30 characters (letters, numbers, hyphens, underscores)' });
+    }
+    if (password.length < 6 || password.length > 128) {
+      return res.status(400).json({ error: 'Password must be 6-128 characters' });
+    }
+    if (full_name && (typeof full_name !== 'string' || full_name.length > 100)) {
+      return res.status(400).json({ error: 'Full name must be under 100 characters' });
     }
     if (!agreement_accepted || !age_confirmed || !state_eligible) {
       return res.status(400).json({ error: 'Please complete all required acknowledgments to continue.' });
@@ -57,7 +74,7 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Email or username already taken' });
     }
 
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, 12);
     const id = uuidv4();
     const fullNameTrimmed = full_name ? full_name.trim() : null;
     db.prepare(`
@@ -91,11 +108,19 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+// Rate limited: 10 attempts per IP per 15 min
+router.post('/login', (req, res, next) => { const limiter = req.app.get('authLimiter'); return limiter ? limiter(req, res, next) : next(); }, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
+    }
+    // Input validation
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Invalid input' });
+    }
+    if (email.length > 254 || password.length > 128) {
+      return res.status(400).json({ error: 'Input too long' });
     }
 
     // Accept email or username in the email field.
@@ -105,7 +130,8 @@ router.post('/login', async (req, res) => {
       'SELECT id, email, username, role, password_hash, force_password_reset FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)'
     ).get(email, email);
     if (!user) {
-      console.error(`[login] no user found for identifier: "${email}"`);
+      // Don't log full email — OWASP: avoid PII in logs
+      console.warn(`[login] failed login attempt`);
       return res.status(401).json({ error: 'Email or password is incorrect. Please try again.' });
     }
 
@@ -143,10 +169,11 @@ router.post('/force-reset-password', authMiddleware, async (req, res) => {
 });
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', async (req, res) => {
+// Rate limited: 5 requests per IP per hour
+router.post('/forgot-password', (req, res, next) => { const limiter = req.app.get('passwordResetLimiter'); return limiter ? limiter(req, res, next) : next(); }, async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
+    if (!email || typeof email !== 'string' || email.length > 254) return res.status(400).json({ error: 'Valid email is required' });
 
     const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email);
     // Always respond with success to avoid email enumeration
@@ -268,7 +295,7 @@ router.post('/activate', async (req, res) => {
     const taken = db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').get(username, user.id);
     if (taken) return res.status(409).json({ error: 'Username is already taken' });
 
-    const password_hash = await bcrypt.hash(password, 10);
+    const password_hash = await bcrypt.hash(password, 12);
     db.prepare(`
       UPDATE users
       SET username = ?, password_hash = ?, status = 'active',

@@ -8,6 +8,10 @@ if (missing.length) {
 } else {
   console.log('[startup] All required env vars present ✓');
 }
+// SECURITY: validate JWT secret strength — weak secrets enable token forgery
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+  console.warn('[startup] WARNING: JWT_SECRET is less than 32 characters — consider using a stronger secret');
+}
 console.log(`[startup] CLIENT_URL = ${process.env.CLIENT_URL || '(not set — will derive from request)'}`);
 console.log(`[startup] DATABASE_PATH = ${process.env.DATABASE_PATH || '(not set — using default)'}`);
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,6 +21,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const db = require('./db');
 const { seedPlayers } = require('./seed');
@@ -66,7 +72,55 @@ app.use('/api/golf/webhooks/stripe',  express.raw({ type: 'application/json' }))
 
 // Global middleware
 app.use(cors(corsOptions));
-app.use(express.json());
+
+// ── Security headers (OWASP best practice) ──────────────────────────────────
+// Adds X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security, etc.
+// CSP is relaxed for inline styles (React uses them heavily) and Google Fonts.
+app.use(helmet({
+  contentSecurityPolicy: false, // CSP breaks inline styles used by React components
+  crossOriginEmbedderPolicy: false, // Allows loading Google Fonts + ESPN images
+}));
+
+// ── Global rate limiter (all routes) ────────────────────────────────────────
+// 200 requests per minute per IP — generous for normal usage, blocks abuse.
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — please try again in a minute.' },
+});
+app.use('/api', globalLimiter);
+
+// ── Strict rate limiters for auth endpoints ─────────────────────────────────
+// These are the most targeted endpoints for brute force attacks.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                   // 10 attempts per IP per 15 min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts — please try again in 15 minutes.' },
+});
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,                    // 5 registrations per IP per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many accounts created — please try again later.' },
+});
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,                    // 5 reset requests per IP per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset requests — please try again later.' },
+});
+// Expose limiters for route files to use
+app.set('authLimiter', authLimiter);
+app.set('registerLimiter', registerLimiter);
+app.set('passwordResetLimiter', passwordResetLimiter);
+
+app.use(express.json({ limit: '1mb' })); // Limit body size to prevent DoS
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

@@ -417,7 +417,9 @@ router.post('/webhook', async (req, res) => {
       return res.status(400).send('Webhook signature mismatch');
     }
   } else {
-    console.warn('[square-webhook] SQUARE_WEBHOOK_SIGNATURE_KEY not set — skipping verification');
+    // SECURITY: fail closed — do NOT process webhooks without signature verification
+    console.error('[square-webhook] CRITICAL: No signature key set — rejecting webhook');
+    return res.status(500).send('Webhook verification not configured');
   }
 
   let event;

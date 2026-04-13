@@ -79,15 +79,27 @@ router.put('/', authMiddleware, (req, res) => {
       notif_turn, notif_draft_start, notif_standings_recap,
     } = req.body;
 
+    // Input validation — OWASP: type checks + length limits
     if (username !== undefined) {
-      if (!username.trim()) return res.status(400).json({ error: 'Username cannot be blank' });
+      if (typeof username !== 'string' || !username.trim()) return res.status(400).json({ error: 'Username cannot be blank' });
+      if (!/^[a-zA-Z0-9_-]{2,30}$/.test(username.trim())) return res.status(400).json({ error: 'Username must be 2-30 characters (letters, numbers, hyphens, underscores)' });
       const taken = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(username.trim(), req.user.id);
       if (taken) return res.status(409).json({ error: 'Username already taken' });
     }
     if (email !== undefined) {
-      if (!email.trim()) return res.status(400).json({ error: 'Email cannot be blank' });
+      if (typeof email !== 'string' || !email.trim()) return res.status(400).json({ error: 'Email cannot be blank' });
+      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ error: 'Invalid email format' });
       const taken = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email.trim(), req.user.id);
       if (taken) return res.status(409).json({ error: 'Email already in use' });
+    }
+    if (full_name !== undefined && typeof full_name === 'string' && full_name.length > 100) {
+      return res.status(400).json({ error: 'Full name must be under 100 characters' });
+    }
+    if (venmo_handle !== undefined && typeof venmo_handle === 'string' && venmo_handle.length > 50) {
+      return res.status(400).json({ error: 'Venmo handle too long' });
+    }
+    if (default_team_name !== undefined && typeof default_team_name === 'string' && default_team_name.length > 50) {
+      return res.status(400).json({ error: 'Team name too long' });
     }
 
     const fields = [];

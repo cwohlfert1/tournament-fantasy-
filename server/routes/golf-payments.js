@@ -725,7 +725,9 @@ router.post('/webhooks/stripe', async (req, res) => {
       return res.status(400).send('Webhook signature mismatch');
     }
   } else {
-    console.warn('[golf-square-webhook] No signature key set — skipping verification');
+    // SECURITY: fail closed — do NOT process webhooks without signature verification
+    console.error('[golf-square-webhook] CRITICAL: No signature key set — rejecting webhook');
+    return res.status(500).send('Webhook verification not configured');
   }
 
   let event;
