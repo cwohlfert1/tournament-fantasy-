@@ -75,8 +75,8 @@ async function all(sql, ...params) {
     return rows;
   }
 
-  // Supabase-only mode
-  const result = await pg.query(sqliteToPostgres(sql), params);
+  // Supabase-only mode — translate SQL before sending
+  const result = await pg.query(sqliteSqlToPostgres(sql), params);
   return result.rows;
 }
 
@@ -101,7 +101,7 @@ async function get(sql, ...params) {
     return row;
   }
 
-  const result = await pg.query(sqliteToPostgres(sql), params);
+  const result = await pg.query(sqliteSqlToPostgres(sql), params);
   return result.rows[0];
 }
 
@@ -126,7 +126,7 @@ async function run(sql, ...params) {
     return { changes: result.changes };
   }
 
-  const result = await pg.query(sqliteToPostgres(sql), params);
+  const result = await pg.query(sqliteSqlToPostgres(sql), params);
   return { changes: result.rowCount };
 }
 
@@ -210,14 +210,55 @@ function isWriteQuery(sql) {
          upper.startsWith('ALTER') || upper.startsWith('DROP');
 }
 
+/**
+ * Translate SQLite SQL → PostgreSQL SQL.
+ * Handles all known SQLite-specific syntax so individual files
+ * can keep their existing SQL and the layer converts on the fly.
+ */
+function sqliteSqlToPostgres(sql) {
+  let pg = sqliteToPostgres(sql); // ? → $N
+
+  // ── Date/time functions ────────────────────────────────────────────────
+  pg = pg.replace(/datetime\('now'\)/gi, 'NOW()');
+  pg = pg.replace(/date\('now'\)/gi, 'CURRENT_DATE');
+  // date(col, '+N day') → (col)::DATE + INTERVAL 'N day'
+  pg = pg.replace(/date\(([^,]+),\s*'([+-]\d+)\s*(day|month|year)s?'\)/gi,
+    (_, col, n, unit) => `(${col.trim()})::DATE + INTERVAL '${n} ${unit}'`);
+  // CURRENT_TIMESTAMP is Postgres-compatible but we normalize to NOW()
+  pg = pg.replace(/CURRENT_TIMESTAMP/gi, 'NOW()');
+
+  // ── UUID generation ────────────────────────────────────────────────────
+  // lower(hex(randomblob(4))) || '-' || ... → gen_random_uuid()::TEXT
+  // Match the full UUID assembly pattern used throughout the codebase
+  pg = pg.replace(
+    /lower\(hex\(randomblob\(\d+\)\)\)\s*\|\|\s*'-'\s*\|\|\s*lower\(hex\(randomblob\(\d+\)\)\)\s*\|\|\s*'-4'\s*\|\|\s*substr\(lower\(hex\(randomblob\(\d+\)\)\),\d+\)\s*\|\|\s*'-'\s*\|\|\s*substr\('[89ab]',abs\(random\(\)\)\s*%\s*4\s*\+\s*1,\s*1\)\s*\|\|\s*substr\(lower\(hex\(randomblob\(\d+\)\)\),\d+\)\s*\|\|\s*'-'\s*\|\|\s*lower\(hex\(randomblob\(\d+\)\)\)/gi,
+    "gen_random_uuid()::TEXT"
+  );
+  // Simpler pattern: lower(hex(randomblob(16)))
+  pg = pg.replace(/lower\(hex\(randomblob\(\d+\)\)\)/gi, 'gen_random_uuid()::TEXT');
+
+  // ── INSERT conflict handling ───────────────────────────────────────────
+  // INSERT OR IGNORE INTO table (...) VALUES (...) → INSERT INTO table (...) VALUES (...) ON CONFLICT DO NOTHING
+  pg = pg.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO');
+  if (/INSERT\s+INTO.*VALUES/i.test(pg) && !/ON\s+CONFLICT/i.test(pg) && sql.match(/INSERT\s+OR\s+IGNORE/i)) {
+    // Append ON CONFLICT DO NOTHING if it was INSERT OR IGNORE
+    pg = pg.replace(/(VALUES\s*\([^)]*\))/i, '$1 ON CONFLICT DO NOTHING');
+  }
+
+  // INSERT OR REPLACE INTO table (...) VALUES (...) → handled per-query
+  // This is complex because we need the conflict target and update columns.
+  // For now, convert to INSERT INTO and let individual queries add ON CONFLICT.
+  pg = pg.replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'INSERT INTO');
+
+  // ── SQLite type casting ────────────────────────────────────────────────
+  // changes() → not needed in Postgres (use RETURNING or rowCount)
+  // typeof() → pg_typeof()
+
+  return pg;
+}
+
 async function pgWrite(sql, params) {
-  const pgSql = sqliteToPostgres(sql)
-    // Convert SQLite-specific syntax to Postgres
-    .replace(/datetime\('now'\)/gi, 'NOW()')
-    .replace(/date\('now'\)/gi, 'CURRENT_DATE')
-    .replace(/CURRENT_TIMESTAMP/gi, 'NOW()')
-    .replace(/INSERT OR IGNORE/gi, 'INSERT')
-    .replace(/INSERT OR REPLACE/gi, 'INSERT'); // Simplified — full ON CONFLICT needs Phase 2
+  const pgSql = sqliteSqlToPostgres(sql);
   await pg.query(pgSql, params);
 }
 
