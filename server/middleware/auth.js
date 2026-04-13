@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const db = require('../db/index');
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
@@ -11,7 +11,7 @@ function authMiddleware(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // Always pull fresh role from DB so superadmin grant takes effect without re-login
-    const row = db.prepare('SELECT role FROM users WHERE id = ?').get(decoded.id);
+    const row = await db.get('SELECT role FROM users WHERE id = ?', decoded.id);
     if (row?.role === 'banned') {
       return res.status(403).json({ error: 'Account suspended' });
     }

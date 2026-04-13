@@ -11,7 +11,7 @@
 
 'use strict';
 
-const db = require('./db');
+const db = require('./db/index');
 const { normalizePlayerName, matchPlayerName } = require('./utils/playerNameNorm');
 
 const ESPN_LEADERBOARD = id =>
@@ -45,9 +45,6 @@ function calcPts(r1, r2, r3, r4, madeCut, finishPos, isMajor, par = DEFAULT_PAR)
 }
 
 // Parse a linescore/round entry into a raw integer score (or null)
-// ESPN returns both "value" (to-par) and sometimes total strokes in display fields.
-// We need RAW strokes. ESPN linescores.value is usually to-par for that round.
-// Convert: raw = PAR + toPar
 function parseRound(entry) {
   if (!entry) return null;
   const v = entry.value ?? entry.score;
@@ -55,24 +52,21 @@ function parseRound(entry) {
   const n = Number(v);
   if (isNaN(n)) return null;
 
-  // Heuristic: ESPN linescores.value ≤ ±20 is treated as to-par; ≥ 60 as raw strokes.
-  // The gap between 21 and 59 is physically impossible in PGA play (lowest raw ever ~58,
-  // highest to-par ever ~+20), so values landing there are ambiguous — log a warning
-  // so misclassification is visible rather than silently producing wrong fantasy points.
   if (Math.abs(n) > 20 && n < 60) {
     console.warn(
       `[golf-score-sync] AMBIGUOUS round value=${n} (player/tourn unknown) — ` +
       `treating as raw strokes. Expected to-par ≤ ±20 or raw ≥ 60. ` +
       `Verify ESPN linescore format if fantasy points look wrong.`
     );
-    return n; // treat as raw strokes
+    return n;
   }
 
   if (Math.abs(n) <= 20) return DEFAULT_PAR + n;  // to-par → raw
   return n;                                        // already raw
 }
 
-const upsertScore = db.prepare(`
+// SQL for upsert — used inline instead of prepared statement for abstraction layer compatibility
+const UPSERT_SCORE_SQL = `
   INSERT INTO golf_scores
     (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
   VALUES
@@ -90,10 +84,10 @@ const upsertScore = db.prepare(`
     finish_position = excluded.finish_position,
     fantasy_points = excluded.fantasy_points,
     updated_at = CURRENT_TIMESTAMP
-`);
+`;
 
 async function syncTournament(tournamentId) {
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) throw new Error(`Tournament not found: ${tournamentId}`);
 
   const eventId = tourn.espn_event_id;
@@ -112,7 +106,6 @@ async function syncTournament(tournamentId) {
     if (res.ok) {
       data = await res.json();
     } else {
-      // Leaderboard 404 — fall back to scoreboard endpoint
       console.log(`[golf-sync] Leaderboard returned ${res.status}, falling back to scoreboard`);
       const res2 = await fetch(ESPN_SCOREBOARD(eventId), { headers: { 'Accept': 'application/json' } });
       if (!res2.ok) throw new Error(`ESPN scoreboard also returned HTTP ${res2.status} for event ${eventId}`);
@@ -133,7 +126,6 @@ async function syncTournament(tournamentId) {
     }
   }
 
-  // ESPN can return competitors at different paths depending on API version
   const competitors =
     data?.leaderboard?.competitors ||
     data?.leaderboard?.entries ||
@@ -145,8 +137,7 @@ async function syncTournament(tournamentId) {
     return { synced: 0, unmatched: 0, tournament: tourn.name };
   }
 
-  // Build name → player object lookup from our golf_players table
-  const allPlayers = db.prepare('SELECT id, name FROM golf_players').all();
+  const allPlayers = await db.all('SELECT id, name FROM golf_players');
 
   const isMajor  = !!tourn.is_major;
   const coursePar = tourn.par || DEFAULT_PAR;
@@ -188,7 +179,6 @@ async function syncTournament(tournamentId) {
       r1 = getR(1); r2 = getR(2); r3 = getR(3); r4 = getR(4);
     }
 
-    // Cut status
     const statusId = comp.status?.type?.id || comp.status?.id || '';
     let madeCut;
     if (statusId) {
@@ -197,7 +187,6 @@ async function syncTournament(tournamentId) {
       madeCut = linescores.length >= 4;
     }
 
-    // Finish position from leaderboard data
     const posRaw =
       comp.status?.position?.id ||
       comp.position?.id ||
@@ -206,7 +195,6 @@ async function syncTournament(tournamentId) {
       ? parseInt(String(posRaw).replace(/^T/, ''))
       : null;
 
-    // Total strokes for position derivation
     const total = [r1, r2, r3, r4].reduce((s, r) => r != null ? s + r : s, 0);
 
     parsed.push({ playerId: matched.id, r1, r2, r3, r4, madeCut, finishPos, total });
@@ -222,20 +210,20 @@ async function syncTournament(tournamentId) {
     }
   }
 
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const p of parsed) {
       const pts = calcPts(p.r1, p.r2, p.r3, p.r4, p.madeCut, p.finishPos, isMajor, coursePar);
-      upsertScore.run(tourn.id, p.playerId, p.r1, p.r2, p.r3, p.r4, p.madeCut ? 1 : 0, p.finishPos, pts);
+      await tx.run(UPSERT_SCORE_SQL, tourn.id, p.playerId, p.r1, p.r2, p.r3, p.r4, p.madeCut ? 1 : 0, p.finishPos, pts);
       synced++;
     }
-  })();
+  });
 
   if (synced > 0) {
-    db.prepare(`
+    await db.run(`
       UPDATE golf_tournaments
       SET status = 'active', last_synced_at = CURRENT_TIMESTAMP
       WHERE id = ? AND status != 'completed'
-    `).run(tournamentId);
+    `, tournamentId);
   }
 
   console.log(`[golf-sync] "${tourn.name}": synced=${synced}, unmatched=${unmatched}`);
