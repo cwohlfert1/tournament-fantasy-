@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 const { sendPasswordReset, sendWelcome } = require('../mailer');
 
@@ -26,15 +26,15 @@ function genReferralCode() {
   return code;
 }
 
-function ensureUserReferralCode(userId) {
-  const row = db.prepare('SELECT referral_code FROM users WHERE id = ?').get(userId);
+async function ensureUserReferralCode(userId) {
+  const row = await db.get('SELECT referral_code FROM users WHERE id = ?', userId);
   if (row?.referral_code) return row.referral_code;
   let code, attempts = 0;
   do {
     code = genReferralCode();
     attempts++;
-  } while (db.prepare('SELECT 1 FROM users WHERE referral_code = ?').get(code) && attempts < 20);
-  db.prepare('UPDATE users SET referral_code = ? WHERE id = ?').run(code, userId);
+  } while (await db.get('SELECT 1 FROM users WHERE referral_code = ?', code) && attempts < 20);
+  await db.run('UPDATE users SET referral_code = ? WHERE id = ?', code, userId);
   return code;
 }
 
@@ -69,7 +69,7 @@ router.post('/register', (req, res, next) => { const limiter = req.app.get('regi
       return res.status(400).json({ error: 'Please complete all required acknowledgments to continue.' });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
+    const existing = await db.get('SELECT id FROM users WHERE email = ? OR username = ?', email, username);
     if (existing) {
       return res.status(409).json({ error: 'Email or username already taken' });
     }
@@ -77,10 +77,10 @@ router.post('/register', (req, res, next) => { const limiter = req.app.get('regi
     const password_hash = await bcrypt.hash(password, 12);
     const id = uuidv4();
     const fullNameTrimmed = full_name ? full_name.trim() : null;
-    db.prepare(`
+    await db.run(`
       INSERT INTO users (id, email, username, password_hash, full_name, agreement_accepted, age_confirmed, state_eligible)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, email, username, password_hash, fullNameTrimmed, 1, 1, 1);
+    `, id, email, username, password_hash, fullNameTrimmed, 1, 1, 1);
 
     const user = { id, email, username, full_name: fullNameTrimmed };
     const token = signToken(user);
@@ -89,10 +89,10 @@ router.post('/register', (req, res, next) => { const limiter = req.app.get('regi
     // Referral tracking — fire and forget, never blocks registration
     if (ref_code) {
       try {
-        const referrer = db.prepare('SELECT id FROM users WHERE referral_code = ?').get(ref_code.trim().toUpperCase());
+        const referrer = await db.get('SELECT id FROM users WHERE referral_code = ?', ref_code.trim().toUpperCase());
         if (referrer && referrer.id !== id) {
-          db.prepare('UPDATE users SET referred_by = ? WHERE id = ?').run(referrer.id, id);
-          db.prepare('INSERT OR IGNORE INTO referrals (id, referrer_id, referred_id) VALUES (?, ?, ?)').run(uuidv4(), referrer.id, id);
+          await db.run('UPDATE users SET referred_by = ? WHERE id = ?', referrer.id, id);
+          await db.run('INSERT OR IGNORE INTO referrals (id, referrer_id, referred_id) VALUES (?, ?, ?)', uuidv4(), referrer.id, id);
         }
       } catch (refErr) {
         console.error('[auth] referral tracking error:', refErr.message);
@@ -126,9 +126,10 @@ router.post('/login', (req, res, next) => { const limiter = req.app.get('authLim
     // Accept email or username in the email field.
     // LOWER() on both sides handles case-insensitive email lookup (e.g. User@Example.com
     // matches user@example.com). SQLite = is case-sensitive for TEXT by default.
-    const user = db.prepare(
-      'SELECT id, email, username, role, password_hash, force_password_reset FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)'
-    ).get(email, email);
+    const user = await db.get(
+      'SELECT id, email, username, role, password_hash, force_password_reset FROM users WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?)',
+      email, email
+    );
     if (!user) {
       // Don't log full email — OWASP: avoid PII in logs
       console.warn(`[login] failed login attempt`);
@@ -159,7 +160,7 @@ router.post('/force-reset-password', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
     const hash = await bcrypt.hash(newPassword, 10);
-    db.prepare('UPDATE users SET password_hash = ?, force_password_reset = 0 WHERE id = ?').run(hash, req.user.id);
+    await db.run('UPDATE users SET password_hash = ?, force_password_reset = 0 WHERE id = ?', hash, req.user.id);
     console.log(`[force-reset-password] user ${req.user.id} set new password`);
     res.json({ ok: true });
   } catch (err) {
@@ -175,15 +176,15 @@ router.post('/forgot-password', (req, res, next) => { const limiter = req.app.ge
     const { email } = req.body;
     if (!email || typeof email !== 'string' || email.length > 254) return res.status(400).json({ error: 'Valid email is required' });
 
-    const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email);
+    const user = await db.get('SELECT id, email FROM users WHERE email = ?', email);
     // Always respond with success to avoid email enumeration
     if (!user) return res.json({ message: 'If that email exists, a reset link has been sent.' });
 
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
 
-    db.prepare('UPDATE users SET password_reset_token = ?, password_reset_expires = ? WHERE id = ?')
-      .run(token, expires, user.id);
+    await db.run('UPDATE users SET password_reset_token = ?, password_reset_expires = ? WHERE id = ?',
+      token, expires, user.id);
 
     const clientUrl = process.env.CLIENT_URL
       ? process.env.CLIENT_URL.replace(/\/$/, '')
@@ -208,16 +209,18 @@ router.post('/reset-password', async (req, res) => {
     if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-    const user = db.prepare(
-      'SELECT id FROM users WHERE password_reset_token = ? AND password_reset_expires > ?'
-    ).get(token, new Date().toISOString());
+    const user = await db.get(
+      'SELECT id FROM users WHERE password_reset_token = ? AND password_reset_expires > ?',
+      token, new Date().toISOString()
+    );
 
     if (!user) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
 
     const password_hash = await bcrypt.hash(password, 12);
-    db.prepare(
-      'UPDATE users SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL WHERE id = ?'
-    ).run(password_hash, user.id);
+    await db.run(
+      'UPDATE users SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL WHERE id = ?',
+      password_hash, user.id
+    );
 
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
@@ -227,9 +230,9 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // GET /api/auth/referral/my-code
-router.get('/referral/my-code', authMiddleware, (req, res) => {
+router.get('/referral/my-code', authMiddleware, async (req, res) => {
   try {
-    const code = ensureUserReferralCode(req.user.id);
+    const code = await ensureUserReferralCode(req.user.id);
     const base = (process.env.CLIENT_URL || 'https://www.tourneyrun.app').replace(/\/$/, '');
     res.json({ code, link: `${base}/ref/${code}` });
   } catch (err) {
@@ -243,24 +246,25 @@ router.get('/referral/my-code', authMiddleware, (req, res) => {
 // GET /api/auth/invite/:token
 // Returns the invited user's email + league name so the signup page can
 // pre-fill and display context.  Token is single-use (cleared on activation).
-router.get('/invite/:token', (req, res) => {
+router.get('/invite/:token', async (req, res) => {
   try {
     const { token } = req.params;
     if (!token) return res.status(400).json({ error: 'Token required' });
 
-    const user = db.prepare(
-      "SELECT id, email FROM users WHERE invite_token = ? AND status = 'invited'"
-    ).get(token);
+    const user = await db.get(
+      "SELECT id, email FROM users WHERE invite_token = ? AND status = 'invited'",
+      token
+    );
     if (!user) return res.status(404).json({ error: 'Invite link is invalid or has already been used' });
 
     // Find the golf league this user was added to
-    const membership = db.prepare(`
+    const membership = await db.get(`
       SELECT gl.id AS leagueId, gl.name AS leagueName
       FROM golf_league_members glm
       JOIN golf_leagues gl ON gl.id = glm.golf_league_id
       WHERE glm.user_id = ?
       LIMIT 1
-    `).get(user.id);
+    `, user.id);
 
     res.json({
       email:      user.email,
@@ -286,22 +290,23 @@ router.post('/activate', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const user = db.prepare(
-      "SELECT id, email FROM users WHERE invite_token = ? AND status = 'invited'"
-    ).get(token);
+    const user = await db.get(
+      "SELECT id, email FROM users WHERE invite_token = ? AND status = 'invited'",
+      token
+    );
     if (!user) return res.status(400).json({ error: 'Invite link is invalid or has already been used' });
 
     // Check username not already taken
-    const taken = db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').get(username, user.id);
+    const taken = await db.get('SELECT 1 FROM users WHERE username = ? AND id != ?', username, user.id);
     if (taken) return res.status(409).json({ error: 'Username is already taken' });
 
     const password_hash = await bcrypt.hash(password, 12);
-    db.prepare(`
+    await db.run(`
       UPDATE users
       SET username = ?, password_hash = ?, status = 'active',
           invite_token = NULL, agreement_accepted = 1, age_confirmed = 1, state_eligible = 1
       WHERE id = ?
-    `).run(username, password_hash, user.id);
+    `, username, password_hash, user.id);
 
     const fullUser = { id: user.id, email: user.email, username };
     const jwtToken = signToken(fullUser);
@@ -313,8 +318,8 @@ router.post('/activate', async (req, res) => {
 });
 
 // GET /api/auth/me
-router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, email, username, full_name, role, created_at FROM users WHERE id = ?').get(req.user.id);
+router.get('/me', authMiddleware, async (req, res) => {
+  const user = await db.get('SELECT id, email, username, full_name, role, created_at FROM users WHERE id = ?', req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
 });

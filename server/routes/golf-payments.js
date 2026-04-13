@@ -5,7 +5,7 @@ const crypto   = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 require('../golf-db'); // ensure golf tables exist
-const db = require('../db');
+const db = require('../db/index');
 
 const router = express.Router();
 
@@ -104,15 +104,15 @@ function genReferralCode() {
   return code;
 }
 
-function ensureReferralCode(userId) {
-  let row = db.prepare('SELECT code FROM golf_referral_codes WHERE user_id = ?').get(userId);
+async function ensureReferralCode(userId) {
+  let row = await db.get('SELECT code FROM golf_referral_codes WHERE user_id = ?', userId);
   if (!row) {
     let code, attempts = 0;
     do {
       code = genReferralCode();
       attempts++;
-    } while (db.prepare('SELECT 1 FROM golf_referral_codes WHERE code = ?').get(code) && attempts < 20);
-    db.prepare('INSERT INTO golf_referral_codes (id, user_id, code) VALUES (?, ?, ?)').run(uuidv4(), userId, code);
+    } while (await db.get('SELECT 1 FROM golf_referral_codes WHERE code = ?', code) && attempts < 20);
+    await db.run('INSERT INTO golf_referral_codes (id, user_id, code) VALUES (?, ?, ?)', uuidv4(), userId, code);
     row = { code };
   }
   return row.code;
@@ -121,20 +121,22 @@ function ensureReferralCode(userId) {
 // ---------------------------------------------------------------------------
 // GET /api/golf/referral/my-code
 // ---------------------------------------------------------------------------
-router.get('/referral/my-code', authMiddleware, (req, res) => {
+router.get('/referral/my-code', authMiddleware, async (req, res) => {
   try {
-    const code      = ensureReferralCode(req.user.id);
+    const code      = await ensureReferralCode(req.user.id);
     const clientUrl = process.env.CLIENT_URL
       ? process.env.CLIENT_URL.replace(/\/$/, '')
       : 'https://www.tourneyrun.app';
 
-    const credits = db.prepare(
-      'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?'
-    ).get(req.user.id, SEASON);
+    const credits = await db.get(
+      'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?',
+      req.user.id, SEASON
+    );
 
-    const earned = db.prepare(
-      'SELECT COALESCE(SUM(credit_amount), 0) as total FROM golf_referral_redemptions WHERE referrer_id = ?'
-    ).get(req.user.id);
+    const earned = await db.get(
+      'SELECT COALESCE(SUM(credit_amount), 0) as total FROM golf_referral_redemptions WHERE referrer_id = ?',
+      req.user.id
+    );
 
     res.json({
       code,
@@ -150,25 +152,30 @@ router.get('/referral/my-code', authMiddleware, (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/golf/payments/status
 // ---------------------------------------------------------------------------
-router.get('/payments/status', authMiddleware, (req, res) => {
+router.get('/payments/status', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const seasonPass = db.prepare(
-      "SELECT id FROM golf_season_passes WHERE user_id = ? AND season = ? AND paid_at IS NOT NULL"
-    ).get(userId, SEASON);
+    const seasonPass = await db.get(
+      "SELECT id FROM golf_season_passes WHERE user_id = ? AND season = ? AND paid_at IS NOT NULL",
+      userId, SEASON
+    );
 
-    const paidTournaments = db.prepare(
-      "SELECT tournament_id FROM golf_pool_entries WHERE user_id = ? AND paid_at IS NOT NULL"
-    ).all(userId).map(r => r.tournament_id);
+    const paidTournamentRows = await db.all(
+      "SELECT tournament_id FROM golf_pool_entries WHERE user_id = ? AND paid_at IS NOT NULL",
+      userId
+    );
+    const paidTournaments = paidTournamentRows.map(r => r.tournament_id);
 
-    const commProLeagues = db.prepare(
-      "SELECT league_id FROM golf_comm_pro WHERE commissioner_id = ? AND season = ? AND (paid_at IS NOT NULL OR promo_applied = 1)"
-    ).all(userId, SEASON);
+    const commProLeagues = await db.all(
+      "SELECT league_id FROM golf_comm_pro WHERE commissioner_id = ? AND season = ? AND (paid_at IS NOT NULL OR promo_applied = 1)",
+      userId, SEASON
+    );
 
-    const credits = db.prepare(
-      'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?'
-    ).get(userId, SEASON);
+    const credits = await db.get(
+      'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?',
+      userId, SEASON
+    );
 
     res.json({
       hasSeasonPass:    !!seasonPass,
@@ -188,13 +195,14 @@ router.get('/payments/status', authMiddleware, (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/golf/payments/validate-promo
 // ---------------------------------------------------------------------------
-router.post('/payments/validate-promo', authMiddleware, (req, res) => {
+router.post('/payments/validate-promo', authMiddleware, async (req, res) => {
   try {
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'Code required' });
-    const promo = db.prepare(
-      "SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND active = 1"
-    ).get(code.trim());
+    const promo = await db.get(
+      "SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND active = 1",
+      code.trim()
+    );
     if (!promo) return res.status(404).json({ valid: false, error: 'Invalid or inactive promo code' });
     const label = promo.discount_type === 'free'
       ? 'First pool free!'
@@ -216,19 +224,22 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
 
     // Guard: already paid?
     if (type === 'season_pass') {
-      const existing = db.prepare(
-        "SELECT id FROM golf_season_passes WHERE user_id = ? AND season = ? AND paid_at IS NOT NULL"
-      ).get(userId, SEASON);
+      const existing = await db.get(
+        "SELECT id FROM golf_season_passes WHERE user_id = ? AND season = ? AND paid_at IS NOT NULL",
+        userId, SEASON
+      );
       if (existing) return res.json({ alreadyPaid: true });
     } else if (type === 'office_pool' && tournamentId) {
-      const existing = db.prepare(
-        "SELECT id FROM golf_pool_entries WHERE user_id = ? AND tournament_id = ? AND paid_at IS NOT NULL"
-      ).get(userId, tournamentId);
+      const existing = await db.get(
+        "SELECT id FROM golf_pool_entries WHERE user_id = ? AND tournament_id = ? AND paid_at IS NOT NULL",
+        userId, tournamentId
+      );
       if (existing) return res.json({ alreadyPaid: true });
     } else if (type === 'comm_pro' && leagueId) {
-      const existing = db.prepare(
-        "SELECT id FROM golf_comm_pro WHERE league_id = ? AND season = ? AND (paid_at IS NOT NULL OR promo_applied = 1)"
-      ).get(leagueId, SEASON);
+      const existing = await db.get(
+        "SELECT id FROM golf_comm_pro WHERE league_id = ? AND season = ? AND (paid_at IS NOT NULL OR promo_applied = 1)",
+        leagueId, SEASON
+      );
       if (existing) return res.json({ alreadyPaid: true });
     }
 
@@ -238,7 +249,7 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
     let baseAmount, lineItemName;
     if (type === 'comm_pro') {
       if (!leagueId) return res.status(400).json({ error: 'leagueId required for pool creation' });
-      const league = db.prepare('SELECT name, max_teams FROM golf_leagues WHERE id = ?').get(leagueId);
+      const league = await db.get('SELECT name, max_teams FROM golf_leagues WHERE id = ?', leagueId);
       if (!league) return res.status(404).json({ error: 'League not found' });
       const { amount, label } = getPriceForMaxTeams(league.max_teams || 20);
       baseAmount   = amount;
@@ -250,10 +261,13 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
       }
     } else {
       baseAmount   = AMOUNTS[type];
+      const tournRow = tournamentId
+        ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', tournamentId)
+        : null;
       lineItemName = type === 'season_pass'
         ? 'TourneyRun Golf Season Pass — 2026'
         : tournamentId
-          ? `Golf Pool Entry — ${db.prepare('SELECT name FROM golf_tournaments WHERE id = ?').get(tournamentId)?.name || 'Tournament'}`
+          ? `Golf Pool Entry — ${tournRow?.name || 'Tournament'}`
           : 'Golf Pool Entry';
     }
 
@@ -261,9 +275,10 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
     let promoRecord = null;
     let promoDiscount = 0;
     if (promoCode && type === 'comm_pro') {
-      promoRecord = db.prepare(
-        "SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND active = 1"
-      ).get(promoCode.trim());
+      promoRecord = await db.get(
+        "SELECT * FROM promo_codes WHERE UPPER(code) = UPPER(?) AND active = 1",
+        promoCode.trim()
+      );
       if (promoRecord) {
         if (promoRecord.discount_type === 'free') {
           promoDiscount = baseAmount;
@@ -274,9 +289,10 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
     }
 
     // Check referral credit balance
-    const creditRow = db.prepare(
-      'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?'
-    ).get(userId, SEASON);
+    const creditRow = await db.get(
+      'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?',
+      userId, SEASON
+    );
     const creditBalance  = creditRow?.balance || 0;
     const afterPromo     = Math.max(0, baseAmount - promoDiscount);
     const creditToApply  = Math.min(creditBalance, afterPromo);
@@ -300,24 +316,24 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
     };
 
     // Record promo use and fulfill directly if fully discounted
-    function recordPromoUse() {
+    async function recordPromoUse() {
       if (!promoRecord) return;
       const useId = uuidv4();
-      db.prepare(`
+      await db.run(`
         INSERT INTO promo_code_uses (id, promo_code_id, league_id, user_id, original_price, discount_amount, final_price)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(useId, promoRecord.id, leagueId || null, userId, baseAmount, promoDiscount, finalAmount);
-      db.prepare('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = ?').run(promoRecord.id);
+      `, useId, promoRecord.id, leagueId || null, userId, baseAmount, promoDiscount, finalAmount);
+      await db.run('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = ?', promoRecord.id);
     }
 
     // If credit + promo covers the full amount, fulfill directly without a payment
     if (finalAmount === 0) {
-      recordPromoUse();
+      await recordPromoUse();
       await fulfillGolfPayment(metadata);
       return res.json({ free: true });
     }
 
-    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    const user = await db.get('SELECT email FROM users WHERE id = ?', userId);
 
     const redirectUrl = (type === 'comm_pro' && leagueId)
       ? `${clientUrl}/golf/league/${leagueId}?paid=true`
@@ -346,42 +362,45 @@ router.post('/leagues/:id/check-migration-promo', authMiddleware, async (req, re
     const leagueId = req.params.id;
     const userId   = req.user.id;
 
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== userId) return res.status(403).json({ error: 'Not commissioner' });
 
-    const memberCount = db.prepare(
-      'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?'
-    ).get(leagueId).n;
+    const memberCountRow = await db.get(
+      'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?',
+      leagueId
+    );
+    const memberCount = memberCountRow.n;
 
-    const existing = db.prepare(
-      "SELECT id, promo_applied FROM golf_comm_pro WHERE league_id = ? AND season = ?"
-    ).get(leagueId, SEASON);
+    const existing = await db.get(
+      "SELECT id, promo_applied FROM golf_comm_pro WHERE league_id = ? AND season = ?",
+      leagueId, SEASON
+    );
 
     if (existing?.promo_applied) {
       return res.json({ unlocked: true, promoApplied: true, memberCount });
     }
 
-    const usedBefore = db.prepare('SELECT id FROM golf_migrations WHERE commissioner_id = ?').get(userId);
+    const usedBefore = await db.get('SELECT id FROM golf_migrations WHERE commissioner_id = ?', userId);
     const eligible   = memberCount >= PROMO_MEMBER_THRESHOLD && !usedBefore;
 
     if (eligible) {
       if (existing) {
-        db.prepare("UPDATE golf_comm_pro SET promo_applied = 1 WHERE league_id = ? AND season = ?").run(leagueId, SEASON);
+        await db.run("UPDATE golf_comm_pro SET promo_applied = 1 WHERE league_id = ? AND season = ?", leagueId, SEASON);
       } else {
-        db.prepare(`
+        await db.run(`
           INSERT INTO golf_comm_pro (id, league_id, commissioner_id, season, promo_applied)
           VALUES (?, ?, ?, ?, 1)
-        `).run(uuidv4(), leagueId, userId, SEASON);
+        `, uuidv4(), leagueId, userId, SEASON);
       }
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO golf_migrations (id, league_id, commissioner_id, member_count_at_promo, promo_applied)
         VALUES (?, ?, ?, ?, 1)
-      `).run(uuidv4(), leagueId, userId, memberCount);
+      `, uuidv4(), leagueId, userId, memberCount);
 
       try {
-        const user = db.prepare('SELECT email, username FROM users WHERE id = ?').get(userId);
+        const user = await db.get('SELECT email, username FROM users WHERE id = ?', userId);
         if (user) {
           await require('../mailer').sendCommProUnlocked(user.email, user.username, league.name);
         }
@@ -413,7 +432,7 @@ router.post('/checkout/season-pass', authMiddleware, async (req, res) => {
 
   const base       = process.env.CLIENT_URL?.replace(/\/$/, '') || 'https://www.tourneyrun.app';
   const userId     = req.user.id;
-  const user       = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+  const user       = await db.get('SELECT email FROM users WHERE id = ?', userId);
 
   try {
     const { url, orderId: squareOrderId } = await createPaymentLink({
@@ -443,57 +462,60 @@ async function fulfillGolfPayment(metadata) {
   // All DB writes run in a single transaction so a partial failure
   // (e.g. league activation succeeds but season_pass insert fails)
   // cannot leave data in an inconsistent state.
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     if (type === 'golf_season_pass') {
-      db.prepare(`
+      tx.run(`
         INSERT INTO golf_season_passes (id, user_id, season, paid_at, stripe_session_id)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
         ON CONFLICT(user_id, season) DO UPDATE SET
           paid_at = CURRENT_TIMESTAMP,
           stripe_session_id = excluded.stripe_session_id
-      `).run(uuidv4(), metadata.user_id, metadata.season || SEASON, orderId);
+      `, uuidv4(), metadata.user_id, metadata.season || SEASON, orderId);
 
     } else if (type === 'golf_pool_entry' || type === 'golf_office_pool') {
-      db.prepare(`
+      tx.run(`
         INSERT INTO golf_pool_entries (id, user_id, tournament_id, paid_at, stripe_session_id)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
         ON CONFLICT(user_id, tournament_id) DO UPDATE SET
           paid_at = CURRENT_TIMESTAMP,
           stripe_session_id = excluded.stripe_session_id
-      `).run(uuidv4(), metadata.user_id, metadata.tournament_id, orderId);
+      `, uuidv4(), metadata.user_id, metadata.tournament_id, orderId);
 
     } else if (type === 'golf_comm_pro') {
-      db.prepare(`
+      tx.run(`
         INSERT INTO golf_comm_pro (id, league_id, commissioner_id, season, paid_at, promo_applied, stripe_session_id)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, ?)
         ON CONFLICT(league_id, season) DO UPDATE SET
           paid_at = CURRENT_TIMESTAMP,
           stripe_session_id = excluded.stripe_session_id
-      `).run(uuidv4(), metadata.league_id, metadata.user_id, metadata.season || SEASON, orderId);
+      `, uuidv4(), metadata.league_id, metadata.user_id, metadata.season || SEASON, orderId);
 
       if (metadata.league_id) {
-        db.prepare(`UPDATE golf_leagues SET status = 'lobby' WHERE id = ? AND status = 'pending_payment'`)
-          .run(metadata.league_id);
+        tx.run(`UPDATE golf_leagues SET status = 'lobby' WHERE id = ? AND status = 'pending_payment'`,
+          metadata.league_id);
       }
     }
-  })();
+  });
 
   console.log(`[golf] fulfillGolfPayment type=${type} user=${metadata.user_id}`);
 
   // Email fires after the transaction commits — a failed email never rolls back fulfillment
   if (type === 'golf_comm_pro' && metadata.league_id) {
     try {
-      const league = db.prepare(
-        'SELECT name, max_teams, pool_tournament_id FROM golf_leagues WHERE id = ?'
-      ).get(metadata.league_id);
-      const user = db.prepare('SELECT email, username FROM users WHERE id = ?').get(metadata.user_id);
+      const league = await db.get(
+        'SELECT name, max_teams, pool_tournament_id FROM golf_leagues WHERE id = ?',
+        metadata.league_id
+      );
+      const user = await db.get('SELECT email, username FROM users WHERE id = ?', metadata.user_id);
       if (league && user) {
-        const memberCount = db.prepare(
-          'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?'
-        ).get(metadata.league_id).n;
+        const memberCountRow = await db.get(
+          'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?',
+          metadata.league_id
+        );
+        const memberCount = memberCountRow.n;
         const spotsOpen = Math.max(0, (league.max_teams || 20) - memberCount);
         const tourn = league.pool_tournament_id
-          ? db.prepare('SELECT name FROM golf_tournaments WHERE id = ?').get(league.pool_tournament_id)
+          ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', league.pool_tournament_id)
           : null;
         await require('../mailer').sendGolfPoolLive(user.email, {
           username:       user.username,
@@ -515,9 +537,10 @@ async function handleGolfWebhook({ order_id, metadata }) {
   // order before doing anything. The processed_webhook_orders row is written
   // inside the same DB transaction as the credit deduction, so it is impossible
   // for the guard to pass while the side-effects are missing (or vice versa).
-  const alreadyProcessed = db.prepare(
-    'SELECT 1 FROM processed_webhook_orders WHERE order_id = ?'
-  ).get(order_id);
+  const alreadyProcessed = await db.get(
+    'SELECT 1 FROM processed_webhook_orders WHERE order_id = ?',
+    order_id
+  );
   if (alreadyProcessed) {
     console.log(`[golf-webhook] duplicate delivery for order ${order_id} — skipped`);
     return;
@@ -525,42 +548,42 @@ async function handleGolfWebhook({ order_id, metadata }) {
 
   try {
     // Fulfill + deduct credits + mark processed — all in one atomic transaction
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       const type    = metadata.type;
       const orderId = order_id;
 
       if (type === 'golf_season_pass') {
-        db.prepare(`
+        tx.run(`
           INSERT INTO golf_season_passes (id, user_id, season, paid_at, stripe_session_id)
           VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
           ON CONFLICT(user_id, season) DO UPDATE SET
             paid_at = CURRENT_TIMESTAMP, stripe_session_id = excluded.stripe_session_id
-        `).run(uuidv4(), metadata.user_id, metadata.season || SEASON, orderId);
+        `, uuidv4(), metadata.user_id, metadata.season || SEASON, orderId);
 
       } else if (type === 'golf_pool_entry' || type === 'golf_office_pool') {
-        db.prepare(`
+        tx.run(`
           INSERT INTO golf_pool_entries (id, user_id, tournament_id, paid_at, stripe_session_id)
           VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
           ON CONFLICT(user_id, tournament_id) DO UPDATE SET
             paid_at = CURRENT_TIMESTAMP, stripe_session_id = excluded.stripe_session_id
-        `).run(uuidv4(), metadata.user_id, metadata.tournament_id, orderId);
+        `, uuidv4(), metadata.user_id, metadata.tournament_id, orderId);
 
       } else if (type === 'golf_comm_pro') {
-        db.prepare(`
+        tx.run(`
           INSERT INTO golf_comm_pro (id, league_id, commissioner_id, season, paid_at, promo_applied, stripe_session_id)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, ?)
           ON CONFLICT(league_id, season) DO UPDATE SET
             paid_at = CURRENT_TIMESTAMP, stripe_session_id = excluded.stripe_session_id
-        `).run(uuidv4(), metadata.league_id, metadata.user_id, metadata.season || SEASON, orderId);
+        `, uuidv4(), metadata.league_id, metadata.user_id, metadata.season || SEASON, orderId);
 
         if (metadata.league_id) {
-          db.prepare(`UPDATE golf_leagues SET status = 'lobby' WHERE id = ? AND status = 'pending_payment'`)
-            .run(metadata.league_id);
+          tx.run(`UPDATE golf_leagues SET status = 'lobby' WHERE id = ? AND status = 'pending_payment'`,
+            metadata.league_id);
         }
       } else if (type === 'golf_tier_upgrade') {
         if (metadata.league_id && metadata.new_max_teams && metadata.new_tier_key) {
-          db.prepare('UPDATE golf_leagues SET max_teams = ?, pool_tier = ? WHERE id = ?')
-            .run(parseInt(metadata.new_max_teams), metadata.new_tier_key, metadata.league_id);
+          tx.run('UPDATE golf_leagues SET max_teams = ?, pool_tier = ? WHERE id = ?',
+            parseInt(metadata.new_max_teams), metadata.new_tier_key, metadata.league_id);
         }
       }
 
@@ -568,17 +591,17 @@ async function handleGolfWebhook({ order_id, metadata }) {
       if (metadata.credit_applied && metadata.user_id) {
         const creditApplied = parseFloat(metadata.credit_applied);
         if (creditApplied > 0) {
-          db.prepare(`
+          tx.run(`
             UPDATE golf_referral_credits
             SET balance = MAX(0, balance - ?)
             WHERE user_id = ? AND season = ?
-          `).run(creditApplied, metadata.user_id, metadata.season || SEASON);
+          `, creditApplied, metadata.user_id, metadata.season || SEASON);
         }
       }
 
       // Mark this order as fully processed — prevents any future duplicate
-      db.prepare('INSERT INTO processed_webhook_orders (order_id) VALUES (?)').run(order_id);
-    })();
+      tx.run('INSERT INTO processed_webhook_orders (order_id) VALUES (?)', order_id);
+    });
 
     console.log(`[golf-webhook] fulfilled order=${order_id} type=${metadata.type}`);
 
@@ -589,22 +612,23 @@ async function handleGolfWebhook({ order_id, metadata }) {
     // Record promo code use (P0-3 fix: use actual prices, not 0/0/0)
     if (metadata.promo_code_id && metadata.user_id) {
       try {
-        const promo = db.prepare('SELECT * FROM promo_codes WHERE id = ?').get(metadata.promo_code_id);
+        const promo = await db.get('SELECT * FROM promo_codes WHERE id = ?', metadata.promo_code_id);
         if (promo) {
-          const alreadyRecorded = db.prepare(
-            'SELECT id FROM promo_code_uses WHERE promo_code_id = ? AND league_id = ?'
-          ).get(metadata.promo_code_id, metadata.league_id || null);
+          const alreadyRecorded = await db.get(
+            'SELECT id FROM promo_code_uses WHERE promo_code_id = ? AND league_id = ?',
+            metadata.promo_code_id, metadata.league_id || null
+          );
           if (!alreadyRecorded) {
             // Reconstruct actual pricing from metadata (set at checkout time)
             const originalPrice  = parseFloat(metadata.original_price  || 0);
             const discountAmount = parseFloat(metadata.discount_amount  || 0);
             const finalPrice     = parseFloat(metadata.final_price      || 0);
-            db.prepare(`
+            await db.run(`
               INSERT INTO promo_code_uses (id, promo_code_id, league_id, user_id, original_price, discount_amount, final_price)
               VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(uuidv4(), promo.id, metadata.league_id || null, metadata.user_id,
+            `, uuidv4(), promo.id, metadata.league_id || null, metadata.user_id,
                    originalPrice, discountAmount, finalPrice);
-            db.prepare('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = ?').run(promo.id);
+            await db.run('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = ?', promo.id);
           }
         }
       } catch (e) {
@@ -619,17 +643,20 @@ async function handleGolfWebhook({ order_id, metadata }) {
     // Send "pool is live" email for comm_pro (was previously inside fulfillGolfPayment)
     if (metadata.type === 'golf_comm_pro' && metadata.league_id) {
       try {
-        const league = db.prepare(
-          'SELECT name, max_teams, pool_tournament_id FROM golf_leagues WHERE id = ?'
-        ).get(metadata.league_id);
-        const user = db.prepare('SELECT email, username FROM users WHERE id = ?').get(metadata.user_id);
+        const league = await db.get(
+          'SELECT name, max_teams, pool_tournament_id FROM golf_leagues WHERE id = ?',
+          metadata.league_id
+        );
+        const user = await db.get('SELECT email, username FROM users WHERE id = ?', metadata.user_id);
         if (league && user) {
-          const memberCount = db.prepare(
-            'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?'
-          ).get(metadata.league_id).n;
+          const memberCountRow = await db.get(
+            'SELECT COUNT(*) as n FROM golf_league_members WHERE golf_league_id = ?',
+            metadata.league_id
+          );
+          const memberCount = memberCountRow.n;
           const spotsOpen = Math.max(0, (league.max_teams || 20) - memberCount);
           const tourn = league.pool_tournament_id
-            ? db.prepare('SELECT name FROM golf_tournaments WHERE id = ?').get(league.pool_tournament_id)
+            ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', league.pool_tournament_id)
             : null;
           await require('../mailer').sendGolfPoolLive(user.email, {
             username:       user.username,
@@ -646,10 +673,10 @@ async function handleGolfWebhook({ order_id, metadata }) {
 
     // Send payment confirmation email
     try {
-      const user = db.prepare('SELECT email, username FROM users WHERE id = ?').get(metadata.user_id);
+      const user = await db.get('SELECT email, username FROM users WHERE id = ?', metadata.user_id);
       if (user) {
         const tournName = metadata.tournament_id
-          ? (db.prepare('SELECT name, is_major FROM golf_tournaments WHERE id = ?').get(metadata.tournament_id) || {})
+          ? (await db.get('SELECT name, is_major FROM golf_tournaments WHERE id = ?', metadata.tournament_id) || {})
           : {};
         await require('../mailer').sendGolfPaymentConfirmation(user.email, user.username, metadata.type, {
           ...metadata,
@@ -668,39 +695,42 @@ async function handleGolfWebhook({ order_id, metadata }) {
 }
 
 async function applyReferralCredits(newUserId, refCode) {
-  const alreadyRedeemed = db.prepare(
-    'SELECT id FROM golf_referral_redemptions WHERE referred_id = ?'
-  ).get(newUserId);
+  const alreadyRedeemed = await db.get(
+    'SELECT id FROM golf_referral_redemptions WHERE referred_id = ?',
+    newUserId
+  );
   if (alreadyRedeemed) return;
 
-  const referrerCode = db.prepare(
-    'SELECT user_id FROM golf_referral_codes WHERE code = ?'
-  ).get(refCode);
+  const referrerCode = await db.get(
+    'SELECT user_id FROM golf_referral_codes WHERE code = ?',
+    refCode
+  );
   if (!referrerCode) return;
 
   const referrerId = referrerCode.user_id;
   if (referrerId === newUserId) return;
 
-  const referrerCredit  = db.prepare(
-    'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?'
-  ).get(referrerId, SEASON);
+  const referrerCredit = await db.get(
+    'SELECT balance FROM golf_referral_credits WHERE user_id = ? AND season = ?',
+    referrerId, SEASON
+  );
   const currentBalance = referrerCredit?.balance || 0;
   if (currentBalance >= REFERRAL_MAX_SEASONAL) return;
 
-  const give = db.prepare(`
+  const giveSql = `
     INSERT INTO golf_referral_credits (id, user_id, balance, season, expires_at)
     VALUES (?, ?, ?, ?, datetime('now', '+1 year'))
     ON CONFLICT(user_id, season) DO UPDATE SET
       balance = MIN(balance + ?, ?)
-  `);
+  `;
 
-  give.run(uuidv4(), referrerId, REFERRAL_CREDIT_AMOUNT, SEASON, REFERRAL_CREDIT_AMOUNT, REFERRAL_MAX_SEASONAL);
-  give.run(uuidv4(), newUserId,  REFERRAL_CREDIT_AMOUNT, SEASON, REFERRAL_CREDIT_AMOUNT, REFERRAL_MAX_SEASONAL);
+  await db.run(giveSql, uuidv4(), referrerId, REFERRAL_CREDIT_AMOUNT, SEASON, REFERRAL_CREDIT_AMOUNT, REFERRAL_MAX_SEASONAL);
+  await db.run(giveSql, uuidv4(), newUserId,  REFERRAL_CREDIT_AMOUNT, SEASON, REFERRAL_CREDIT_AMOUNT, REFERRAL_MAX_SEASONAL);
 
-  db.prepare(`
+  await db.run(`
     INSERT INTO golf_referral_redemptions (id, referrer_id, referred_id, credit_amount, redeemed_at)
     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(uuidv4(), referrerId, newUserId, REFERRAL_CREDIT_AMOUNT * 2);
+  `, uuidv4(), referrerId, newUserId, REFERRAL_CREDIT_AMOUNT * 2);
 
   console.log(`[golf-payments] Referral credit: referrer=${referrerId} newUser=${newUserId}`);
 }
@@ -774,7 +804,7 @@ router.post('/leagues/:id/upgrade-tier', authMiddleware, async (req, res) => {
     const leagueId = req.params.id;
     const userId   = req.user.id;
 
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== userId) return res.status(403).json({ error: 'Not commissioner' });
 
@@ -794,7 +824,7 @@ router.post('/leagues/:id/upgrade-tier', authMiddleware, async (req, res) => {
     }
 
     const base = process.env.CLIENT_URL?.replace(/\/$/, '') || 'https://www.tourneyrun.app';
-    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    const user = await db.get('SELECT email FROM users WHERE id = ?', userId);
 
     const { url } = await createPaymentLink({
       name:        itemName,
@@ -824,7 +854,7 @@ router.post('/waitlist', async (req, res) => {
     return res.status(400).json({ error: 'Valid email required.' });
   }
   try {
-    db.prepare('INSERT OR IGNORE INTO golf_waitlist (email, format) VALUES (?, ?)').run(
+    await db.run('INSERT OR IGNORE INTO golf_waitlist (email, format) VALUES (?, ?)',
       email.toLowerCase().trim(), format
     );
     res.json({ ok: true });

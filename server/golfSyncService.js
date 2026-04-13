@@ -1,5 +1,5 @@
 const https = require('https');
-const db = require('./db');
+const db = require('./db/index');
 const { v4: uuidv4 } = require('uuid');
 
 // Socket.io instance — injected from index.js after server starts
@@ -47,14 +47,14 @@ function calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, isMajor) {
   return Math.round(pts * 10) / 10;
 }
 
-function recalcMemberPoints(memberId) {
-  const total = db.prepare(`
+async function recalcMemberPoints(memberId) {
+  const total = await db.get(`
     SELECT COALESCE(SUM(gs.fantasy_points), 0) as pts
     FROM golf_weekly_lineups wl
     JOIN golf_scores gs ON wl.player_id = gs.player_id AND wl.tournament_id = gs.tournament_id
     WHERE wl.member_id = ? AND wl.is_started = 1
-  `).get(memberId);
-  db.prepare('UPDATE golf_league_members SET season_points = ? WHERE id = ?').run(total.pts, memberId);
+  `, memberId);
+  await db.run('UPDATE golf_league_members SET season_points = ? WHERE id = ?', total.pts, memberId);
 }
 
 // ── Name matching ───────────────────────────────────────────────────────────────
@@ -223,9 +223,9 @@ async function findEspnEvent(tournament) {
     return [];
   }
 
-  function storeId(espnId) {
+  async function storeId(espnId) {
     if (espnId) {
-      db.prepare('UPDATE golf_tournaments SET espn_event_id = ? WHERE id = ?').run(espnId, tournament.id);
+      await db.run('UPDATE golf_tournaments SET espn_event_id = ? WHERE id = ?', espnId, tournament.id);
     }
   }
 
@@ -241,7 +241,7 @@ async function findEspnEvent(tournament) {
     const events = data?.events || [];
     const match = pickBest(events);
     if (match) {
-      storeId(match.id);
+      await storeId(match.id);
       const compCount = scoreFromEvent(match).length;
       console.log(`[golf-sync] Step 1: matched "${match.name || match.shortName}" — ${compCount} competitor(s)`);
       if (compCount > 0) {
@@ -267,7 +267,7 @@ async function findEspnEvent(tournament) {
     console.log(`[golf-sync] Step 2: ${events.length} event(s) on current scoreboard`);
     const match = pickBest(events);
     if (match) {
-      storeId(match.id);
+      await storeId(match.id);
       console.log(`[golf-sync] Step 2: matched "${match.name || match.shortName}" — ${scoreFromEvent(match).length} competitor(s)`);
       return { event: match, source: 'current_scoreboard' };
     }
@@ -277,7 +277,7 @@ async function findEspnEvent(tournament) {
       return !isNaN(d) && Math.abs(d - tStart) < 5 * 86400000;
     });
     if (byDate) {
-      storeId(byDate.id);
+      await storeId(byDate.id);
       console.log(`[golf-sync] Step 2: date-proximity match "${byDate.name || byDate.shortName}"`);
       return { event: byDate, source: 'date_match' };
     }
@@ -297,7 +297,7 @@ async function findEspnEvent(tournament) {
 
 // ── Core sync function ──────────────────────────────────────────────────────────
 async function syncTournamentScores(tournamentId, { par = 72, silent = false } = {}) {
-  const tournament = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tournament = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tournament) throw new Error('Tournament not found');
 
   if (!silent) console.log(`[golf-sync] Syncing: "${tournament.name}" (db_id=${tournamentId}, espn_id=${tournament.espn_event_id || 'none'}, status=${tournament.status})`);
@@ -397,23 +397,23 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
   const isCompleted = newTournamentStatus === 'completed';
   if (!silent) console.log(`[golf-sync] → tournament status: ${newTournamentStatus || '(no change)'}, period: ${currentPeriod}`);
 
-  const allPlayers = db.prepare('SELECT * FROM golf_players WHERE is_active = 1').all();
+  const allPlayers = await db.all('SELECT * FROM golf_players WHERE is_active = 1');
   if (!silent) console.log(`[golf-sync] golf_players pool: ${allPlayers.length} active players`);
   const notMatched = [];
   let synced = 0;
 
-  const upsert = db.prepare(`
+  const upsertSQL = `
     INSERT INTO golf_scores (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(tournament_id, player_id) DO UPDATE SET
       round1=excluded.round1, round2=excluded.round2, round3=excluded.round3, round4=excluded.round4,
       made_cut=excluded.made_cut, finish_position=excluded.finish_position,
       fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
-  `);
+  `;
 
   // Upsert ESPN name → canonical player mapping so future syncs can find players
   // even if their display name changes (diacritics, periods, etc.)
-  const espnPlayerUpsert = db.prepare(`
+  const espnPlayerUpsertSQL = `
     INSERT INTO golf_espn_players (espn_name, display_name, country_code, normalized_name, updated_at)
     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(espn_name) DO UPDATE SET
@@ -421,7 +421,7 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
       country_code    = excluded.country_code,
       normalized_name = excluded.normalized_name,
       updated_at      = CURRENT_TIMESTAMP
-  `);
+  `;
 
   // Log first 3 competitors before transaction so we can diagnose parsing issues
   if (!silent && competitors.length > 0) {
@@ -433,7 +433,7 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
     console.log('[golf-sync] Sample parse:', sample.join(' | '));
   }
 
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const comp of competitors) {
       const { name, r1, r2, r3, r4, madeCut, finishPos } = parseCompetitor(comp);
       if (!name) continue;
@@ -445,36 +445,37 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
       }
 
       // Persist ESPN display name → canonical player mapping for future syncs
-      espnPlayerUpsert.run(name, player.name, player.country, norm(name));
+      await tx.run(espnPlayerUpsertSQL, name, player.name, player.country, norm(name));
 
       const fp = calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, !!tournament.is_major);
       // made_cut stored as: 1=confirmed made cut, 0=missed/WD/DQ, NULL=unknown (R1/R2 in progress)
       const madeCutDb = madeCut === null ? null : (madeCut ? 1 : 0);
-      upsert.run(uuidv4(), tournament.id, player.id, r1, r2, r3, r4, madeCutDb, finishPos, fp);
+      await tx.run(upsertSQL, uuidv4(), tournament.id, player.id, r1, r2, r3, r4, madeCutDb, finishPos, fp);
       synced++;
     }
-  })();
+  });
 
   if (!silent) {
-    const dbCount = db.prepare('SELECT COUNT(*) as c FROM golf_scores WHERE tournament_id = ?').get(tournament.id);
+    const dbCount = await db.get('SELECT COUNT(*) as c FROM golf_scores WHERE tournament_id = ?', tournament.id);
     console.log(`[golf-sync] golf_scores rows after upsert: ${dbCount.c} (tournament_id=${tournament.id})`);
   }
 
   // Recalculate member standings
-  const affected = db.prepare(
-    'SELECT DISTINCT wl.member_id FROM golf_weekly_lineups wl WHERE wl.tournament_id = ? AND wl.is_started = 1'
-  ).all(tournament.id);
-  for (const { member_id } of affected) recalcMemberPoints(member_id);
+  const affected = await db.all(
+    'SELECT DISTINCT wl.member_id FROM golf_weekly_lineups wl WHERE wl.tournament_id = ? AND wl.is_started = 1',
+    tournament.id
+  );
+  for (const { member_id } of affected) await recalcMemberPoints(member_id);
 
   // Update tournament status — ESPN status is authoritative
   if (newTournamentStatus) {
-    db.prepare('UPDATE golf_tournaments SET status = ?, last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(newTournamentStatus, tournament.id);
+    await db.run('UPDATE golf_tournaments SET status = ?, last_synced_at = CURRENT_TIMESTAMP WHERE id = ?', newTournamentStatus, tournament.id);
     if (!silent && newTournamentStatus !== tournament.status) console.log(`[golf-sync] Status: ${tournament.status} → ${newTournamentStatus}`);
   } else if (synced > 0) {
     // No explicit ESPN status — infer active from having data
-    db.prepare("UPDATE golf_tournaments SET status = 'active', last_synced_at = CURRENT_TIMESTAMP WHERE id = ?").run(tournament.id);
+    await db.run("UPDATE golf_tournaments SET status = 'active', last_synced_at = CURRENT_TIMESTAMP WHERE id = ?", tournament.id);
   } else {
-    db.prepare('UPDATE golf_tournaments SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?').run(tournament.id);
+    await db.run('UPDATE golf_tournaments SET last_synced_at = CURRENT_TIMESTAMP WHERE id = ?', tournament.id);
   }
 
   if (!silent) {
@@ -497,19 +498,19 @@ let _lastSyncTime = null;
 let _lastSyncResult = null;
 
 // ── Push pool standings to connected clients via websocket ─────────────────────
-function pushPoolStandings(tournamentId) {
+async function pushPoolStandings(tournamentId) {
   if (!_io) return;
   try {
-    const poolLeagues = db.prepare(`
+    const poolLeagues = await db.all(`
       SELECT gl.id, gl.name, gl.scoring_style
       FROM golf_leagues gl
       WHERE gl.format_type = 'pool'
         AND gl.status != 'archived'
         AND gl.pool_tournament_id = ?
-    `).all(tournamentId);
+    `, tournamentId);
 
     for (const league of poolLeagues) {
-      const standings = db.prepare(`
+      const standings = await db.all(`
         SELECT glm.id as member_id, glm.team_name, u.username,
                COALESCE(SUM(gs.fantasy_points), 0) as total_points
         FROM golf_league_members glm
@@ -519,7 +520,7 @@ function pushPoolStandings(tournamentId) {
         WHERE glm.golf_league_id = ?
         GROUP BY glm.id
         ORDER BY total_points DESC
-      `).all(tournamentId, tournamentId, league.id);
+      `, tournamentId, tournamentId, league.id);
 
       _io.to(`golf_pool_${league.id}`).emit('pool_standings_update', {
         leagueId: league.id,
@@ -544,12 +545,12 @@ async function runAutoSync() {
     return;
   }
 
-  const tournaments = db.prepare(`
+  const tournaments = await db.all(`
     SELECT * FROM golf_tournaments
     WHERE status IN ('active', 'scheduled')
        OR (date('now') BETWEEN date(start_date, '-1 day') AND date(end_date, '+1 day'))
     ORDER BY start_date ASC
-  `).all();
+  `);
 
   console.log(`[golf-sync] Found ${tournaments.length} tournament(s) to sync: ${tournaments.map(t => `"${t.name}"(${t.status})`).join(', ')}`);
   if (tournaments.length === 0) return;
@@ -561,16 +562,16 @@ async function runAutoSync() {
       _lastSyncTime = new Date().toISOString();
       _lastSyncResult = { ...result, tournamentName: tournament.name };
       // Verify what actually landed in the DB
-      const dbCount = db.prepare('SELECT COUNT(*) as c FROM golf_scores WHERE tournament_id = ?').get(tournament.id);
+      const dbCount = await db.get('SELECT COUNT(*) as c FROM golf_scores WHERE tournament_id = ?', tournament.id);
       console.log(`[golf-sync] DB check: golf_scores rows for "${tournament.name}" = ${dbCount.c}`);
       if (result.synced > 0) {
-        pushPoolStandings(tournament.id);
+        await pushPoolStandings(tournament.id);
       }
 
       // ── Round completion email detection (ESPN period-based) ────────────
       // ESPN currentPeriod tells us exactly which round is active/complete.
       // Independent of name matching — works even if some players have no scores.
-      const tournAfter = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournament.id);
+      const tournAfter = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournament.id);
       const isFinal = tournAfter.status === 'completed' && statusBefore !== 'completed';
       const period = result.currentPeriod || 0;
 
@@ -605,7 +606,7 @@ async function runAutoSync() {
 // ── Field sync (WD detection) ─────────────────────────────────────────────────
 // Fetches ESPN scoreboard for upcoming tournaments and marks withdrawn players.
 async function syncTournamentField(tournamentId) {
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) return;
 
   // Only run WD detection once tournament is active (ESPN has a real field)
@@ -614,9 +615,10 @@ async function syncTournamentField(tournamentId) {
     return;
   }
 
-  const leagues = db.prepare(
-    "SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type = 'pool' AND status != 'archived'"
-  ).all(tournamentId);
+  const leagues = await db.all(
+    "SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type = 'pool' AND status != 'archived'",
+    tournamentId
+  );
   if (!leagues.length) return;
 
   // Fetch ESPN scoreboard to get actual field
@@ -651,43 +653,29 @@ async function syncTournamentField(tournamentId) {
   // Build confirmed field from golf_tournament_fields — only these players are actually
   // in the tournament. pool_tier_players may contain 200+ extra players from assign-tiers
   // that are NOT playing this week and must never be evaluated for WD status.
-  const confirmedFieldIds = new Set(
-    db.prepare('SELECT DISTINCT player_id FROM golf_tournament_fields WHERE tournament_id = ?')
-      .all(tournamentId).map(r => r.player_id)
-  );
+  const confirmedFieldRows = await db.all('SELECT DISTINCT player_id FROM golf_tournament_fields WHERE tournament_id = ?', tournamentId);
+  const confirmedFieldIds = new Set(confirmedFieldRows.map(r => r.player_id));
   console.log(`[field-sync] ${tourn.name}: ${confirmedFieldIds.size} players in confirmed field (golf_tournament_fields)`);
 
   for (const league of leagues) {
     // Fetch ALL pool_tier_players (including already-WD'd) so we can both clear false WDs
     // and mark new ones in a single reconcile pass.
-    const tierPlayers = db.prepare(
-      'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?'
-    ).all(league.id, tournamentId);
-
-    const markWD = db.prepare(
-      'UPDATE pool_tier_players SET is_withdrawn = 1 WHERE id = ?'
-    );
-    const clearWD = db.prepare(
-      'UPDATE pool_tier_players SET is_withdrawn = 0 WHERE id = ?'
-    );
-    const markPickWD = db.prepare(
-      'UPDATE pool_picks SET is_withdrawn = 1 WHERE league_id = ? AND tournament_id = ? AND player_name = ?'
-    );
-    const clearPickWD = db.prepare(
-      'UPDATE pool_picks SET is_withdrawn = 0 WHERE league_id = ? AND tournament_id = ? AND player_name = ?'
+    const tierPlayers = await db.all(
+      'SELECT * FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?',
+      league.id, tournamentId
     );
 
     let wdCount = 0;
     let clearedCount = 0;
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const p of tierPlayers) {
         // If this player is not in the confirmed tournament field (golf_tournament_fields),
         // they're a background pool filler from assign-tiers — not a tournament participant.
         // Clear any accidental WD flag and skip — never mark them WD.
         if (!confirmedFieldIds.has(p.player_id)) {
           if (p.is_withdrawn) {
-            clearWD.run(p.id);
-            clearPickWD.run(league.id, tournamentId, p.player_name);
+            await tx.run('UPDATE pool_tier_players SET is_withdrawn = 0 WHERE id = ?', p.id);
+            await tx.run('UPDATE pool_picks SET is_withdrawn = 0 WHERE league_id = ? AND tournament_id = ? AND player_name = ?', league.id, tournamentId, p.player_name);
             console.log(`[field-sync] Cleared non-field player WD: ${p.player_name} (league ${league.id})`);
             clearedCount++;
           }
@@ -709,21 +697,21 @@ async function syncTournamentField(tournamentId) {
         });
         if (inField) {
           if (p.is_withdrawn) {
-            clearWD.run(p.id);
-            clearPickWD.run(league.id, tournamentId, p.player_name);
+            await tx.run('UPDATE pool_tier_players SET is_withdrawn = 0 WHERE id = ?', p.id);
+            await tx.run('UPDATE pool_picks SET is_withdrawn = 0 WHERE league_id = ? AND tournament_id = ? AND player_name = ?', league.id, tournamentId, p.player_name);
             console.log(`[field-sync] Cleared false WD: ${p.player_name} (league ${league.id})`);
             clearedCount++;
           }
         } else {
           if (!p.is_withdrawn) {
-            markWD.run(p.id);
-            markPickWD.run(league.id, tournamentId, p.player_name);
+            await tx.run('UPDATE pool_tier_players SET is_withdrawn = 1 WHERE id = ?', p.id);
+            await tx.run('UPDATE pool_picks SET is_withdrawn = 1 WHERE league_id = ? AND tournament_id = ? AND player_name = ?', league.id, tournamentId, p.player_name);
             console.log(`[field-sync] WD detected: ${p.player_name} (league ${league.id})`);
             wdCount++;
           }
         }
       }
-    })();
+    });
     if (clearedCount > 0) {
       console.log(`[field-sync] ${tourn.name}: ${clearedCount} false WD(s) cleared in league ${league.id}`);
     }
@@ -741,19 +729,19 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
   const { v4: uuidv4 } = require('uuid');
   const { sendRoundStandings } = require('./mailer');
 
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) return;
 
   // Get all pool leagues for this tournament
-  const leagues = db.prepare(`
+  const leagues = await db.all(`
     SELECT gl.* FROM golf_leagues gl
     WHERE gl.pool_tournament_id = ? AND gl.status != 'archived'
-  `).all(tournamentId);
+  `, tournamentId);
 
   for (const league of leagues) {
     // Check if already sent for this round
-    const already = db.prepare('SELECT 1 FROM round_emails_sent WHERE league_id = ? AND round_number = ?')
-      .get(league.id, roundNumber);
+    const already = await db.get('SELECT 1 FROM round_emails_sent WHERE league_id = ? AND round_number = ?',
+      league.id, roundNumber);
     if (already) {
       console.log(`[round-email] R${roundNumber} already sent for "${league.name}", skipping`);
       continue;
@@ -767,18 +755,18 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
 
       // Build standings (same logic as the standings API)
       const { applyDropScoring } = require('./pool-utils');
-      const members = db.prepare(`
+      const members = await db.all(`
         SELECT glm.user_id, glm.team_name, u.email, u.username
         FROM golf_league_members glm JOIN users u ON u.id = glm.user_id
         WHERE glm.golf_league_id = ?
-      `).all(league.id);
+      `, league.id);
 
       // Get all entries (including multi-entry)
-      const extraEntries = db.prepare(`
+      const extraEntries = await db.all(`
         SELECT DISTINCT pp.user_id, COALESCE(pp.entry_number, 1) as entry_number, pp.entry_team_name
         FROM pool_picks pp
         WHERE pp.league_id = ? AND pp.tournament_id = ? AND COALESCE(pp.entry_number, 1) > 1
-      `).all(league.id, tournamentId);
+      `, league.id, tournamentId);
 
       const allEntries = [
         ...members.map(m => ({ ...m, entry_number: 1 })),
@@ -789,8 +777,9 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
       ];
 
       // Score each entry
-      const standings = allEntries.map(entry => {
-        const picks = db.prepare(`
+      const standings = [];
+      for (const entry of allEntries) {
+        const picks = await db.all(`
           SELECT pp.player_id, pp.player_name, pp.tier_number, pp.is_dropped,
                  pp.tiebreaker_score,
                  gs.fantasy_points, gs.round1, gs.round2, gs.round3, gs.round4,
@@ -799,7 +788,7 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
           LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = ?
           WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
             AND COALESCE(pp.entry_number, 1) = ?
-        `).all(tournamentId, league.id, tournamentId, entry.user_id, entry.entry_number);
+        `, tournamentId, league.id, tournamentId, entry.user_id, entry.entry_number);
 
         let score;
         if (isStroke) {
@@ -811,14 +800,15 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
         }
 
         const tiebreaker = picks.length > 0 ? (picks[0].tiebreaker_score ?? null) : null;
-        return { ...entry, score, tiebreaker, submitted: picks.length > 0 };
-      }).filter(e => e.submitted);
+        const stEntry = { ...entry, score, tiebreaker, submitted: picks.length > 0 };
+        if (stEntry.submitted) standings.push(stEntry);
+      }
 
       // Sort: stroke=ascending, fantasy=descending. Tiebreaker as secondary sort.
       // Get winning golf score for tiebreaker comparison
       let winningGolfScore = null;
       if (isFinal) {
-        const winner = db.prepare('SELECT round1, round2, round3, round4 FROM golf_scores WHERE tournament_id = ? AND finish_position = 1 LIMIT 1').get(tournamentId);
+        const winner = await db.get('SELECT round1, round2, round3, round4 FROM golf_scores WHERE tournament_id = ? AND finish_position = 1 LIMIT 1', tournamentId);
         if (winner) winningGolfScore = [winner.round1, winner.round2, winner.round3, winner.round4].filter(r => r != null).reduce((s, r) => s + r, 0);
       }
       const tbDelta = s => (winningGolfScore != null && s.tiebreaker != null) ? Math.abs(s.tiebreaker - winningGolfScore) : Infinity;
@@ -885,8 +875,8 @@ async function sendRoundEmails(tournamentId, roundNumber, isFinal) {
 
       // Only mark as sent if at least one email succeeded
       if (sent > 0) {
-        db.prepare('INSERT OR IGNORE INTO round_emails_sent (id, league_id, round_number) VALUES (?, ?, ?)')
-          .run(uuidv4(), league.id, roundNumber);
+        await db.run('INSERT OR IGNORE INTO round_emails_sent (id, league_id, round_number) VALUES (?, ?, ?)',
+          uuidv4(), league.id, roundNumber);
         console.log(`[round-email] R${roundNumber}${isFinal ? ' (FINAL)' : ''} sent to ${sent}/${userMap.size} members of "${league.name}"`);
       } else {
         console.error(`[round-email] R${roundNumber} — ALL sends failed for "${league.name}", will retry next cycle`);
@@ -901,14 +891,14 @@ let _fieldSyncInterval = null;
 
 async function runFieldSync() {
   // Find pool leagues with tournaments starting within 7 days
-  const upcoming = db.prepare(`
+  const upcoming = await db.all(`
     SELECT DISTINCT gt.id, gt.name FROM golf_tournaments gt
     JOIN golf_leagues gl ON gl.pool_tournament_id = gt.id AND gl.format_type = 'pool' AND gl.status != 'archived'
     WHERE gt.status IN ('scheduled','active')
       AND date(gt.start_date) <= date('now', '+7 days')
       AND date(gt.start_date) >= date('now', '-1 days')
     ORDER BY gt.start_date ASC
-  `).all();
+  `);
 
   for (const t of upcoming) {
     try {
@@ -935,8 +925,8 @@ function scheduleAutoSync() {
   console.log('[golf-sync] Field sync scheduled — daily 8am UTC');
 }
 
-function getSyncStatus() {
-  const active = db.prepare("SELECT id, name, status, espn_event_id, last_synced_at FROM golf_tournaments WHERE status = 'active' ORDER BY start_date ASC LIMIT 1").get();
+async function getSyncStatus() {
+  const active = await db.get("SELECT id, name, status, espn_event_id, last_synced_at FROM golf_tournaments WHERE status = 'active' ORDER BY start_date ASC LIMIT 1");
   return {
     lastSyncTime: _lastSyncTime,
     lastSyncResult: _lastSyncResult,
@@ -947,12 +937,12 @@ function getSyncStatus() {
 
 // ── Backfill completed tournaments that have no scores yet ─────────────────────
 async function backfillCompleted() {
-  const completed = db.prepare(`
+  const completed = await db.all(`
     SELECT gt.* FROM golf_tournaments gt
     WHERE gt.status = 'completed'
       AND (SELECT COUNT(*) FROM golf_scores WHERE tournament_id = gt.id) = 0
     ORDER BY gt.start_date ASC
-  `).all();
+  `);
 
   if (completed.length === 0) {
     console.log('[golf-sync] Backfill: all completed tournaments already have scores.');
@@ -999,7 +989,7 @@ function _rankToOdds(rank) {
 // and golf_players, then rebuilds pool_tier_players for any pool leagues using it.
 // Safe to call at startup — idempotent (clears and re-inserts field each run).
 async function syncEspnFieldForTournament(tournamentId) {
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) throw new Error(`Tournament ${tournamentId} not found`);
   if (!tourn.espn_event_id) throw new Error(`Tournament ${tourn.name} has no espn_event_id`);
 
@@ -1051,16 +1041,10 @@ async function syncEspnFieldForTournament(tournamentId) {
   }
 
   // ── Upsert golf_tournament_fields + golf_players ─────────────────────────────
-  const _getGP   = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
-  const _insGP   = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking) VALUES (?, ?, ?, 1, ?)');
-  const _insTF   = db.prepare(`INSERT OR REPLACE INTO golf_tournament_fields (id, tournament_id, player_name, player_id, espn_player_id, world_ranking, odds_display, odds_decimal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
-  const _updGP   = db.prepare('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE id = ?');
-  const _updGPCo = db.prepare('UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)');
-
-  db.prepare('DELETE FROM golf_tournament_fields WHERE tournament_id = ?').run(tournamentId);
+  await db.run('DELETE FROM golf_tournament_fields WHERE tournament_id = ?', tournamentId);
 
   let fieldCount = 0;
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const c of competitors) {
       const name    = c.athlete?.displayName || c.athlete?.fullName;
       const espnId  = String(c.athlete?.id || '');
@@ -1068,26 +1052,28 @@ async function syncEspnFieldForTournament(tournamentId) {
       const country = c.athlete?.flag?.alt || c.athlete?.country || null;
       if (!name) continue;
 
-      let gp = _getGP.get(name);
-      if (!gp) { _insGP.run(uuidv4(), name, country, 1, ranking || 200); gp = _getGP.get(name); }
+      let gp = await tx.get('SELECT * FROM golf_players WHERE name = ? LIMIT 1', name);
+      if (!gp) { await tx.run('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking) VALUES (?, ?, ?, 1, ?)', uuidv4(), name, country, 1, ranking || 200); gp = await tx.get('SELECT * FROM golf_players WHERE name = ? LIMIT 1', name); }
       if (!gp) continue;
-      if (country) _updGPCo.run(country, gp.id);
+      if (country) await tx.run('UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)', country, gp.id);
 
       const nameLower = name.toLowerCase();
       const lastName  = nameLower.split(' ').pop();
       const playerOdds = oddsMap[espnId] || nameOddsMap[nameLower] || lastNameOddsMap[lastName] || null;
-      _insTF.run(uuidv4(), tournamentId, name, gp.id, espnId, ranking || gp.world_ranking || 200,
+      await tx.run(`INSERT OR REPLACE INTO golf_tournament_fields (id, tournament_id, player_name, player_id, espn_player_id, world_ranking, odds_display, odds_decimal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                 uuidv4(), tournamentId, name, gp.id, espnId, ranking || gp.world_ranking || 200,
                  playerOdds?.odds_display || null, playerOdds?.odds_decimal || null);
-      if (playerOdds) _updGP.run(playerOdds.odds_display, playerOdds.odds_decimal, gp.id);
+      if (playerOdds) await tx.run('UPDATE golf_players SET odds_display = ?, odds_decimal = ? WHERE id = ?', playerOdds.odds_display, playerOdds.odds_decimal, gp.id);
       fieldCount++;
     }
-  })();
+  });
   console.log(`[field-sync] ${tourn.name}: ${fieldCount} players inserted into golf_tournament_fields`);
 
   // ── Rebuild pool_tier_players for affected leagues ───────────────────────────
-  const affectedLeagues = db.prepare(
-    "SELECT * FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'"
-  ).all(tournamentId);
+  const affectedLeagues = await db.all(
+    "SELECT * FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'",
+    tournamentId
+  );
 
   for (const league of affectedLeagues) {
     let tiersConfig = [];
@@ -1097,18 +1083,17 @@ async function syncEspnFieldForTournament(tournamentId) {
     // NOTE: is_withdrawn is intentionally NOT in the INSERT column list here.
     // Deleting and re-inserting resets is_withdrawn to 0 (the column default).
     // syncTournamentField() is the SOLE owner of is_withdrawn — DO NOT set it here.
-    const insTP = db.prepare(`INSERT OR REPLACE INTO pool_tier_players (id, league_id, tournament_id, player_id, player_name, tier_number, odds_display, odds_decimal, world_ranking, salary, manually_overridden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`);
-    db.prepare('DELETE FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 0').run(league.id, tournamentId);
+    await db.run('DELETE FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 0', league.id, tournamentId);
 
-    const allTF = db.prepare(`
+    const allTF = await db.all(`
       SELECT gp.*, tf.odds_display AS tf_od, tf.odds_decimal AS tf_dec
       FROM golf_players gp
       INNER JOIN golf_tournament_fields tf ON tf.player_id = gp.id AND tf.tournament_id = ?
       ORDER BY COALESCE(tf.odds_decimal, gp.odds_decimal, 999) ASC
-    `).all(tournamentId);
+    `, tournamentId);
 
     let count = 0;
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const p of allTF) {
         const gen = (!p.tf_od && !p.odds_display) ? _rankToOdds(p.world_ranking || 200) : null;
         const odds_display = p.tf_od || p.odds_display || gen.odds_display;
@@ -1117,10 +1102,11 @@ async function syncEspnFieldForTournament(tournamentId) {
         for (const t of tiersConfig) {
           if (odds_decimal >= _oddsToDecimal(t.odds_min) && odds_decimal <= _oddsToDecimal(t.odds_max)) { tierNum = t.tier; break; }
         }
-        insTP.run(uuidv4(), league.id, tournamentId, p.id, p.name, tierNum, odds_display, odds_decimal, p.world_ranking || null);
+        await tx.run(`INSERT OR REPLACE INTO pool_tier_players (id, league_id, tournament_id, player_id, player_name, tier_number, odds_display, odds_decimal, world_ranking, salary, manually_overridden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
+          uuidv4(), league.id, tournamentId, p.id, p.name, tierNum, odds_display, odds_decimal, p.world_ranking || null);
         count++;
       }
-    })();
+    });
     console.log(`[field-sync] League "${league.name}": ${count} players assigned to tiers`);
   }
 

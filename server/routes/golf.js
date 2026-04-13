@@ -1207,9 +1207,9 @@ router.post('/admin/sync/:tournamentId', authMiddleware, async (req, res) => {
 });
 
 // GET /admin/sync/status
-router.get('/admin/sync/status', authMiddleware, (req, res) => {
+router.get('/admin/sync/status', authMiddleware, async (req, res) => {
   try {
-    res.json(getSyncStatus());
+    res.json(await getSyncStatus());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

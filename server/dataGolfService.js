@@ -7,7 +7,7 @@
  */
 
 const https   = require('https');
-const db      = require('./db');
+const db      = require('./db/index');
 const { v4: uuidv4 } = require('uuid');
 
 const BASE = 'https://feeds.datagolf.com';
@@ -150,12 +150,12 @@ async function syncPlayerList() {
   }
 
   // Match against our existing golf_players records
-  const ourPlayers = db.prepare('SELECT id, name, country, datagolf_id FROM golf_players').all();
-  const updDg      = db.prepare('UPDATE golf_players SET datagolf_id = ? WHERE id = ?');
-  const updCountry = db.prepare("UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)");
+  const ourPlayers = await db.all('SELECT id, name, country, datagolf_id FROM golf_players');
+  const updDgSql      = 'UPDATE golf_players SET datagolf_id = ? WHERE id = ?';
+  const updCountrySql = "UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)";
 
   let matched = 0, countryFixed = 0;
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const p of ourPlayers) {
       // Try exact name first, then lowercase trim
       const key = p.name.toLowerCase().trim();
@@ -171,15 +171,15 @@ async function syncPlayerList() {
       matched++;
 
       // Only update datagolf_id if not already set or set to a different value
-      if (p.datagolf_id !== dgData.dgId) updDg.run(dgData.dgId, p.id);
+      if (p.datagolf_id !== dgData.dgId) await tx.run(updDgSql, dgData.dgId, p.id);
 
       // Fix country code if it's missing or 3-letter
       if (dgData.country && (!p.country || p.country.length !== 2)) {
-        updCountry.run(dgData.country, p.id);
+        await tx.run(updCountrySql, dgData.country, p.id);
         countryFixed++;
       }
     }
-  })();
+  });
 
   console.log(`[datagolf] Player list: ${players.length} DG, ${ourPlayers.length} ours, ${matched} matched, ${countryFixed} countries fixed`);
   return { dg_total: players.length, our_total: ourPlayers.length, matched, country_fixed: countryFixed };
@@ -221,17 +221,19 @@ async function syncCurrentField() {
 
   // Try by datagolf_event_id first
   if (dgEventId) {
-    tourn = db.prepare(
-      'SELECT * FROM golf_tournaments WHERE datagolf_event_id = ? AND season_year = ?'
-    ).get(dgEventId, year);
+    tourn = await db.get(
+      'SELECT * FROM golf_tournaments WHERE datagolf_event_id = ? AND season_year = ?',
+      dgEventId, year
+    );
   }
 
   // Fall back to name match
   if (!tourn && eventName) {
     const eventWords = eventName.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(w => w.length > 3);
-    const candidates = db.prepare(
-      "SELECT * FROM golf_tournaments WHERE season_year = ? AND status IN ('active','scheduled') ORDER BY start_date ASC"
-    ).all(year);
+    const candidates = await db.all(
+      "SELECT * FROM golf_tournaments WHERE season_year = ? AND status IN ('active','scheduled') ORDER BY start_date ASC",
+      year
+    );
     for (const t of candidates) {
       const tName = t.name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim();
       const hits = eventWords.filter(w => tName.includes(w)).length;
@@ -246,11 +248,11 @@ async function syncCurrentField() {
 
   // Persist datagolf_event_id if we learned it
   if (dgEventId && !tourn.datagolf_event_id) {
-    db.prepare('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?').run(dgEventId, tourn.id);
+    await db.run('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?', dgEventId, tourn.id);
     tourn.datagolf_event_id = dgEventId;
   }
 
-  const result = _applyFieldToTournament(tourn, field);
+  const result = await _applyFieldToTournament(tourn, field);
   // Auto-assign betting-odds-based tiers after field is populated (non-blocking)
   syncDgOddsTiers(tourn.id).then(t => {
     if (!t.skipped) console.log(`[datagolf] Auto odds-tiers: ${t.updated} assigned, ${t.no_odds} defaulted to T4`);
@@ -262,7 +264,7 @@ async function syncFieldForTournament(tournamentId) {
   const key = process.env.DATAGOLF_API_KEY;
   if (!key) return { skipped: true, reason: 'no_key' };
 
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) throw new Error(`Tournament ${tournamentId} not found`);
 
   const raw   = await fetchJson('/field-updates?tour=pga&file_format=json');
@@ -273,10 +275,10 @@ async function syncFieldForTournament(tournamentId) {
   // Persist datagolf_event_id if returned
   const dgEventId = raw.event_id || null;
   if (dgEventId && !tourn.datagolf_event_id) {
-    db.prepare('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?').run(dgEventId, tourn.id);
+    await db.run('UPDATE golf_tournaments SET datagolf_event_id = ? WHERE id = ?', dgEventId, tourn.id);
   }
 
-  const result = _applyFieldToTournament(tourn, field);
+  const result = await _applyFieldToTournament(tourn, field);
   syncDgOddsTiers(tourn.id).then(t => {
     if (!t.skipped) console.log(`[datagolf] Auto odds-tiers: ${t.updated} assigned, ${t.no_odds} defaulted to T4`);
   }).catch(e => console.warn('[datagolf] Odds tier auto-sync skipped:', e.message));
@@ -284,37 +286,37 @@ async function syncFieldForTournament(tournamentId) {
 }
 
 // Internal: write field data for a specific tournament
-function _applyFieldToTournament(tourn, field) {
+async function _applyFieldToTournament(tourn, field) {
   console.log(`[datagolf] Applying field of ${field.length} players to ${tourn.name}`);
 
   // NUCLEAR GUARD: if ANY league linked to this tournament has locked odds,
   // skip the entire tier rebuild section. WD detection and field update still run.
-  const _anyLockedLeague = db.prepare(`
+  const _anyLockedLeague = await db.get(`
     SELECT 1 FROM pool_tier_players ptp
     JOIN golf_leagues gl ON gl.id = ptp.league_id
     WHERE gl.pool_tournament_id = ? AND ptp.odds_locked_at IS NOT NULL
     LIMIT 1
-  `).get(tourn.id);
+  `, tourn.id);
   const _skipTierRebuild = !!_anyLockedLeague;
 
-  const _getGP  = db.prepare('SELECT * FROM golf_players WHERE datagolf_id = ? LIMIT 1');
-  const _getGPN = db.prepare('SELECT * FROM golf_players WHERE name = ? LIMIT 1');
-  const _insGP  = db.prepare('INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking, datagolf_id) VALUES (?, ?, ?, 1, ?, ?)');
-  const _updGPCo= db.prepare("UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)");
-  const _updDgId= db.prepare("UPDATE golf_players SET datagolf_id = ? WHERE id = ? AND datagolf_id IS NULL");
-  const _insTF  = db.prepare(`
+  const _getGPSql  = 'SELECT * FROM golf_players WHERE datagolf_id = ? LIMIT 1';
+  const _getGPNSql = 'SELECT * FROM golf_players WHERE name = ? LIMIT 1';
+  const _insGPSql  = 'INSERT OR IGNORE INTO golf_players (id, name, country, is_active, world_ranking, datagolf_id) VALUES (?, ?, ?, 1, ?, ?)';
+  const _updGPCoSql= "UPDATE golf_players SET country = ? WHERE id = ? AND (country IS NULL OR length(country) != 2)";
+  const _updDgIdSql= "UPDATE golf_players SET datagolf_id = ? WHERE id = ? AND datagolf_id IS NULL";
+  const _insTFSql  = `
     INSERT OR REPLACE INTO golf_tournament_fields
       (id, tournament_id, player_name, player_id, espn_player_id, world_ranking, odds_display, odds_decimal)
     VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL)
-  `);
+  `;
 
   // Track which player IDs are in the new field (for WD detection)
   const fieldPlayerIds = new Set();
 
-  db.prepare('DELETE FROM golf_tournament_fields WHERE tournament_id = ?').run(tourn.id);
+  await db.run('DELETE FROM golf_tournament_fields WHERE tournament_id = ?', tourn.id);
 
   let inserted = 0, created = 0;
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const f of field) {
       const name    = (f.player_name || f.name || '').trim();
       const dgId    = f.dg_id;
@@ -323,47 +325,49 @@ function _applyFieldToTournament(tourn, field) {
       if (!name) continue;
 
       // Find or create player record, preferring datagolf_id match
-      let gp = dgId ? _getGP.get(dgId) : null;
-      if (!gp) gp = _getGPN.get(name);
+      let gp = dgId ? await tx.get(_getGPSql, dgId) : null;
+      if (!gp) gp = await tx.get(_getGPNSql, name);
       if (!gp) {
-        _insGP.run(uuidv4(), name, country, null, dgId || null);
-        gp = dgId ? _getGP.get(dgId) : _getGPN.get(name);
+        await tx.run(_insGPSql, uuidv4(), name, country, null, dgId || null);
+        gp = dgId ? await tx.get(_getGPSql, dgId) : await tx.get(_getGPNSql, name);
         if (gp) created++;
       }
       if (!gp) continue;
 
       // Update country and datagolf_id on player record
-      if (country)  _updGPCo.run(country, gp.id);
-      if (dgId)     _updDgId.run(dgId, gp.id);
+      if (country)  await tx.run(_updGPCoSql, country, gp.id);
+      if (dgId)     await tx.run(_updDgIdSql, dgId, gp.id);
 
       fieldPlayerIds.add(gp.id);
-      _insTF.run(uuidv4(), tourn.id, name, gp.id, gp.world_ranking || null);
+      await tx.run(_insTFSql, uuidv4(), tourn.id, name, gp.id, gp.world_ranking || null);
       inserted++;
     }
-  })();
+  });
 
   // ── Detect WDs: pool_picks for this tournament that aren't in new field ───
   let wdCount = 0;
-  const pickLeagues = db.prepare(
-    "SELECT DISTINCT league_id FROM pool_picks WHERE tournament_id = ? AND is_dropped = 0"
-  ).all(tourn.id);
+  const pickLeagues = await db.all(
+    "SELECT DISTINCT league_id FROM pool_picks WHERE tournament_id = ? AND is_dropped = 0",
+    tourn.id
+  );
   for (const { league_id } of pickLeagues) {
-    const picks = db.prepare(
-      'SELECT pp.player_id FROM pool_picks pp WHERE pp.league_id = ? AND pp.tournament_id = ?'
-    ).all(league_id, tourn.id);
+    const picks = await db.all(
+      'SELECT pp.player_id FROM pool_picks pp WHERE pp.league_id = ? AND pp.tournament_id = ?',
+      league_id, tourn.id
+    );
     for (const pick of picks) {
       if (!fieldPlayerIds.has(pick.player_id)) {
         // Player no longer in field — ensure a golf_scores row exists with made_cut=0
         // INSERT OR IGNORE creates the row if it doesn't exist; UPDATE handles the case
         // where a row exists but made_cut is still NULL (e.g. was in R1 then WD'd).
-        db.prepare(`
+        await db.run(`
           INSERT OR IGNORE INTO golf_scores (id, tournament_id, player_id, made_cut, updated_at)
           VALUES (?, ?, ?, 0, datetime('now'))
-        `).run(uuidv4(), tourn.id, pick.player_id);
-        db.prepare(`
+        `, uuidv4(), tourn.id, pick.player_id);
+        await db.run(`
           UPDATE golf_scores SET made_cut = 0
           WHERE player_id = ? AND tournament_id = ? AND made_cut IS NULL
-        `).run(pick.player_id, tourn.id);
+        `, pick.player_id, tourn.id);
         wdCount++;
       }
     }
@@ -376,16 +380,18 @@ function _applyFieldToTournament(tourn, field) {
   }
 
   const { _oddsToDecimal, _rankToOdds } = _getTierHelpers();
-  const affectedLeagues = db.prepare(
-    "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'"
-  ).all(tourn.id);
+  const affectedLeagues = await db.all(
+    "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'",
+    tourn.id
+  );
 
   const leagueResults = [];
   for (const league of affectedLeagues) {
     // Guard: never rebuild tiers for leagues with locked odds
-    const hasLockedOdds = db.prepare(
-      'SELECT 1 FROM pool_tier_players WHERE league_id = ? AND odds_locked_at IS NOT NULL LIMIT 1'
-    ).get(league.id);
+    const hasLockedOdds = await db.get(
+      'SELECT 1 FROM pool_tier_players WHERE league_id = ? AND odds_locked_at IS NOT NULL LIMIT 1',
+      league.id
+    );
     if (hasLockedOdds) {
       leagueResults.push({ league: league.name, skipped: 'odds_locked' });
       continue;
@@ -397,40 +403,40 @@ function _applyFieldToTournament(tourn, field) {
 
     // Delete non-overridden tier players EXCEPT those who have been picked —
     // picked players must keep their tier row visible (mark WD instead of deleting).
-    db.prepare(`
+    await db.run(`
       DELETE FROM pool_tier_players
       WHERE league_id = ? AND tournament_id = ? AND manually_overridden = 0
         AND player_id NOT IN (
           SELECT DISTINCT player_id FROM pool_picks
           WHERE league_id = ? AND tournament_id = ?
         )
-    `).run(league.id, tourn.id, league.id, tourn.id);
+    `, league.id, tourn.id, league.id, tourn.id);
 
     // Use odds from golf_players + golf_tournament_fields; field was just updated.
     // GROUP BY gp.id deduplicates players who have multiple name-variant rows in
     // golf_tournament_fields (UNIQUE on player_name, not player_id), which would
     // otherwise produce N rows per player and N duplicate pool_tier_players inserts.
-    const allTF = db.prepare(`
+    const allTF = await db.all(`
       SELECT gp.*, tf.odds_display AS tf_od, tf.odds_decimal AS tf_dec
       FROM golf_players gp
       INNER JOIN golf_tournament_fields tf ON tf.player_id = gp.id AND tf.tournament_id = ?
       GROUP BY gp.id
       ORDER BY COALESCE(tf.odds_decimal, gp.odds_decimal, 999) ASC
-    `).all(tourn.id);
+    `, tourn.id);
 
     // NOTE: is_withdrawn is intentionally NOT in the INSERT column list here.
     // Deleting and re-inserting resets is_withdrawn to 0 (the column default).
     // syncTournamentField() in golfSyncService.js is the SOLE owner of is_withdrawn.
     // DO NOT set is_withdrawn here.
-    const insTP = db.prepare(`
+    const insTPSql = `
       INSERT OR REPLACE INTO pool_tier_players
         (id, league_id, tournament_id, player_id, player_name, tier_number,
          odds_display, odds_decimal, world_ranking, salary, manually_overridden)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
-    `);
+    `;
 
     let count = 0;
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const p of allTF) {
         const gen = (!p.tf_od && !p.odds_display) ? _rankToOdds(p.world_ranking || 200) : null;
         const odds_display = p.tf_od || p.odds_display || gen.odds_display;
@@ -441,23 +447,23 @@ function _applyFieldToTournament(tourn, field) {
             tierNum = t.tier; break;
           }
         }
-        insTP.run(uuidv4(), league.id, tourn.id, p.id, p.name, tierNum, odds_display, odds_decimal, p.world_ranking || null);
+        await tx.run(insTPSql, uuidv4(), league.id, tourn.id, p.id, p.name, tierNum, odds_display, odds_decimal, p.world_ranking || null);
         count++;
       }
-    })();
+    });
 
     // Mark picked players as withdrawn if they're no longer in the field
-    const fieldPlayerIds = new Set(allTF.map(p => p.id));
-    const stalePickedPlayers = db.prepare(`
+    const fieldPlayerIdsLocal = new Set(allTF.map(p => p.id));
+    const stalePickedPlayers = await db.all(`
       SELECT DISTINCT ptp.player_id FROM pool_tier_players ptp
       WHERE ptp.league_id = ? AND ptp.tournament_id = ?
         AND ptp.player_id NOT IN (${allTF.map(() => '?').join(',') || "''"})
-    `).all(league.id, tourn.id, ...allTF.map(p => p.id));
+    `, league.id, tourn.id, ...allTF.map(p => p.id));
 
     if (stalePickedPlayers.length > 0) {
-      const markWD = db.prepare('UPDATE pool_tier_players SET is_withdrawn = 1 WHERE league_id = ? AND tournament_id = ? AND player_id = ?');
+      const markWDSql = 'UPDATE pool_tier_players SET is_withdrawn = 1 WHERE league_id = ? AND tournament_id = ? AND player_id = ?';
       for (const { player_id } of stalePickedPlayers) {
-        markWD.run(league.id, tourn.id, player_id);
+        await db.run(markWDSql, league.id, tourn.id, player_id);
       }
       console.log(`[datagolf] ${tourn.name}: marked ${stalePickedPlayers.length} picked player(s) as WD in league ${league.name}`);
     }
@@ -471,9 +477,10 @@ function _applyFieldToTournament(tourn, field) {
   // Update salaries for any salary_cap leagues after odds sync
   try {
     const { assignSalaryCapSalaries } = require('./routes/golf-pool');
-    const scLeagues = db.prepare(
-      "SELECT id FROM golf_leagues WHERE format_type = 'salary_cap' AND pool_tournament_id = ? AND status != 'archived'"
-    ).all(tourn.id);
+    const scLeagues = await db.all(
+      "SELECT id FROM golf_leagues WHERE format_type = 'salary_cap' AND pool_tournament_id = ? AND status != 'archived'",
+      tourn.id
+    );
     for (const l of scLeagues) assignSalaryCapSalaries(l.id);
     if (scLeagues.length) console.log(`[datagolf] assigned salaries to ${scLeagues.length} salary_cap league(s)`);
   } catch (e) { console.error('[datagolf] salary assignment error:', e); }
@@ -537,12 +544,12 @@ async function syncSchedule(season) {
     return { error: 'empty_schedule', season: yr };
   }
 
-  const insT = db.prepare(`
+  const insTSql = `
     INSERT OR IGNORE INTO golf_tournaments
       (id, name, course, start_date, end_date, season_year, is_major, is_signature, status, purse, prize_money, datagolf_event_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?)
-  `);
-  const updT = db.prepare(`
+  `;
+  const updTSql = `
     UPDATE golf_tournaments
     SET course = COALESCE(NULLIF(course,''), ?),
         start_date = ?,
@@ -551,10 +558,10 @@ async function syncSchedule(season) {
         prize_money = COALESCE(NULLIF(prize_money,0), ?),
         datagolf_event_id = COALESCE(datagolf_event_id, ?)
     WHERE name = ? AND season_year = ?
-  `);
+  `;
 
   let inserted = 0, updated = 0;
-  db.transaction(() => {
+  await db.transaction(async (tx) => {
     for (const ev of events) {
       const name   = (ev.event_name || ev.name || '').trim();
       const dgId   = ev.event_id || ev.dg_event_id || null;
@@ -566,16 +573,16 @@ async function syncSchedule(season) {
       const is_major     = isMajorEvent(name) ? 1 : 0;
       const is_signature = (purse >= 15000000 || ev.signature === true || ev.is_signature === 1) ? 1 : 0;
 
-      const res = insT.run(uuidv4(), name, course, dates.start_date, dates.end_date, yr, is_major, is_signature, purse, purse, dgId);
+      const res = await tx.run(insTSql, uuidv4(), name, course, dates.start_date, dates.end_date, yr, is_major, is_signature, purse, purse, dgId);
       if (res.changes > 0) {
         inserted++;
       } else {
         // Tournament exists — update mutable fields
-        updT.run(course, dates.start_date, dates.end_date, purse, purse, dgId, name, yr);
+        await tx.run(updTSql, course, dates.start_date, dates.end_date, purse, purse, dgId, name, yr);
         updated++;
       }
     }
-  })();
+  });
 
   console.log(`[datagolf] Schedule sync ${yr}: ${inserted} inserted, ${updated} updated (${events.length} total events)`);
   return { season: yr, total: events.length, inserted, updated };
@@ -592,7 +599,7 @@ async function syncLiveStats(tournamentId) {
   const key = process.env.DATAGOLF_API_KEY;
   if (!key) return { skipped: true, reason: 'no_key' };
 
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) throw new Error(`Tournament ${tournamentId} not found`);
 
   console.log(`[datagolf] Fetching live stats for ${tourn.name}...`);
@@ -604,11 +611,11 @@ async function syncLiveStats(tournamentId) {
   if (!liveStats.length) return { synced: 0, reason: 'no_live_stats' };
 
   // Ensure sg_total column exists (migration guard)
-  try { db.exec('ALTER TABLE golf_scores ADD COLUMN sg_total REAL'); } catch (_) {}
+  try { await db.exec('ALTER TABLE golf_scores ADD COLUMN sg_total REAL'); } catch (_) {}
 
-  const updSG = db.prepare('UPDATE golf_scores SET sg_total = ? WHERE player_id = ? AND tournament_id = ?');
-  const _getGP = db.prepare('SELECT id FROM golf_players WHERE datagolf_id = ? LIMIT 1');
-  const _getGPN = db.prepare('SELECT id FROM golf_players WHERE name = ? LIMIT 1');
+  const updSGSql = 'UPDATE golf_scores SET sg_total = ? WHERE player_id = ? AND tournament_id = ?';
+  const _getGPSql = 'SELECT id FROM golf_players WHERE datagolf_id = ? LIMIT 1';
+  const _getGPNSql = 'SELECT id FROM golf_players WHERE name = ? LIMIT 1';
 
   let synced = 0;
   for (const s of liveStats) {
@@ -617,11 +624,11 @@ async function syncLiveStats(tournamentId) {
     const sgTotal = s.sg_total ?? null;
     if (sgTotal === null) continue;
 
-    let gp = dgId ? _getGP.get(dgId) : null;
-    if (!gp && name) gp = _getGPN.get(name);
+    let gp = dgId ? await db.get(_getGPSql, dgId) : null;
+    if (!gp && name) gp = await db.get(_getGPNSql, name);
     if (!gp) continue;
 
-    const res = updSG.run(sgTotal, gp.id, tourn.id);
+    const res = await db.run(updSGSql, sgTotal, gp.id, tourn.id);
     if (res.changes > 0) synced++;
   }
 
@@ -713,17 +720,17 @@ const DG_BOOK_PREFS = ['draftkings', 'fanduel', 'betmgm', 'caesars', 'pointsbetu
 async function syncDgOddsTiers(tournamentId) {
   if (!process.env.DATAGOLF_API_KEY) return { skipped: true, reason: 'no_key' };
 
-  const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+  const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) return { error: 'tournament_not_found' };
 
   // Guard: NEVER re-tier if ANY active pool exists for this tournament.
   // Once a league is created and members can see tiers, odds must be frozen.
   // Re-tiering causes duplicates, tier disappearances, and corrupted picks.
-  const activePool = db.prepare(`
+  const activePool = await db.get(`
     SELECT gl.id, gl.name FROM golf_leagues gl
     WHERE gl.pool_tournament_id = ? AND gl.status != 'archived'
     LIMIT 1
-  `).get(tournamentId);
+  `, tournamentId);
   if (activePool) {
     console.log(`[datagolf] Odds tiers SKIPPED for "${tourn.name}" — active pool "${activePool.name}" exists`);
     return { skipped: true, reason: 'active_pool_exists', league: activePool.name };
@@ -781,55 +788,52 @@ async function syncDgOddsTiers(tournamentId) {
 
   // GROUP BY player_id: prevents processing the same player multiple times when
   // golf_tournament_fields has duplicate name-variant rows for the same player_id.
-  const fieldRows = db.prepare(`
+  const fieldRows = await db.all(`
     SELECT tf.player_id, gp.datagolf_id, gp.name
     FROM golf_tournament_fields tf
     JOIN golf_players gp ON gp.id = tf.player_id
     WHERE tf.tournament_id = ?
     GROUP BY tf.player_id
-  `).all(tournamentId);
+  `, tournamentId);
 
-  const leagues = db.prepare(
-    "SELECT id FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'"
-  ).all(tournamentId);
+  const leagues = await db.all(
+    "SELECT id FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'",
+    tournamentId
+  );
 
   let updated = 0, noOdds = 0, noMatch = 0;
 
   // Bulk UPDATE by player_id — updates ALL duplicate pool_tier_players rows for a player at once.
   // Previous approach used sel.get() + UPDATE WHERE id=? which only fixed ONE of N duplicate rows.
-  const updWithOdds = db.prepare(
-    'UPDATE pool_tier_players SET tier_number = ?, odds_display = ?, odds_decimal = ? WHERE league_id = ? AND tournament_id = ? AND player_id = ? AND (manually_overridden IS NULL OR manually_overridden = 0) AND odds_locked_at IS NULL'
-  );
-  const updNoOdds = db.prepare(
-    'UPDATE pool_tier_players SET tier_number = 4, odds_display = NULL, odds_decimal = NULL WHERE league_id = ? AND tournament_id = ? AND player_id = ? AND (manually_overridden IS NULL OR manually_overridden = 0) AND odds_locked_at IS NULL'
-  );
+  const updWithOddsSql = 'UPDATE pool_tier_players SET tier_number = ?, odds_display = ?, odds_decimal = ? WHERE league_id = ? AND tournament_id = ? AND player_id = ? AND (manually_overridden IS NULL OR manually_overridden = 0) AND odds_locked_at IS NULL';
+  const updNoOddsSql = 'UPDATE pool_tier_players SET tier_number = 4, odds_display = NULL, odds_decimal = NULL WHERE league_id = ? AND tournament_id = ? AND player_id = ? AND (manually_overridden IS NULL OR manually_overridden = 0) AND odds_locked_at IS NULL';
 
   // One-time dedup: remove stale duplicate pool_tier_players rows, keeping the MAX id per player.
   // This cleans up rows created by the JOIN multiplication bug before GROUP BY was added.
-  const dedup = db.prepare(`
+  const dedupSql = `
     DELETE FROM pool_tier_players
     WHERE tournament_id = ?
       AND id NOT IN (
         SELECT MAX(id) FROM pool_tier_players WHERE tournament_id = ? GROUP BY league_id, player_id
       )
-  `);
+  `;
 
   for (const { id: leagueId } of leagues) {
-    db.transaction(() => {
-      dedup.run(tournamentId, tournamentId);
+    await db.transaction(async (tx) => {
+      await tx.run(dedupSql, tournamentId, tournamentId);
 
       for (const f of fieldRows) {
         const odds = (f.datagolf_id ? byDgId.get(Number(f.datagolf_id)) : null)
                    || byName.get((f.name || '').toLowerCase().trim());
         if (!odds) {
-          updNoOdds.run(leagueId, tournamentId, f.player_id);
+          await tx.run(updNoOddsSql, leagueId, tournamentId, f.player_id);
           noOdds++;
         } else {
-          updWithOdds.run(tierForAmerican(odds.american), odds.display, odds.decimal, leagueId, tournamentId, f.player_id);
+          await tx.run(updWithOddsSql, tierForAmerican(odds.american), odds.display, odds.decimal, leagueId, tournamentId, f.player_id);
           updated++;
         }
       }
-    })();
+    });
   }
 
   if (noOdds > 0) console.log(`[datagolf] Odds tiers: ${noOdds} players had no DG odds match — defaulted to T4`);
