@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Ticket, Plus, Flag, ChevronRight, Users, Calendar, Trophy, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -397,17 +397,17 @@ export default function GolfDashboard() {
   const activeLeagues = leagues.filter(isActiveLeague);
   const pastLeagues   = leagues.filter(l => !isActiveLeague(l));
 
-  // Auto-expand past leagues if any tournament ended within 7 days
-  useEffect(() => {
-    if (pastLeagues.length > 0) {
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const hasRecent = pastLeagues.some(l => {
-        const endDate = l.pool_tournament_end ? new Date(l.pool_tournament_end + 'T23:59:59').getTime() : 0;
-        return endDate > sevenDaysAgo;
-      });
-      if (hasRecent) setPastOpen(true);
-    }
-  }, [leagues.length]); // eslint-disable-line
+  // Auto-expand past leagues if any tournament ended within 7 days (run once)
+  const pastExpandChecked = useRef(false);
+  if (!pastExpandChecked.current && pastLeagues.length > 0) {
+    pastExpandChecked.current = true;
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const hasRecent = pastLeagues.some(l => {
+      const endDate = l.pool_tournament_end ? new Date(l.pool_tournament_end + 'T23:59:59').getTime() : 0;
+      return endDate > sevenDaysAgo;
+    });
+    if (hasRecent) setPastOpen(true);
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-10">
