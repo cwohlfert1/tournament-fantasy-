@@ -8,7 +8,7 @@ const ESPN_CACHE_TTL = 60_000; // 60 seconds
 
 // Initialize golf tables + seed on first require
 require('../golf-db');
-const db = require('../db');
+const db = require('../db/index');
 const { applyDropScoring } = require('../pool-utils');
 const { computeLockTime } = require('../golfPoolLockService');
 
@@ -69,8 +69,8 @@ function calcCommissionerPts(score, par, isMajor) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function getMember(leagueId, userId) {
-  return db.prepare('SELECT * FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?').get(leagueId, userId);
+async function getMember(leagueId, userId) {
+  return await db.get('SELECT * FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?', leagueId, userId);
 }
 
 function snakePicker(pick, numTeams, members) {
@@ -91,47 +91,47 @@ function lockTime(startDate) {
   return d;
 }
 
-function recalcMemberPoints(memberId) {
-  const total = db.prepare(`
+async function recalcMemberPoints(memberId) {
+  const total = await db.get(`
     SELECT COALESCE(SUM(gs.fantasy_points), 0) as pts
     FROM golf_weekly_lineups wl
     JOIN golf_scores gs ON wl.player_id = gs.player_id AND wl.tournament_id = gs.tournament_id
     WHERE wl.member_id = ? AND wl.is_started = 1
-  `).get(memberId);
-  db.prepare('UPDATE golf_league_members SET season_points = ? WHERE id = ?').run(total.pts, memberId);
+  `, memberId);
+  await db.run('UPDATE golf_league_members SET season_points = ? WHERE id = ?', total.pts, memberId);
 }
 
 // ── Players ────────────────────────────────────────────────────────────────────
-router.get('/players', authMiddleware, (req, res) => {
+router.get('/players', authMiddleware, async (req, res) => {
   try {
     const tid = req.query.tournament_id;
     let players;
 
     if (tid) {
       // If tournament field is populated, return only field players
-      const fieldCount = db.prepare('SELECT COUNT(*) as cnt FROM golf_tournament_fields WHERE tournament_id = ?').get(tid).cnt;
-      if (fieldCount > 0) {
-        players = db.prepare(`
+      const fieldCount = await db.get('SELECT COUNT(*) as cnt FROM golf_tournament_fields WHERE tournament_id = ?', tid);
+      if (fieldCount.cnt > 0) {
+        players = await db.all(`
           SELECT gp.*, COALESCE(tf.odds_display, gp.odds_display) as odds_display,
                  COALESCE(tf.odds_decimal, gp.odds_decimal) as odds_decimal
           FROM golf_players gp
           INNER JOIN golf_tournament_fields tf ON tf.player_id = gp.id AND tf.tournament_id = ?
           ORDER BY gp.world_ranking ASC
-        `).all(tid);
+        `, tid);
       }
     }
 
     if (!players) {
-      players = db.prepare('SELECT * FROM golf_players WHERE is_active = 1 ORDER BY world_ranking ASC').all();
+      players = await db.all('SELECT * FROM golf_players WHERE is_active = 1 ORDER BY world_ranking ASC');
     }
 
     res.json({ players });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.get('/players/:id/gamelog', authMiddleware, (req, res) => {
+router.get('/players/:id/gamelog', authMiddleware, async (req, res) => {
   try {
-    const recent = db.prepare(`
+    const recent = await db.all(`
       SELECT gs.round1, gs.round2, gs.round3, gs.round4,
              gs.made_cut, gs.finish_position, gs.fantasy_points,
              gt.name as tournament_name, gt.is_major, gt.start_date
@@ -139,12 +139,12 @@ router.get('/players/:id/gamelog', authMiddleware, (req, res) => {
       JOIN golf_tournaments gt ON gs.tournament_id = gt.id
       WHERE gs.player_id = ?
       ORDER BY gt.start_date DESC LIMIT 5
-    `).all(req.params.id);
+    `, req.params.id);
 
-    const all = db.prepare(`
+    const all = await db.all(`
       SELECT gs.fantasy_points, gs.made_cut, gs.finish_position
       FROM golf_scores gs WHERE gs.player_id = ?
-    `).all(req.params.id);
+    `, req.params.id);
 
     const eventsPlayed = all.length;
     const cutsMade = all.filter(s => s.made_cut === 1).length;
@@ -173,66 +173,64 @@ router.get('/players/:id/gamelog', authMiddleware, (req, res) => {
 });
 
 // ── Tournaments ────────────────────────────────────────────────────────────────
-router.get('/tournaments', authMiddleware, (req, res) => {
+router.get('/tournaments', authMiddleware, async (req, res) => {
   try {
-    const tournaments = db.prepare('SELECT * FROM golf_tournaments ORDER BY start_date ASC').all();
+    const tournaments = await db.all('SELECT * FROM golf_tournaments ORDER BY start_date ASC');
     res.json({ tournaments });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.get('/tournaments/:id/scores', authMiddleware, (req, res) => {
+router.get('/tournaments/:id/scores', authMiddleware, async (req, res) => {
   try {
-    const t = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(req.params.id);
+    const t = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', req.params.id);
     if (!t) return res.status(404).json({ error: 'Tournament not found' });
-    const scores = db.prepare(`
+    const scores = await db.all(`
       SELECT gs.*, gp.name, gp.country, gp.world_ranking, gp.salary
       FROM golf_scores gs JOIN golf_players gp ON gs.player_id = gp.id
       WHERE gs.tournament_id = ?
       ORDER BY COALESCE(gs.finish_position, 999) ASC, gs.fantasy_points DESC
-    `).all(req.params.id);
+    `, req.params.id);
     res.json({ tournament: t, scores });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/tournaments/:id/scores', authMiddleware, (req, res) => {
+router.post('/tournaments/:id/scores', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Admin only' });
-    const t = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(req.params.id);
+    const t = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', req.params.id);
     if (!t) return res.status(404).json({ error: 'Tournament not found' });
     const { scores } = req.body;
     if (!Array.isArray(scores)) return res.status(400).json({ error: 'scores array required' });
 
-    const upsert = db.prepare(`
-      INSERT INTO golf_scores (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(tournament_id, player_id) DO UPDATE SET
-        round1=excluded.round1, round2=excluded.round2, round3=excluded.round3, round4=excluded.round4,
-        made_cut=excluded.made_cut, finish_position=excluded.finish_position,
-        fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
-    `);
-
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const s of scores) {
         const fp = calcFantasyPoints(s, !!t.is_major);
-        upsert.run(uuidv4(), t.id, s.player_id, s.round1 ?? null, s.round2 ?? null, s.round3 ?? null, s.round4 ?? null, s.made_cut ?? 0, s.finish_position ?? null, fp);
+        await tx.run(`
+          INSERT INTO golf_scores (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(tournament_id, player_id) DO UPDATE SET
+            round1=excluded.round1, round2=excluded.round2, round3=excluded.round3, round4=excluded.round4,
+            made_cut=excluded.made_cut, finish_position=excluded.finish_position,
+            fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
+        `, uuidv4(), t.id, s.player_id, s.round1 ?? null, s.round2 ?? null, s.round3 ?? null, s.round4 ?? null, s.made_cut ?? 0, s.finish_position ?? null, fp);
       }
-    })();
+    });
 
     // Recalc season points for all affected members
-    const affected = db.prepare(`
+    const affected = await db.all(`
       SELECT DISTINCT wl.member_id FROM golf_weekly_lineups wl
       WHERE wl.tournament_id = ? AND wl.is_started = 1
-    `).all(t.id);
-    for (const { member_id } of affected) recalcMemberPoints(member_id);
+    `, t.id);
+    for (const { member_id } of affected) await recalcMemberPoints(member_id);
 
     res.json({ ok: true, updated: scores.length });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // ── Leagues ────────────────────────────────────────────────────────────────────
-router.get('/leagues', authMiddleware, (req, res) => {
+router.get('/leagues', authMiddleware, async (req, res) => {
   try {
-    const leagues = db.prepare(`
+    const leagues = await db.all(`
       SELECT gl.*, glm.team_name, glm.season_points, glm.season_budget, glm.id as member_id,
              (SELECT COUNT(*) FROM golf_league_members WHERE golf_league_id = gl.id) as member_count,
              gt.name as pool_tournament_name,
@@ -244,7 +242,7 @@ router.get('/leagues', authMiddleware, (req, res) => {
       LEFT JOIN golf_tournaments gt ON gt.id = gl.pool_tournament_id
       WHERE (gl.is_sandbox = 0 OR gl.is_sandbox IS NULL)
       ORDER BY gl.created_at DESC
-    `).all(req.user.id);
+    `, req.user.id);
 
     // Recompute picks_locked and tournament status so stale DB values can't lie
     for (const l of leagues) {
@@ -262,7 +260,7 @@ router.get('/leagues', authMiddleware, (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues', authMiddleware, (req, res) => {
+router.post('/leagues', authMiddleware, async (req, res) => {
   try {
     const {
       name, team_name, max_teams = 8, buy_in_amount = 0, payment_instructions = '',
@@ -335,7 +333,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
 
     const poolMaxEntries = Math.max(1, Math.min(3, parseInt(req.body.pool_max_entries) || 1));
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO golf_leagues (
         id, name, commissioner_id, invite_code, status, max_teams,
         buy_in_amount, payment_instructions, payout_first, payout_second, payout_third,
@@ -348,7 +346,7 @@ router.post('/leagues', authMiddleware, (req, res) => {
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds,
         pool_tournament_id, pool_drop_count, pool_max_entries
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `,
       id, name, req.user.id, invite_code, 'pending_payment', parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
       roster_size, starters_per_week, parseInt(pick_time_limit) || 60,
@@ -368,12 +366,11 @@ router.post('/leagues', authMiddleware, (req, res) => {
     if (fmt === 'pool' && pickSheetFmt === 'tiered') {
       try {
         const tiersArr = typeof pool_tiers === 'string' ? JSON.parse(pool_tiers) : (pool_tiers || []);
-        const insTier = db.prepare(`INSERT INTO pool_tiers (id, league_id, tier_number, odds_min, odds_max, picks_allowed) VALUES (?, ?, ?, ?, ?, ?)`);
-        db.transaction(() => {
+        await db.transaction(async (tx) => {
           for (const t of tiersArr) {
-            insTier.run(uuidv4(), id, t.tier, t.odds_min || '', t.odds_max || '', Math.max(1, parseInt(t.picks) || 1));
+            await tx.run(`INSERT INTO pool_tiers (id, league_id, tier_number, odds_min, odds_max, picks_allowed) VALUES (?, ?, ?, ?, ?, ?)`, uuidv4(), id, t.tier, t.odds_min || '', t.odds_max || '', Math.max(1, parseInt(t.picks) || 1));
           }
-        })();
+        });
       } catch (_) {}
     }
 
@@ -381,29 +378,28 @@ router.post('/leagues', authMiddleware, (req, res) => {
     if (fmt === 'salary_cap') {
       try {
         const startersCount = Math.min(20, Math.max(3, parseInt(starters_count) || 6));
-        db.prepare(`INSERT OR IGNORE INTO pool_tiers (id, league_id, tier_number, odds_min, odds_max, picks_allowed) VALUES (?, ?, 1, '', '', ?)`)
-          .run(uuidv4(), id, startersCount);
+        await db.run(`INSERT OR IGNORE INTO pool_tiers (id, league_id, tier_number, odds_min, odds_max, picks_allowed) VALUES (?, ?, 1, '', '', ?)`, uuidv4(), id, startersCount);
       } catch (_) {}
     }
 
     const memberId = uuidv4();
-    db.prepare(`INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, season_budget) VALUES (?, ?, ?, ?, ?)`).run(memberId, id, req.user.id, team_name, parseInt(salary_cap) || 2400);
+    await db.run(`INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, season_budget) VALUES (?, ?, ?, ?, ?)`, memberId, id, req.user.id, team_name, parseInt(salary_cap) || 2400);
 
     // Initialize auction budget for commissioner if TourneyRun
     if (fmt === 'tourneyrun') {
       try {
-        db.prepare(`INSERT OR IGNORE INTO golf_auction_budgets (id, league_id, member_id, auction_credits_remaining, faab_credits_remaining) VALUES (?, ?, ?, ?, ?)`).run(uuidv4(), id, memberId, parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100);
+        await db.run(`INSERT OR IGNORE INTO golf_auction_budgets (id, league_id, member_id, auction_credits_remaining, faab_credits_remaining) VALUES (?, ?, ?, ?, ?)`, uuidv4(), id, memberId, parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100);
       } catch (_) {}
     }
 
-    res.status(201).json({ league: db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(id) });
+    res.status(201).json({ league: await db.get('SELECT * FROM golf_leagues WHERE id = ?', id) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // Public league preview — no auth required (used by invite link landing page)
-router.get('/leagues/preview/:code', (req, res) => {
+router.get('/leagues/preview/:code', async (req, res) => {
   try {
-    const league = db.prepare(`
+    const league = await db.get(`
       SELECT gl.id, gl.name, gl.format_type, gl.max_teams, gl.buy_in_amount,
              gl.payout_first, gl.payout_second, gl.payout_third, gl.picks_per_team,
              gl.pool_tournament_id,
@@ -415,28 +411,28 @@ router.get('/leagues/preview/:code', (req, res) => {
       FROM golf_leagues gl
       LEFT JOIN golf_tournaments gt ON gt.id = gl.pool_tournament_id
       WHERE gl.invite_code = ?
-    `).get(req.params.code.toUpperCase());
+    `, req.params.code.toUpperCase());
     if (!league) return res.status(404).json({ error: 'Invalid invite code' });
     res.json({ league });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues/join', authMiddleware, (req, res) => {
+router.post('/leagues/join', authMiddleware, async (req, res) => {
   try {
     const { invite_code, team_name } = req.body;
     if (!invite_code || !team_name) return res.status(400).json({ error: 'Invite code and team name required' });
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE invite_code = ?').get(invite_code.toUpperCase());
+    const league = await db.get('SELECT * FROM golf_leagues WHERE invite_code = ?', invite_code.toUpperCase());
     if (!league) return res.status(404).json({ error: 'Invalid invite code' });
-    const count = db.prepare('SELECT COUNT(*) as c FROM golf_league_members WHERE golf_league_id = ?').get(league.id).c;
-    if (count >= league.max_teams) return res.status(400).json({ error: 'League is full' });
-    if (getMember(league.id, req.user.id)) return res.status(400).json({ error: 'Already in this league' });
+    const count = await db.get('SELECT COUNT(*) as c FROM golf_league_members WHERE golf_league_id = ?', league.id);
+    if (count.c >= league.max_teams) return res.status(400).json({ error: 'League is full' });
+    if (await getMember(league.id, req.user.id)) return res.status(400).json({ error: 'Already in this league' });
     const newMemberId = uuidv4();
-    db.prepare(`INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, season_budget) VALUES (?, ?, ?, ?, ?)`).run(newMemberId, league.id, req.user.id, team_name, league.salary_cap || 2400);
+    await db.run(`INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, season_budget) VALUES (?, ?, ?, ?, ?)`, newMemberId, league.id, req.user.id, team_name, league.salary_cap || 2400);
 
     // Initialize auction budget if TourneyRun
     if (league.format_type === 'tourneyrun') {
       try {
-        db.prepare(`INSERT OR IGNORE INTO golf_auction_budgets (id, league_id, member_id, auction_credits_remaining, faab_credits_remaining) VALUES (?, ?, ?, ?, ?)`).run(uuidv4(), league.id, newMemberId, league.auction_budget || 1000, league.faab_weekly_budget || 100);
+        await db.run(`INSERT OR IGNORE INTO golf_auction_budgets (id, league_id, member_id, auction_credits_remaining, faab_credits_remaining) VALUES (?, ?, ?, ?, ?)`, uuidv4(), league.id, newMemberId, league.auction_budget || 1000, league.faab_weekly_budget || 100);
       } catch (_) {}
     }
 
@@ -445,9 +441,9 @@ router.post('/leagues/join', authMiddleware, (req, res) => {
 });
 
 // Must be before /leagues/:id to prevent route shadowing
-router.get('/leagues/my-rosters', authMiddleware, (req, res) => {
+router.get('/leagues/my-rosters', authMiddleware, async (req, res) => {
   try {
-    const rows = db.prepare(`
+    const rows = await db.all(`
       SELECT gl.id, gl.picks_locked,
         CASE WHEN pp.user_id IS NOT NULL THEN 1 ELSE 0 END AS submitted
       FROM golf_leagues gl
@@ -456,7 +452,7 @@ router.get('/leagues/my-rosters', authMiddleware, (req, res) => {
         AND pp.tournament_id = gl.pool_tournament_id
       WHERE gl.format_type IN ('pool', 'salary_cap') AND gl.pool_tournament_id IS NOT NULL
       GROUP BY gl.id
-    `).all(req.user.id, req.user.id);
+    `, req.user.id, req.user.id);
     const result = {};
     for (const r of rows) result[r.id] = { submitted: !!r.submitted, picks_locked: !!r.picks_locked };
     res.json(result);
@@ -466,16 +462,16 @@ router.get('/leagues/my-rosters', authMiddleware, (req, res) => {
   }
 });
 
-router.get('/leagues/:id', authMiddleware, (req, res) => {
+router.get('/leagues/:id', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare(`
+    const league = await db.get(`
       SELECT gl.*, gt.status as pool_tournament_status,
         gt.start_date as pool_tournament_start, gt.end_date as pool_tournament_end,
         gt.name as pool_tournament_name
       FROM golf_leagues gl
       LEFT JOIN golf_tournaments gt ON gt.id = gl.pool_tournament_id
       WHERE gl.id = ?
-    `).get(req.params.id);
+    `, req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
     // Recompute picks_locked and tournament status so stale DB values can't lie
@@ -489,11 +485,11 @@ router.get('/leagues/:id', authMiddleware, (req, res) => {
       }
     }
 
-    const members = db.prepare(`
+    const members = await db.all(`
       SELECT glm.*, u.username, u.avatar_url, u.full_name
       FROM golf_league_members glm JOIN users u ON glm.user_id = u.id
       WHERE glm.golf_league_id = ? ORDER BY glm.season_points DESC, glm.joined_at ASC
-    `).all(req.params.id);
+    `, req.params.id);
     // Only expose full_name to the commissioner — strip it for non-commissioners
     if (league.commissioner_id !== req.user.id) {
       members.forEach(m => delete m.full_name);
@@ -508,9 +504,9 @@ router.get('/leagues/:id', authMiddleware, (req, res) => {
 
 router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
-    if (!getMember(req.params.id, req.user.id) && league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not a member' });
+    if (!await getMember(req.params.id, req.user.id) && league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not a member' });
 
     // ── Pool / Salary Cap format: rank by pool_picks × golf_scores ───────────
     if (['pool', 'salary_cap'].includes(league.format_type)) {
@@ -527,38 +523,38 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
         }
       }
 
-      const tourn = tid ? db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid) : null;
-      const members = db.prepare(`
+      const tourn = tid ? await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tid) : null;
+      const members = await db.all(`
         SELECT glm.*, u.username, u.avatar_url
         FROM golf_league_members glm JOIN users u ON glm.user_id = u.id
         WHERE glm.golf_league_id = ? ORDER BY glm.joined_at ASC
-      `).all(req.params.id);
+      `, req.params.id);
 
       // Build entry list: entry 1 per member, plus extra entries (2+) from pool_picks
-      const extraEntries = tid ? db.prepare(`
+      const extraEntries = tid ? await db.all(`
         SELECT DISTINCT pp.user_id, COALESCE(pp.entry_number, 1) as entry_number, pp.entry_team_name
         FROM pool_picks pp
         WHERE pp.league_id = ? AND pp.tournament_id = ? AND COALESCE(pp.entry_number, 1) > 1
-      `).all(req.params.id, tid) : [];
+      `, req.params.id, tid) : [];
 
       const allEntries = [
         ...members.map(m => ({ user_id: m.user_id, username: m.username, team_name: m.team_name, avatar_url: m.avatar_url, entry_number: 1 })),
-        ...extraEntries.map(e => {
-          const u = db.prepare('SELECT username, avatar_url FROM users WHERE id = ?').get(e.user_id);
-          return { user_id: e.user_id, username: u?.username || '', team_name: e.entry_team_name || `Entry ${e.entry_number}`, avatar_url: u?.avatar_url || null, entry_number: e.entry_number };
-        }),
       ];
+      for (const e of extraEntries) {
+        const u = await db.get('SELECT username, avatar_url FROM users WHERE id = ?', e.user_id);
+        allEntries.push({ user_id: e.user_id, username: u?.username || '', team_name: e.entry_team_name || `Entry ${e.entry_number}`, avatar_url: u?.avatar_url || null, entry_number: e.entry_number });
+      }
 
       // Winning score for completed tournaments (for tiebreaker comparison)
       let winning_score = null;
       let tournament_winner = null;
       if (tourn?.status === 'completed' && tid) {
-        const winner = db.prepare(`
+        const winner = await db.get(`
           SELECT gs.round1, gs.round2, gs.round3, gs.round4, gp.name
           FROM golf_scores gs
           LEFT JOIN golf_players gp ON gp.id = gs.player_id
           WHERE gs.tournament_id = ? AND gs.finish_position = 1 LIMIT 1
-        `).get(tid);
+        `, tid);
         if (winner) {
           winning_score = [winner.round1, winner.round2, winner.round3, winner.round4]
             .filter(r => r != null).reduce((s, r) => s + r, 0);
@@ -566,9 +562,10 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
         }
       }
 
-      const standings = allEntries.map(m => {
+      const standings = [];
+      for (const m of allEntries) {
         // Filter picks by entry_number so multi-entry teams score independently.
-        const picks = tid ? db.prepare(`
+        const picks = tid ? await db.all(`
           SELECT pp.player_id, pp.player_name, pp.tier_number,
                  COALESCE(pp.country, gp.country) AS country,
                  pp.is_dropped, pp.tiebreaker_score,
@@ -581,7 +578,7 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
             AND COALESCE(pp.entry_number, 1) = ?
             AND (pp.is_withdrawn IS NULL OR pp.is_withdrawn = 0)
           ORDER BY pp.tier_number ASC
-        `).all(tid, req.params.id, tid, m.user_id, m.entry_number) : [];
+        `, tid, req.params.id, tid, m.user_id, m.entry_number) : [];
 
         // Pre-tournament guard: zero out all score data so stale golf_scores
         // (e.g. from a different tournament's ESPN sync) don't show MC/WD badges.
@@ -661,7 +658,7 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
         const _reallyLocked = tourn ? new Date() >= new Date(computeLockTime(tourn.start_date)) : !!league.picks_locked;
         const picksRevealed = _reallyLocked || tourn?.status === 'active' || tourn?.status === 'completed';
 
-        return {
+        standings.push({
           user_id: m.user_id, entry_number: m.entry_number, username: m.username, team_name: m.team_name,
           avatar_url: m.avatar_url,
           season_points: total_points,
@@ -669,8 +666,8 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
           submitted: picks.length > 0,
           scoring_style: league.scoring_style || 'fantasy_points',
           picks: picksRevealed || m.user_id === req.user.id ? enrichedPicks : [],
-        };
-      });
+        });
+      }
 
       const _globalLocked = tourn ? new Date() >= new Date(computeLockTime(tourn.start_date)) : !!league.picks_locked;
       const picksRevealed = _globalLocked || tourn?.status === 'active' || tourn?.status === 'completed';
@@ -704,9 +701,10 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
         for (const m of members) entry_paid[`${m.user_id}_1`] = !!m.is_paid;
         // Entry 2+ from pool_entry_paid
         if (tid) {
-          const extraPaid = db.prepare(
-            'SELECT user_id, entry_number, is_paid FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ?'
-          ).all(req.params.id, tid);
+          const extraPaid = await db.all(
+            'SELECT user_id, entry_number, is_paid FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ?',
+            req.params.id, tid
+          );
           for (const ep of extraPaid) entry_paid[`${ep.user_id}_${ep.entry_number}`] = !!ep.is_paid;
         }
       }
@@ -728,9 +726,9 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
     }
 
     // ── TourneyRun / DK: rank by golf_weekly_lineups × golf_scores ────────────
-    const activeTournament = db.prepare("SELECT id FROM golf_tournaments WHERE status = 'active' ORDER BY start_date ASC LIMIT 1").get();
+    const activeTournament = await db.get("SELECT id FROM golf_tournaments WHERE status = 'active' ORDER BY start_date ASC LIMIT 1");
     const activeTournId = activeTournament?.id || '';
-    const standings = db.prepare(`
+    const standings = await db.all(`
       SELECT glm.*, u.username, u.avatar_url,
         (SELECT COALESCE(SUM(gs.fantasy_points), 0)
          FROM golf_weekly_lineups wl
@@ -744,7 +742,7 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
         ) as tournaments_played
       FROM golf_league_members glm JOIN users u ON glm.user_id = u.id
       WHERE glm.golf_league_id = ? ORDER BY glm.season_points DESC
-    `).all(activeTournId, req.params.id);
+    `, activeTournId, req.params.id);
     res.json({ standings, active_tournament_id: activeTournId || null });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
@@ -752,24 +750,24 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
 // ── PGA Live leaderboard ────────────────────────────────────────────────────────
 router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
-    if (!getMember(req.params.id, req.user.id) && league.commissioner_id !== req.user.id)
+    if (!await getMember(req.params.id, req.user.id) && league.commissioner_id !== req.user.id)
       return res.status(403).json({ error: 'Not a member' });
 
     // Determine tournament: pool uses pool_tournament_id, others use active tournament
     const tid = league.pool_tournament_id ||
-      db.prepare("SELECT id FROM golf_tournaments WHERE status='active' ORDER BY start_date ASC LIMIT 1").get()?.id;
-    const tourn = tid ? db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tid) : null;
+      (await db.get("SELECT id FROM golf_tournaments WHERE status='active' ORDER BY start_date ASC LIMIT 1"))?.id;
+    const tourn = tid ? await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tid) : null;
 
     // Picks for the current user (pool / salary_cap format)
     let myPickNames = [];
     if (['pool', 'salary_cap'].includes(league.format_type) && tid) {
-      myPickNames = db.prepare(`
+      myPickNames = (await db.all(`
         SELECT pl.name as player_name
         FROM pool_picks pp JOIN golf_players pl ON pl.id = pp.player_id
         WHERE pp.league_id = ? AND pp.user_id = ?
-      `).all(req.params.id, req.user.id).map(r => r.player_name);
+      `, req.params.id, req.user.id)).map(r => r.player_name);
     }
 
     // Pre-tournament: skip ESPN fetch until the actual Thursday tee time (noon UTC = 8am ET).
@@ -822,7 +820,7 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
     // This ensures the sync job and standings query pick it up immediately.
     if (rawComps.length > 0 && tourn && tourn.status === 'scheduled') {
       try {
-        db.prepare("UPDATE golf_tournaments SET status = 'active' WHERE id = ?").run(tourn.id);
+        await db.run("UPDATE golf_tournaments SET status = 'active' WHERE id = ?", tourn.id);
         tourn.status = 'active';
         console.log(`[pga-live] Flipped "${tourn.name}" → active (${rawComps.length} competitors from ESPN)`);
       } catch (e) { /* non-fatal */ }
@@ -917,170 +915,169 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/leagues/:id/scores', authMiddleware, (req, res) => {
+router.post('/leagues/:id/scores', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
     const { tournament_id, par = 72, scores } = req.body;
     if (!tournament_id || !Array.isArray(scores)) return res.status(400).json({ error: 'tournament_id and scores required' });
-    const t = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournament_id);
+    const t = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournament_id);
     if (!t) return res.status(404).json({ error: 'Tournament not found' });
     const parInt = parseInt(par) || 72;
-    const upsert = db.prepare(`
-      INSERT INTO golf_scores (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(tournament_id, player_id) DO UPDATE SET
-        round1=excluded.round1, round2=excluded.round2, round3=excluded.round3, round4=excluded.round4,
-        made_cut=excluded.made_cut, finish_position=excluded.finish_position,
-        fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
-    `);
-    db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const s of scores) {
         const fp = calcCommissionerPts(s, parInt, !!t.is_major);
-        upsert.run(uuidv4(), t.id, s.player_id, s.r1 ?? null, s.r2 ?? null, s.r3 ?? null, s.r4 ?? null, s.made_cut ? 1 : 0, s.finish_position ?? null, fp);
+        await tx.run(`
+          INSERT INTO golf_scores (id, tournament_id, player_id, round1, round2, round3, round4, made_cut, finish_position, fantasy_points, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(tournament_id, player_id) DO UPDATE SET
+            round1=excluded.round1, round2=excluded.round2, round3=excluded.round3, round4=excluded.round4,
+            made_cut=excluded.made_cut, finish_position=excluded.finish_position,
+            fantasy_points=excluded.fantasy_points, updated_at=CURRENT_TIMESTAMP
+        `, uuidv4(), t.id, s.player_id, s.r1 ?? null, s.r2 ?? null, s.r3 ?? null, s.r4 ?? null, s.made_cut ? 1 : 0, s.finish_position ?? null, fp);
       }
-    })();
-    const affected = db.prepare('SELECT DISTINCT wl.member_id FROM golf_weekly_lineups wl WHERE wl.tournament_id = ? AND wl.is_started = 1').all(t.id);
-    for (const { member_id } of affected) recalcMemberPoints(member_id);
+    });
+    const affected = await db.all('SELECT DISTINCT wl.member_id FROM golf_weekly_lineups wl WHERE wl.tournament_id = ? AND wl.is_started = 1', t.id);
+    for (const { member_id } of affected) await recalcMemberPoints(member_id);
     res.json({ ok: true, updated: scores.length });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // ── Roster ─────────────────────────────────────────────────────────────────────
-router.get('/leagues/:id/roster', authMiddleware, (req, res) => {
+router.get('/leagues/:id/roster', authMiddleware, async (req, res) => {
   try {
-    const member = getMember(req.params.id, req.user.id);
+    const member = await getMember(req.params.id, req.user.id);
     if (!member) return res.status(403).json({ error: 'Not a member' });
     const coreIds = new Set(
-      db.prepare('SELECT player_id FROM golf_core_players WHERE member_id = ?').all(member.id).map(r => r.player_id)
+      (await db.all('SELECT player_id FROM golf_core_players WHERE member_id = ?', member.id)).map(r => r.player_id)
     );
-    const roster = db.prepare(`
+    const roster = (await db.all(`
       SELECT gr.*, gp.name, gp.country, gp.world_ranking, gp.salary
       FROM golf_rosters gr JOIN golf_players gp ON gr.player_id = gp.id
       WHERE gr.member_id = ? AND gr.dropped_at IS NULL ORDER BY gp.world_ranking ASC
-    `).all(member.id).map(p => ({ ...p, is_core: coreIds.has(p.player_id) ? 1 : 0 }));
+    `, member.id)).map(p => ({ ...p, is_core: coreIds.has(p.player_id) ? 1 : 0 }));
     const totalSalary = roster.reduce((s, p) => s + p.salary, 0);
     res.json({ roster, totalSalary, budget: member.season_budget, remaining: member.season_budget - totalSalary });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues/:id/roster/add', authMiddleware, (req, res) => {
+router.post('/leagues/:id/roster/add', authMiddleware, async (req, res) => {
   try {
     const { player_id } = req.body;
     if (!player_id) return res.status(400).json({ error: 'player_id required' });
-    const member = getMember(req.params.id, req.user.id);
+    const member = await getMember(req.params.id, req.user.id);
     if (!member) return res.status(403).json({ error: 'Not a member' });
-    const player = db.prepare('SELECT * FROM golf_players WHERE id = ? AND is_active = 1').get(player_id);
+    const player = await db.get('SELECT * FROM golf_players WHERE id = ? AND is_active = 1', player_id);
     if (!player) return res.status(404).json({ error: 'Player not found' });
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
 
-    const rosterCount = db.prepare('SELECT COUNT(*) as c FROM golf_rosters WHERE member_id = ? AND dropped_at IS NULL').get(member.id).c;
-    if (rosterCount >= league.roster_size) return res.status(400).json({ error: `Roster full (max ${league.roster_size})` });
+    const rosterCount = await db.get('SELECT COUNT(*) as c FROM golf_rosters WHERE member_id = ? AND dropped_at IS NULL', member.id);
+    if (rosterCount.c >= league.roster_size) return res.status(400).json({ error: `Roster full (max ${league.roster_size})` });
 
-    const usedSalary = db.prepare(`SELECT COALESCE(SUM(gp.salary),0) as s FROM golf_rosters gr JOIN golf_players gp ON gr.player_id=gp.id WHERE gr.member_id=? AND gr.dropped_at IS NULL`).get(member.id).s;
-    if (usedSalary + player.salary > member.season_budget) return res.status(400).json({ error: `Over cap. Remaining: $${member.season_budget - usedSalary}, Player: $${player.salary}` });
+    const usedSalary = await db.get(`SELECT COALESCE(SUM(gp.salary),0) as s FROM golf_rosters gr JOIN golf_players gp ON gr.player_id=gp.id WHERE gr.member_id=? AND gr.dropped_at IS NULL`, member.id);
+    if (usedSalary.s + player.salary > member.season_budget) return res.status(400).json({ error: `Over cap. Remaining: $${member.season_budget - usedSalary.s}, Player: $${player.salary}` });
 
-    if (db.prepare('SELECT id FROM golf_rosters WHERE member_id=? AND player_id=? AND dropped_at IS NULL').get(member.id, player_id)) return res.status(400).json({ error: 'Already on your roster' });
+    if (await db.get('SELECT id FROM golf_rosters WHERE member_id=? AND player_id=? AND dropped_at IS NULL', member.id, player_id)) return res.status(400).json({ error: 'Already on your roster' });
 
-    const takenElsewhere = db.prepare(`SELECT gr.id FROM golf_rosters gr JOIN golf_league_members glm ON gr.member_id=glm.id WHERE glm.golf_league_id=? AND gr.player_id=? AND gr.dropped_at IS NULL AND glm.user_id!=?`).get(req.params.id, player_id, req.user.id);
+    const takenElsewhere = await db.get(`SELECT gr.id FROM golf_rosters gr JOIN golf_league_members glm ON gr.member_id=glm.id WHERE glm.golf_league_id=? AND gr.player_id=? AND gr.dropped_at IS NULL AND glm.user_id!=?`, req.params.id, player_id, req.user.id);
     if (takenElsewhere) return res.status(400).json({ error: 'Player is on another team' });
 
-    db.prepare('INSERT INTO golf_rosters (id, member_id, player_id) VALUES (?, ?, ?)').run(uuidv4(), member.id, player_id);
+    await db.run('INSERT INTO golf_rosters (id, member_id, player_id) VALUES (?, ?, ?)', uuidv4(), member.id, player_id);
     res.json({ ok: true, player });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues/:id/roster/drop', authMiddleware, (req, res) => {
+router.post('/leagues/:id/roster/drop', authMiddleware, async (req, res) => {
   try {
     const { player_id } = req.body;
     if (!player_id) return res.status(400).json({ error: 'player_id required' });
-    const member = getMember(req.params.id, req.user.id);
+    const member = await getMember(req.params.id, req.user.id);
     if (!member) return res.status(403).json({ error: 'Not a member' });
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     // Core players cannot be dropped in TourneyRun mode
     if (league.format_type === 'tourneyrun') {
-      const isCore = db.prepare('SELECT id FROM golf_core_players WHERE member_id=? AND player_id=?').get(member.id, player_id);
+      const isCore = await db.get('SELECT id FROM golf_core_players WHERE member_id=? AND player_id=?', member.id, player_id);
       if (isCore) return res.status(400).json({ error: 'Core players cannot be dropped. Core spots are locked for the season.' });
     }
-    const entry = db.prepare('SELECT * FROM golf_rosters WHERE member_id=? AND player_id=? AND dropped_at IS NULL').get(member.id, player_id);
+    const entry = await db.get('SELECT * FROM golf_rosters WHERE member_id=? AND player_id=? AND dropped_at IS NULL', member.id, player_id);
     if (!entry) return res.status(404).json({ error: 'Not on your roster' });
-    db.prepare('UPDATE golf_rosters SET dropped_at=CURRENT_TIMESTAMP WHERE id=?').run(entry.id);
-    db.prepare('UPDATE golf_weekly_lineups SET is_started=0 WHERE member_id=? AND player_id=? AND locked=0').run(member.id, player_id);
+    await db.run('UPDATE golf_rosters SET dropped_at=CURRENT_TIMESTAMP WHERE id=?', entry.id);
+    await db.run('UPDATE golf_weekly_lineups SET is_started=0 WHERE member_id=? AND player_id=? AND locked=0', member.id, player_id);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // ── Lineup ─────────────────────────────────────────────────────────────────────
-router.get('/leagues/:id/lineup/:tournament_id', authMiddleware, (req, res) => {
+router.get('/leagues/:id/lineup/:tournament_id', authMiddleware, async (req, res) => {
   try {
     const { id, tournament_id } = req.params;
-    const member = getMember(id, req.user.id);
+    const member = await getMember(id, req.user.id);
     if (!member) return res.status(403).json({ error: 'Not a member' });
-    const tournament = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournament_id);
+    const tournament = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournament_id);
     if (!tournament) return res.status(404).json({ error: 'Tournament not found' });
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', id);
     const lock = lockTime(tournament.start_date);
     const isLocked = new Date() >= lock;
 
-    const lineup = db.prepare(`
+    const lineup = await db.all(`
       SELECT wl.*, gp.name, gp.country, gp.world_ranking, gp.salary
       FROM golf_weekly_lineups wl JOIN golf_players gp ON wl.player_id = gp.id
       WHERE wl.member_id = ? AND wl.tournament_id = ?
-    `).all(member.id, tournament_id);
+    `, member.id, tournament_id);
 
-    const roster = db.prepare(`
+    const roster = await db.all(`
       SELECT gr.*, gp.name, gp.country, gp.world_ranking, gp.salary
       FROM golf_rosters gr JOIN golf_players gp ON gr.player_id = gp.id
       WHERE gr.member_id = ? AND gr.dropped_at IS NULL ORDER BY gp.world_ranking ASC
-    `).all(member.id);
+    `, member.id);
 
     res.json({ lineup, roster, isLocked, lockTime: lock.toISOString(), starters_per_week: league.starters_per_week });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues/:id/lineup/:tournament_id', authMiddleware, (req, res) => {
+router.post('/leagues/:id/lineup/:tournament_id', authMiddleware, async (req, res) => {
   try {
     const { id, tournament_id } = req.params;
     const { starter_ids } = req.body;
     if (!Array.isArray(starter_ids)) return res.status(400).json({ error: 'starter_ids required' });
-    const member = getMember(id, req.user.id);
+    const member = await getMember(id, req.user.id);
     if (!member) return res.status(403).json({ error: 'Not a member' });
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(id);
-    const tournament = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournament_id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', id);
+    const tournament = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournament_id);
     if (!tournament) return res.status(404).json({ error: 'Tournament not found' });
     if (new Date() >= lockTime(tournament.start_date)) return res.status(400).json({ error: 'Lineup is locked' });
     if (starter_ids.length > league.starters_per_week) return res.status(400).json({ error: `Max ${league.starters_per_week} starters` });
 
-    const rosterIds = db.prepare('SELECT player_id FROM golf_rosters WHERE member_id=? AND dropped_at IS NULL').all(member.id).map(r => r.player_id);
+    const rosterIds = (await db.all('SELECT player_id FROM golf_rosters WHERE member_id=? AND dropped_at IS NULL', member.id)).map(r => r.player_id);
     for (const pid of starter_ids) {
       if (!rosterIds.includes(pid)) return res.status(400).json({ error: 'Player not on your roster' });
     }
 
-    db.transaction(() => {
-      db.prepare('UPDATE golf_weekly_lineups SET is_started=0 WHERE member_id=? AND tournament_id=?').run(member.id, tournament_id);
+    await db.transaction(async (tx) => {
+      await tx.run('UPDATE golf_weekly_lineups SET is_started=0 WHERE member_id=? AND tournament_id=?', member.id, tournament_id);
       for (const pid of starter_ids) {
-        const ex = db.prepare('SELECT id FROM golf_weekly_lineups WHERE member_id=? AND tournament_id=? AND player_id=?').get(member.id, tournament_id, pid);
-        if (ex) db.prepare('UPDATE golf_weekly_lineups SET is_started=1 WHERE id=?').run(ex.id);
-        else db.prepare('INSERT INTO golf_weekly_lineups (id, member_id, tournament_id, player_id, is_started) VALUES (?, ?, ?, ?, 1)').run(uuidv4(), member.id, tournament_id, pid);
+        const ex = await tx.get('SELECT id FROM golf_weekly_lineups WHERE member_id=? AND tournament_id=? AND player_id=?', member.id, tournament_id, pid);
+        if (ex) await tx.run('UPDATE golf_weekly_lineups SET is_started=1 WHERE id=?', ex.id);
+        else await tx.run('INSERT INTO golf_weekly_lineups (id, member_id, tournament_id, player_id, is_started) VALUES (?, ?, ?, ?, 1)', uuidv4(), member.id, tournament_id, pid);
       }
-    })();
+    });
 
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // ── Draft ──────────────────────────────────────────────────────────────────────
-router.get('/leagues/:id/draft', authMiddleware, (req, res) => {
+router.get('/leagues/:id/draft', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
-    const member = getMember(req.params.id, req.user.id);
+    const member = await getMember(req.params.id, req.user.id);
     if (!member && league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not a member' });
 
-    const members = db.prepare(`SELECT glm.*, u.username FROM golf_league_members glm JOIN users u ON glm.user_id=u.id WHERE glm.golf_league_id=? ORDER BY glm.draft_order ASC`).all(req.params.id);
-    const picks = db.prepare(`SELECT gdp.*, gp.name as player_name, gp.country, gp.world_ranking, gp.salary, u.username, glm.team_name FROM golf_draft_picks gdp JOIN golf_players gp ON gdp.player_id=gp.id JOIN users u ON gdp.user_id=u.id JOIN golf_league_members glm ON glm.golf_league_id=gdp.golf_league_id AND glm.user_id=gdp.user_id WHERE gdp.golf_league_id=? ORDER BY gdp.pick_number ASC`).all(req.params.id);
-    const allPlayers = db.prepare('SELECT * FROM golf_players WHERE is_active=1 ORDER BY world_ranking ASC').all();
+    const members = await db.all(`SELECT glm.*, u.username FROM golf_league_members glm JOIN users u ON glm.user_id=u.id WHERE glm.golf_league_id=? ORDER BY glm.draft_order ASC`, req.params.id);
+    const picks = await db.all(`SELECT gdp.*, gp.name as player_name, gp.country, gp.world_ranking, gp.salary, u.username, glm.team_name FROM golf_draft_picks gdp JOIN golf_players gp ON gdp.player_id=gp.id JOIN users u ON gdp.user_id=u.id JOIN golf_league_members glm ON glm.golf_league_id=gdp.golf_league_id AND glm.user_id=gdp.user_id WHERE gdp.golf_league_id=? ORDER BY gdp.pick_number ASC`, req.params.id);
+    const allPlayers = await db.all('SELECT * FROM golf_players WHERE is_active=1 ORDER BY world_ranking ASC');
     const draftedIds = new Set(picks.map(p => p.player_id));
     const numTeams = members.length;
     const totalPicks = numTeams * league.roster_size;
@@ -1088,15 +1085,15 @@ router.get('/leagues/:id/draft', authMiddleware, (req, res) => {
     const draftComplete = league.current_pick > totalPicks;
 
     // My current roster (drafted players)
-    const myRoster = member ? db.prepare(`
+    const myRoster = member ? await db.all(`
       SELECT gr.player_id, gp.name, gp.country, gp.world_ranking, gp.salary
       FROM golf_rosters gr JOIN golf_players gp ON gr.player_id = gp.id
       WHERE gr.member_id = ? AND gr.dropped_at IS NULL ORDER BY gp.world_ranking ASC
-    `).all(member.id) : [];
+    `, member.id) : [];
 
     // Core player IDs for TourneyRun mode
     const corePlayerIds = (league.format_type === 'tourneyrun' && member)
-      ? db.prepare('SELECT player_id FROM golf_core_players WHERE member_id = ?').all(member.id).map(r => r.player_id)
+      ? (await db.all('SELECT player_id FROM golf_core_players WHERE member_id = ?', member.id)).map(r => r.player_id)
       : [];
 
     res.json({
@@ -1109,32 +1106,34 @@ router.get('/leagues/:id/draft', authMiddleware, (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues/:id/draft/start', authMiddleware, (req, res) => {
+router.post('/leagues/:id/draft/start', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
     if (league.draft_status === 'active') return res.status(400).json({ error: 'Draft already active' });
-    const members = db.prepare('SELECT * FROM golf_league_members WHERE golf_league_id=?').all(req.params.id);
+    const members = await db.all('SELECT * FROM golf_league_members WHERE golf_league_id=?', req.params.id);
     if (members.length < 2) return res.status(400).json({ error: 'Need at least 2 teams' });
     const shuffled = [...members].sort(() => Math.random() - 0.5);
-    db.transaction(() => {
-      shuffled.forEach((m, i) => db.prepare('UPDATE golf_league_members SET draft_order=? WHERE id=?').run(i + 1, m.id));
-      db.prepare("UPDATE golf_leagues SET draft_status='active', status='drafting', current_pick=1 WHERE id=?").run(req.params.id);
-    })();
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < shuffled.length; i++) {
+        await tx.run('UPDATE golf_league_members SET draft_order=? WHERE id=?', i + 1, shuffled[i].id);
+      }
+      await tx.run("UPDATE golf_leagues SET draft_status='active', status='drafting', current_pick=1 WHERE id=?", req.params.id);
+    });
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leagues/:id/draft/pick', authMiddleware, (req, res) => {
+router.post('/leagues/:id/draft/pick', authMiddleware, async (req, res) => {
   try {
     const { player_id } = req.body;
     if (!player_id) return res.status(400).json({ error: 'player_id required' });
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'Not found' });
     if (league.draft_status !== 'active') return res.status(400).json({ error: 'Draft not active' });
 
-    const members = db.prepare(`SELECT glm.*, u.username FROM golf_league_members glm JOIN users u ON glm.user_id=u.id WHERE glm.golf_league_id=? ORDER BY glm.draft_order ASC`).all(req.params.id);
+    const members = await db.all(`SELECT glm.*, u.username FROM golf_league_members glm JOIN users u ON glm.user_id=u.id WHERE glm.golf_league_id=? ORDER BY glm.draft_order ASC`, req.params.id);
     const numTeams = members.length;
     const totalPicks = numTeams * league.roster_size;
     if (league.current_pick > totalPicks) return res.status(400).json({ error: 'Draft complete' });
@@ -1142,33 +1141,33 @@ router.post('/leagues/:id/draft/pick', authMiddleware, (req, res) => {
     const picker = snakePicker(league.current_pick, numTeams, members);
     if (!picker || picker.user_id !== req.user.id) return res.status(400).json({ error: 'Not your turn' });
 
-    const player = db.prepare('SELECT * FROM golf_players WHERE id=? AND is_active=1').get(player_id);
+    const player = await db.get('SELECT * FROM golf_players WHERE id=? AND is_active=1', player_id);
     if (!player) return res.status(404).json({ error: 'Player not found' });
-    if (db.prepare('SELECT id FROM golf_draft_picks WHERE golf_league_id=? AND player_id=?').get(req.params.id, player_id)) return res.status(400).json({ error: 'Already drafted' });
+    if (await db.get('SELECT id FROM golf_draft_picks WHERE golf_league_id=? AND player_id=?', req.params.id, player_id)) return res.status(400).json({ error: 'Already drafted' });
 
-    const member = getMember(req.params.id, req.user.id);
+    const member = await getMember(req.params.id, req.user.id);
 
     // Salary cap enforcement — skip for Pool mode (no salary in pool drafts)
     if (league.format_type !== 'pool') {
-      const myDraftSalary = db.prepare(`SELECT COALESCE(SUM(gp.salary),0) as s FROM golf_draft_picks gdp JOIN golf_players gp ON gdp.player_id=gp.id WHERE gdp.golf_league_id=? AND gdp.user_id=?`).get(req.params.id, req.user.id).s;
-      if (myDraftSalary + player.salary > member.season_budget) return res.status(400).json({ error: `Over cap. Budget: $${member.season_budget}, Used: $${myDraftSalary}, Player: $${player.salary}` });
+      const myDraftSalary = await db.get(`SELECT COALESCE(SUM(gp.salary),0) as s FROM golf_draft_picks gdp JOIN golf_players gp ON gdp.player_id=gp.id WHERE gdp.golf_league_id=? AND gdp.user_id=?`, req.params.id, req.user.id);
+      if (myDraftSalary.s + player.salary > member.season_budget) return res.status(400).json({ error: `Over cap. Budget: $${member.season_budget}, Used: $${myDraftSalary.s}, Player: $${player.salary}` });
     }
 
     const round = Math.ceil(league.current_pick / numTeams);
     const nextPick = league.current_pick + 1;
     const draftComplete = nextPick > totalPicks;
 
-    db.transaction(() => {
-      db.prepare('INSERT INTO golf_draft_picks (id, golf_league_id, user_id, player_id, pick_number, round) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), req.params.id, req.user.id, player_id, league.current_pick, round);
-      db.prepare('INSERT INTO golf_rosters (id, member_id, player_id) VALUES (?, ?, ?)').run(uuidv4(), member.id, player_id);
-      db.prepare(`UPDATE golf_leagues SET current_pick=?, draft_status=?, status=? WHERE id=?`).run(nextPick, draftComplete ? 'completed' : 'active', draftComplete ? 'active' : 'drafting', req.params.id);
-    })();
+    await db.transaction(async (tx) => {
+      await tx.run('INSERT INTO golf_draft_picks (id, golf_league_id, user_id, player_id, pick_number, round) VALUES (?, ?, ?, ?, ?, ?)', uuidv4(), req.params.id, req.user.id, player_id, league.current_pick, round);
+      await tx.run('INSERT INTO golf_rosters (id, member_id, player_id) VALUES (?, ?, ?)', uuidv4(), member.id, player_id);
+      await tx.run(`UPDATE golf_leagues SET current_pick=?, draft_status=?, status=? WHERE id=?`, nextPick, draftComplete ? 'completed' : 'active', draftComplete ? 'active' : 'drafting', req.params.id);
+    });
 
     // Flag as core player for TourneyRun (first core_spots picks per manager)
     if (league.format_type === 'tourneyrun') {
-      const myPickCount = db.prepare('SELECT COUNT(*) as c FROM golf_draft_picks WHERE golf_league_id=? AND user_id=?').get(req.params.id, req.user.id).c;
-      if (myPickCount <= (league.core_spots || 4)) {
-        try { db.prepare('INSERT OR IGNORE INTO golf_core_players (id, member_id, player_id) VALUES (?, ?, ?)').run(uuidv4(), member.id, player_id); } catch (_) {}
+      const myPickCount = await db.get('SELECT COUNT(*) as c FROM golf_draft_picks WHERE golf_league_id=? AND user_id=?', req.params.id, req.user.id);
+      if (myPickCount.c <= (league.core_spots || 4)) {
+        try { await db.run('INSERT OR IGNORE INTO golf_core_players (id, member_id, player_id) VALUES (?, ?, ?)', uuidv4(), member.id, player_id); } catch (_) {}
       }
     }
 
@@ -1184,16 +1183,16 @@ const { syncTournamentScores, getSyncStatus } = require('../golfSyncService');
 router.post('/admin/sync/:tournamentId', authMiddleware, async (req, res) => {
   try {
     const { tournamentId } = req.params;
-    const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+    const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
     if (!tourn) return res.status(404).json({ error: 'Tournament not found' });
 
     // Must be superadmin OR commissioner of a league using this tournament
     if (req.user.role !== 'superadmin') {
-      const league = db.prepare(`
+      const league = await db.get(`
         SELECT gl.id FROM golf_leagues gl
         WHERE gl.commissioner_id = ?
         LIMIT 1
-      `).get(req.user.id);
+      `, req.user.id);
       if (!league) return res.status(403).json({ error: 'Commissioner access required' });
     }
 
@@ -1230,7 +1229,7 @@ router.get('/admin/tournament-readiness/:tournamentId', authMiddleware, async (r
     if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Superadmin only' });
 
     const { tournamentId } = req.params;
-    const tourn = db.prepare('SELECT * FROM golf_tournaments WHERE id = ?').get(tournamentId);
+    const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
     if (!tourn) return res.status(404).json({ error: 'Tournament not found' });
 
     const checks = [];
@@ -1253,9 +1252,10 @@ router.get('/admin/tournament-readiness/:tournamentId', authMiddleware, async (r
     }
 
     // ── Check 3: pool_tier_players loaded ────────────────────────────────────
-    const ptpCount = db.prepare(
-      'SELECT COUNT(*) as n FROM pool_tier_players WHERE tournament_id = ?'
-    ).get(tournamentId);
+    const ptpCount = await db.get(
+      'SELECT COUNT(*) as n FROM pool_tier_players WHERE tournament_id = ?',
+      tournamentId
+    );
     if (ptpCount.n > 0) {
       pass('Player pool loaded', `${ptpCount.n} players in pool_tier_players`);
     } else {
@@ -1263,16 +1263,18 @@ router.get('/admin/tournament-readiness/:tournamentId', authMiddleware, async (r
     }
 
     // ── Check 4: country codes are 2-letter ISO ───────────────────────────────
-    const badCountry = db.prepare(`
+    const badCountry = await db.get(`
       SELECT COUNT(*) as n FROM pool_tier_players
       WHERE tournament_id = ? AND country IS NOT NULL AND length(country) != 2
-    `).get(tournamentId);
-    const totalWithCountry = db.prepare(
-      'SELECT COUNT(*) as n FROM pool_tier_players WHERE tournament_id = ? AND country IS NOT NULL'
-    ).get(tournamentId);
-    const nullCountry = db.prepare(
-      'SELECT COUNT(*) as n FROM pool_tier_players WHERE tournament_id = ? AND country IS NULL'
-    ).get(tournamentId);
+    `, tournamentId);
+    const totalWithCountry = await db.get(
+      'SELECT COUNT(*) as n FROM pool_tier_players WHERE tournament_id = ? AND country IS NOT NULL',
+      tournamentId
+    );
+    const nullCountry = await db.get(
+      'SELECT COUNT(*) as n FROM pool_tier_players WHERE tournament_id = ? AND country IS NULL',
+      tournamentId
+    );
 
     if (badCountry.n === 0 && nullCountry.n === 0) {
       pass('Country codes', `All ${totalWithCountry.n} players have valid 2-letter ISO codes`);
@@ -1348,16 +1350,17 @@ router.get('/admin/tournament-readiness/:tournamentId', authMiddleware, async (r
 // ---------------------------------------------------------------------------
 router.post('/leagues/:id/blast', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not commissioner' });
 
     const { message } = req.body;
     if (!message || !message.trim()) return res.status(400).json({ error: 'Message is required' });
 
-    const members = db.prepare(
-      'SELECT u.email, u.username FROM golf_league_members glm JOIN users u ON glm.user_id = u.id WHERE glm.golf_league_id = ?'
-    ).all(req.params.id);
+    const members = await db.all(
+      'SELECT u.email, u.username FROM golf_league_members glm JOIN users u ON glm.user_id = u.id WHERE glm.golf_league_id = ?',
+      req.params.id
+    );
 
     console.log('[golf] Blast: fetched', members.length, 'emails for league', req.params.id);
 
@@ -1422,9 +1425,9 @@ router.post('/leagues/:id/blast', authMiddleware, async (req, res) => {
 
 // PATCH /api/golf/leagues/:id/settings — commissioner edits buy-in + payouts
 // ---------------------------------------------------------------------------
-router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
+router.patch('/leagues/:id/settings', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not commissioner' });
 
@@ -1448,62 +1451,62 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
       const p1 = parseFloat(splits[0]?.pct) || 0;
       const p2 = parseFloat(splits[1]?.pct) || 0;
       const p3 = parseFloat(splits[2]?.pct) || 0;
-      db.prepare('UPDATE golf_leagues SET payout_places = ?, payout_first = ?, payout_second = ?, payout_third = ?, buy_in_amount = ? WHERE id = ?')
-        .run(splitsJson, p1, p2, p3, parseFloat(buy_in_amount) || league.buy_in_amount || 0, req.params.id);
+      await db.run('UPDATE golf_leagues SET payout_places = ?, payout_first = ?, payout_second = ?, payout_third = ?, buy_in_amount = ? WHERE id = ?',
+        splitsJson, p1, p2, p3, parseFloat(buy_in_amount) || league.buy_in_amount || 0, req.params.id);
     } else if (payout_1st !== undefined) {
       // Legacy scalar format
       const p1 = Math.round((parseFloat(payout_1st) || 0) * 100) / 100;
       const p2 = Math.round((parseFloat(payout_2nd) || 0) * 100) / 100;
       const p3 = Math.round((parseFloat(payout_3rd) || 0) * 100) / 100;
       if (Math.abs(p1 + p2 + p3 - 100) > 0.5) return res.status(400).json({ error: 'Payouts must sum to 100%' });
-      db.prepare('UPDATE golf_leagues SET buy_in_amount = ?, payout_first = ?, payout_second = ?, payout_third = ? WHERE id = ?')
-        .run(parseFloat(buy_in_amount) || 0, p1, p2, p3, req.params.id);
+      await db.run('UPDATE golf_leagues SET buy_in_amount = ?, payout_first = ?, payout_second = ?, payout_third = ? WHERE id = ?',
+        parseFloat(buy_in_amount) || 0, p1, p2, p3, req.params.id);
     }
 
     // Admin fee
     if (req.body.admin_fee_pct !== undefined) {
       const fee = Math.max(0, Math.min(50, parseFloat(req.body.admin_fee_pct) || 0));
-      db.prepare('UPDATE golf_leagues SET admin_fee_pct = ? WHERE id = ?').run(fee, req.params.id);
+      await db.run('UPDATE golf_leagues SET admin_fee_pct = ? WHERE id = ?', fee, req.params.id);
     }
 
     // Pool-specific settings
     if (picks_per_team !== undefined) {
       const ppt = Math.max(1, parseInt(picks_per_team) || 8);
-      db.prepare('UPDATE golf_leagues SET picks_per_team = ? WHERE id = ?').run(ppt, req.params.id);
+      await db.run('UPDATE golf_leagues SET picks_per_team = ? WHERE id = ?', ppt, req.params.id);
     }
     if (pool_drop_count !== undefined) {
       const dc = Math.max(0, parseInt(pool_drop_count) || 0);
-      db.prepare('UPDATE golf_leagues SET pool_drop_count = ? WHERE id = ?').run(dc, req.params.id);
+      await db.run('UPDATE golf_leagues SET pool_drop_count = ? WHERE id = ?', dc, req.params.id);
     }
     if (pool_max_entries !== undefined) {
       const me = Math.max(1, Math.min(3, parseInt(pool_max_entries) || 1));
-      db.prepare('UPDATE golf_leagues SET pool_max_entries = ? WHERE id = ?').run(me, req.params.id);
+      await db.run('UPDATE golf_leagues SET pool_max_entries = ? WHERE id = ?', me, req.params.id);
     }
     if (pool_tiers !== undefined && Array.isArray(pool_tiers)) {
       // Only update the picks count per tier; preserve odds_min/odds_max/approxPlayers from existing config
       let existing = [];
-      try { existing = JSON.parse(db.prepare('SELECT pool_tiers FROM golf_leagues WHERE id = ?').get(req.params.id)?.pool_tiers || '[]'); } catch (_) {}
+      try { const row = await db.get('SELECT pool_tiers FROM golf_leagues WHERE id = ?', req.params.id); existing = JSON.parse(row?.pool_tiers || '[]'); } catch (_) {}
       const merged = pool_tiers.map(incoming => {
         const ex = existing.find(e => e.tier === incoming.tier) || {};
         return { ...ex, ...incoming, picks: Math.max(1, parseInt(incoming.picks) || 1) };
       });
-      db.prepare('UPDATE golf_leagues SET pool_tiers = ? WHERE id = ?').run(JSON.stringify(merged), req.params.id);
+      await db.run('UPDATE golf_leagues SET pool_tiers = ? WHERE id = ?', JSON.stringify(merged), req.params.id);
     }
 
     // Salary cap-specific settings
     if (league.format_type === 'salary_cap') {
       if (weekly_salary_cap !== undefined) {
         const cap = Math.max(10000, Math.min(500000, parseInt(weekly_salary_cap) || 50000));
-        db.prepare('UPDATE golf_leagues SET weekly_salary_cap = ?, pool_salary_cap = ? WHERE id = ?').run(cap, cap, req.params.id);
+        await db.run('UPDATE golf_leagues SET weekly_salary_cap = ?, pool_salary_cap = ? WHERE id = ?', cap, cap, req.params.id);
       }
       if (starters_per_week !== undefined) {
         const sp = Math.max(3, Math.min(20, parseInt(starters_per_week) || 6));
-        db.prepare('UPDATE golf_leagues SET starters_per_week = ?, roster_size = ? WHERE id = ?').run(sp, sp, req.params.id);
+        await db.run('UPDATE golf_leagues SET starters_per_week = ?, roster_size = ? WHERE id = ?', sp, sp, req.params.id);
       }
       if (scoring_style !== undefined) {
         const validStyles = ['tourneyrun', 'total_score', 'stroke_play'];
         const ss = validStyles.includes(scoring_style) ? scoring_style : 'tourneyrun';
-        db.prepare('UPDATE golf_leagues SET scoring_style = ? WHERE id = ?').run(ss, req.params.id);
+        await db.run('UPDATE golf_leagues SET scoring_style = ? WHERE id = ?', ss, req.params.id);
       }
     }
 
@@ -1515,7 +1518,7 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
       if (zelle  !== undefined) { fields.push('zelle = ?');  vals.push(zelle  || null); }
       if (paypal !== undefined) { fields.push('paypal = ?'); vals.push(paypal || null); }
       vals.push(req.params.id);
-      db.prepare(`UPDATE golf_leagues SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+      await db.run(`UPDATE golf_leagues SET ${fields.join(', ')} WHERE id = ?`, ...vals);
     }
 
     res.json({ ok: true });
@@ -1534,7 +1537,7 @@ router.patch('/leagues/:id/settings', authMiddleware, (req, res) => {
 router.post('/leagues/:id/import-members', authMiddleware, async (req, res) => {
   try {
     const { id: leagueId } = req.params;
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) {
       return res.status(403).json({ error: 'Commissioner only' });
@@ -1547,7 +1550,7 @@ router.post('/leagues/:id/import-members', authMiddleware, async (req, res) => {
 
     const { sendGolfInviteEmail } = require('../mailer');
     const crypto = require('crypto');
-    const commissioner = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(req.user.id);
+    const commissioner = await db.get('SELECT username, display_name FROM users WHERE id = ?', req.user.id);
     const commissionerName = commissioner?.display_name || commissioner?.username || 'Your commissioner';
 
     let imported = 0;
@@ -1563,18 +1566,18 @@ router.post('/leagues/:id/import-members', authMiddleware, async (req, res) => {
 
       try {
         // Check if user already exists
-        let user = db.prepare('SELECT id, username FROM users WHERE email = ?').get(email);
+        let user = await db.get('SELECT id, username FROM users WHERE email = ?', email);
 
         if (!user) {
           // Create invited user
           const inviteToken = crypto.randomBytes(32).toString('hex');
           const userId = uuidv4();
           const username = `invited_${userId.slice(0, 8)}`; // placeholder, replaced on activation
-          db.prepare(`
+          await db.run(`
             INSERT INTO users (id, email, username, password_hash, status, invite_token,
                                agreement_accepted, age_confirmed, state_eligible)
             VALUES (?, ?, ?, 'INVITE_PENDING', 'invited', ?, 0, 0, 0)
-          `).run(userId, email, username, inviteToken);
+          `, userId, email, username, inviteToken);
           user = { id: userId, username };
 
           // Send invite email — fire and forget per row; capture errors without blocking
@@ -1588,16 +1591,18 @@ router.post('/leagues/:id/import-members', authMiddleware, async (req, res) => {
 
         // Add to league (INSERT OR IGNORE handles re-import of existing members)
         const teamName = name || user.username;
-        const alreadyMember = db.prepare(
-          'SELECT 1 FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?'
-        ).get(leagueId, user.id);
+        const alreadyMember = await db.get(
+          'SELECT 1 FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?',
+          leagueId, user.id
+        );
 
         if (alreadyMember) {
           existing++;
         } else {
-          db.prepare(
-            'INSERT OR IGNORE INTO golf_league_members (id, golf_league_id, user_id, team_name) VALUES (?, ?, ?, ?)'
-          ).run(uuidv4(), leagueId, user.id, teamName);
+          await db.run(
+            'INSERT OR IGNORE INTO golf_league_members (id, golf_league_id, user_id, team_name) VALUES (?, ?, ?, ?)',
+            uuidv4(), leagueId, user.id, teamName
+          );
           imported++;
         }
       } catch (rowErr) {
