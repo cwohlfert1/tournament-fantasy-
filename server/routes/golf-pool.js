@@ -1476,6 +1476,122 @@ router.get('/commissioner/:leagueId/entries/csv', authMiddleware, async (req, re
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/commissioner/:leagueId/entries/emails — comma-separated email
+// list for clipboard copy. Commissioner-only. Deduplicated by user (one email
+// per user even when multi-entry pools have multiple entries from same user).
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/commissioner/:leagueId/entries/emails', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const entries = await listAllEntries(req.params.leagueId, league);
+    // Dedup by user_id — pool members get one email even if they have multiple entries.
+    const seen = new Set();
+    const emails = [];
+    for (const e of entries) {
+      if (e.email && !seen.has(e.user_id)) { seen.add(e.user_id); emails.push(e.email); }
+    }
+    res.json({ emails: emails.join(', '), count: emails.length });
+  } catch (err) {
+    console.error('[commissioner-entries-emails]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/golf/commissioner/:leagueId/entries/blast — platform-sent message.
+// Body: { subject, body, confirm?: boolean }
+// 24h pool-level guard via mass_email_log; deduplicated by user_id.
+// Logs with email_type='commissioner_blast' on success.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/commissioner/:leagueId/entries/blast', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+
+    const subject = String(req.body?.subject || '').trim();
+    const body    = String(req.body?.body || '').trim();
+    if (!subject) return res.status(400).json({ error: 'Subject required' });
+    if (!body)    return res.status(400).json({ error: 'Message body required' });
+    if (subject.length > 200) return res.status(400).json({ error: 'Subject too long (200 char max)' });
+    if (body.length > 5000)   return res.status(400).json({ error: 'Body too long (5000 char max)' });
+    const confirm = req.body?.confirm === true;
+
+    // 24h pool-level guard (any prior blast OR unpaid_reminder counts — same lock window)
+    if (!confirm) {
+      const prior = await db.get(
+        `SELECT sent_at, email_type FROM mass_email_log
+         WHERE league_id = ?
+           AND email_type IN ('commissioner_blast', 'unpaid_reminder')
+           AND sent_at > datetime('now', '-24 hours')
+         ORDER BY sent_at DESC LIMIT 1`,
+        req.params.leagueId
+      );
+      if (prior) {
+        return res.status(409).json({
+          recently_sent: true,
+          last_sent_at: prior.sent_at,
+          last_type: prior.email_type,
+          message: `A "${prior.email_type}" email was sent for this pool in the last 24 hours. Confirm to send anyway.`,
+        });
+      }
+    }
+
+    const entries = await listAllEntries(req.params.leagueId, league);
+    const seen = new Set();
+    const recipients = [];
+    for (const e of entries) {
+      if (e.email && !seen.has(e.user_id)) { seen.add(e.user_id); recipients.push(e); }
+    }
+    if (recipients.length === 0) return res.json({ ok: true, sent: 0, message: 'No members with email' });
+
+    const commissioner = await db.get('SELECT username, full_name FROM users WHERE id = ?', req.user.id);
+    const commName = commissioner?.full_name || commissioner?.username || 'your commissioner';
+    const tid = league.pool_tournament_id;
+    const tourn = tid ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', tid) : null;
+
+    const { sendCommissionerBlast } = require('../mailer');
+    let sent = 0, failed = 0;
+    for (const r of recipients) {
+      const firstName = (r.full_name || r.username || '').split(/\s+/)[0];
+      try {
+        await sendCommissionerBlast(r.email, {
+          firstName,
+          poolName: league.name,
+          tournamentName: tourn?.name || '',
+          subject,
+          body,
+          commissionerName: commName,
+        });
+        sent++;
+      } catch (err) {
+        failed++;
+        console.error(`[commissioner-blast] send failed for ${r.email}:`, err.message);
+      }
+    }
+
+    if (sent > 0) {
+      try {
+        const { v4: uuidv4 } = require('uuid');
+        await db.run(
+          `INSERT INTO mass_email_log (id, sent_by, audience, subject, body_preview, recipient_count, email_type, league_id, tournament_id)
+           VALUES (?, ?, ?, ?, ?, ?, 'commissioner_blast', ?, ?)`,
+          uuidv4(), req.user.id, 'all_entries',
+          subject, body.slice(0, 200), sent, req.params.leagueId, tid
+        );
+      } catch (err) { console.error('[commissioner-blast] log write failed:', err.message); }
+    }
+
+    res.json({ ok: true, sent, failed, total: recipients.length });
+  } catch (err) {
+    console.error('[commissioner-blast]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/golf/commissioner/:leagueId/unpaid/remind — send reminder emails.
 // Body: { confirm?: boolean, dry_run?: boolean }
 // Pool-level 24h guard: returns 409 with { recently_sent: true, last_sent_at }

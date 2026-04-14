@@ -602,6 +602,7 @@ module.exports = {
   sendPayReminder,
   sendCommUnpaidNotice,
   sendUnpaidReminder,
+  sendCommissionerBlast,
 };
 
 // ── Pay reminder to unpaid member ────────────────────────────────────────────
@@ -699,6 +700,41 @@ ${emailHeader()}
         <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:0;">&mdash; The TourneyRun Team</p>
       </td></tr>
 ${emailFooter(`tourneyrun.app &middot; ${poolName}`)}
+`),
+  });
+}
+
+// ── Commissioner-authored blast ──────────────────────────────────────────────
+// Generic message-from-commissioner template. Subject/body are user input,
+// so we HTML-escape both to prevent injection. Body line-breaks are preserved
+// via <br> so plain-text input from a textarea renders the way it was typed.
+function _esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+async function sendCommissionerBlast(toEmail, { firstName, poolName, tournamentName, subject, body, commissionerName }) {
+  const name = firstName || 'there';
+  const comm = commissionerName || 'your commissioner';
+  const safeBody = _esc(body).replace(/\r?\n/g, '<br>');
+  const safeSubj = _esc(subject);
+  const safePool = _esc(poolName || '');
+  const safeTourn = _esc(tournamentName || '');
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: safeSubj,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(34,197,94,0.12);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#4ade80;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Commissioner Update</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:6px;margin-left:0;font-size:22px;font-weight:700;color:#ffffff;">${safeSubj}</h1>
+        <p style="font-size:13px;color:#6b7280;margin-top:0;margin-right:0;margin-bottom:18px;margin-left:0;">From <strong style="color:#9ca3af;">${_esc(comm)}</strong> &middot; ${safePool}${safeTourn ? ' &middot; ' + safeTourn : ''}</p>
+        <p style="font-size:14px;color:#9ca3af;line-height:1.5;margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;">Hi ${_esc(name)},</p>
+        <div style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:18px;margin-left:0;">${safeBody}</div>
+        <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:0;border-top:1px solid #1f2937;padding-top:12px;">Sent via TourneyRun on behalf of ${_esc(comm)}.</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${safePool}`)}
 `),
   });
 }

@@ -483,6 +483,58 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   function downloadUnpaidCsv()  { downloadCsv(`/golf/commissioner/${leagueId}/unpaid/csv`,   `unpaid-${leagueId}.csv`); }
   function downloadEntriesCsv() { downloadCsv(`/golf/commissioner/${leagueId}/entries/csv`,  `entries-${leagueId}.csv`); }
 
+  // ── "Get Email Addresses" — clipboard copy (Option 1) ─────────────────────
+  const [emailCopyStatus, setEmailCopyStatus] = useState(null); // { count, error? } | null
+  function copyEntryEmails() {
+    api.get(`/golf/commissioner/${leagueId}/entries/emails`)
+      .then(async r => {
+        const text = r.data?.emails || '';
+        try {
+          await navigator.clipboard.writeText(text);
+          setEmailCopyStatus({ count: r.data.count });
+          setTimeout(() => setEmailCopyStatus(null), 4000);
+        } catch {
+          // Clipboard API unavailable — fallback to alert prompt
+          window.prompt(`Copy these ${r.data.count} email addresses:`, text);
+        }
+      })
+      .catch(err => alert(err.response?.data?.error || 'Failed to fetch emails'));
+  }
+
+  // ── "Send from TourneyRun" — platform-sent blast (Option 2) ───────────────
+  const [blastSubject, setBlastSubject] = useState('');
+  const [blastBody, setBlastBody] = useState('');
+  const [blasting, setBlasting] = useState(false);
+  const [blastResult, setBlastResult] = useState(null);
+  async function sendCommissionerBlast({ confirm = false } = {}) {
+    if (!blastSubject.trim() || !blastBody.trim()) {
+      alert('Both subject and message are required');
+      return;
+    }
+    setBlasting(true);
+    setBlastResult(null);
+    try {
+      const r = await api.post(`/golf/commissioner/${leagueId}/entries/blast`, {
+        subject: blastSubject.trim(), body: blastBody.trim(), confirm,
+      });
+      setBlastResult({ ok: true, sent: r.data.sent, total: r.data.total });
+      setBlastSubject(''); setBlastBody('');
+      setTimeout(() => setBlastResult(null), 6000);
+    } catch (err) {
+      const data = err.response?.data;
+      if (err.response?.status === 409 && data?.recently_sent) {
+        const when = data.last_sent_at ? new Date(data.last_sent_at).toLocaleString() : 'recently';
+        const ok = window.confirm(
+          `A "${data.last_type}" email was sent for this pool ${when}.\n\nSend this message anyway?`
+        );
+        if (ok) { setBlasting(false); return sendCommissionerBlast({ confirm: true }); }
+      } else {
+        alert(data?.error || 'Failed to send');
+      }
+    }
+    setBlasting(false);
+  }
+
   // Blast modal
   const [blastModal, setBlastModal] = useState(null); // string (pre-filled message) or null
 
@@ -817,12 +869,6 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                data-testid="entries-csv-button"
-                onClick={downloadEntriesCsv}
-                style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
-              >Download All Entries (CSV)</button>
-              <button
-                type="button"
                 data-testid="unpaid-csv-button"
                 onClick={downloadUnpaidCsv}
                 style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
@@ -861,20 +907,95 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         </div>
       )}
 
-      {/* Roster export — visible when the Unpaid Entries section is hidden
-          (all entries paid OR no buy-in) but at least one entry exists. */}
-      {unpaidList && unpaidList.total_entries > 0 && unpaidList.unpaid_count === 0 && (
-        <div data-testid="roster-export-fallback" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ color: '#e5e7eb', fontSize: 13, fontWeight: 700 }}>Roster</div>
-            <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{unpaidList.total_entries} entries · all paid</div>
+      {/* ─── Pool Communications: Get Emails (Option 1) + Send via TourneyRun (Option 2) ─── */}
+      {unpaidList && unpaidList.total_entries > 0 && (
+        <div data-testid="pool-comms-section" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em' }}>Message Pool Members</div>
+            <div style={{ color: '#6b7280', fontSize: 12 }}>{unpaidList.total_entries} pool member{unpaidList.total_entries === 1 ? '' : 's'}</div>
           </div>
-          <button
-            type="button"
-            data-testid="entries-csv-button-fallback"
-            onClick={downloadEntriesCsv}
-            style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
-          >Download All Entries (CSV)</button>
+
+          {/* Option 1 — Get Email Addresses (recommended) */}
+          <div data-testid="get-emails-card" style={{ background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ color: '#4ade80', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Recommended</span>
+            </div>
+            <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Option 1 — Get Email Addresses</div>
+            <p style={{ color: '#9ca3af', fontSize: 12, lineHeight: 1.5, marginTop: 0, marginBottom: 12 }}>
+              Send from your own email client. Better deliverability and a personal touch — your members already know your address.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                data-testid="copy-emails-button"
+                onClick={copyEntryEmails}
+                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(34,197,94,0.5)', background: 'rgba(34,197,94,0.18)', color: '#4ade80' }}
+              >Get Email Addresses</button>
+              <button
+                type="button"
+                data-testid="entries-csv-button-fallback"
+                onClick={downloadEntriesCsv}
+                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
+              >Download CSV (fallback)</button>
+              {emailCopyStatus && (
+                <span style={{ color: '#4ade80', fontSize: 12, fontWeight: 600 }} data-testid="copy-emails-toast">
+                  ✓ {emailCopyStatus.count} email addresses copied — paste into your email client
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Option 2 — Send from TourneyRun */}
+          <div data-testid="blast-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Option 2 — Send from TourneyRun</div>
+            <p style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.5, marginTop: 0, marginBottom: 12 }}>
+              Sends from a TourneyRun email address. May be filtered to spam more often than your own email — use Option 1 when possible.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input
+                type="text"
+                data-testid="blast-subject"
+                placeholder="Subject"
+                value={blastSubject}
+                onChange={e => setBlastSubject(e.target.value)}
+                maxLength={200}
+                className="input w-full text-sm"
+                disabled={blasting}
+              />
+              <textarea
+                data-testid="blast-body"
+                placeholder="Write your message…"
+                value={blastBody}
+                onChange={e => setBlastBody(e.target.value)}
+                maxLength={5000}
+                rows={5}
+                className="input w-full text-sm"
+                style={{ resize: 'vertical', minHeight: 100, fontFamily: 'inherit' }}
+                disabled={blasting}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ color: '#4b5563', fontSize: 11 }}>{blastBody.length}/5000</span>
+                <button
+                  type="button"
+                  data-testid="blast-send-button"
+                  onClick={() => sendCommissionerBlast()}
+                  disabled={blasting || !blastSubject.trim() || !blastBody.trim()}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    cursor: blasting || !blastSubject.trim() || !blastBody.trim() ? 'not-allowed' : 'pointer',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: blasting || !blastSubject.trim() || !blastBody.trim() ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.08)',
+                    color: blasting || !blastSubject.trim() || !blastBody.trim() ? '#6b7280' : '#fff',
+                  }}
+                >{blasting ? 'Sending…' : `Send to ${unpaidList.total_entries} members`}</button>
+              </div>
+              {blastResult?.ok && (
+                <div style={{ color: '#4ade80', fontSize: 12, fontWeight: 600 }} data-testid="blast-toast">
+                  ✓ Sent to {blastResult.sent} of {blastResult.total} members
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
