@@ -141,16 +141,28 @@ async function run(sql, ...params) {
 async function transaction(fn) {
   if (DB_MODE === 'sqlite' || DB_MODE === 'dual') {
     // SQLite transactions are synchronous — wrap in a promise
+    // Collect queries for dual-mode replay
+    const queryLog = [];
     const sqliteResult = getSqlite().transaction(() => fn({
-      run: (sql, ...p) => getSqlite().prepare(sql).run(...p),
-      get: (sql, ...p) => getSqlite().prepare(sql).get(...p),
-      all: (sql, ...p) => getSqlite().prepare(sql).all(...p),
+      run: (sql, ...p) => {
+        if (DB_MODE === 'dual') queryLog.push({ sql, params: p });
+        return getSqlite().prepare(sql).run(...p);
+      },
+      get: (sql, ...p) => {
+        if (DB_MODE === 'dual') queryLog.push({ sql, params: p });
+        return getSqlite().prepare(sql).get(...p);
+      },
+      all: (sql, ...p) => {
+        if (DB_MODE === 'dual') queryLog.push({ sql, params: p });
+        return getSqlite().prepare(sql).all(...p);
+      },
     }))();
 
-    // Dual mode: replay transaction on Postgres (best-effort)
-    // Full transaction replay requires Phase 2 query logging — skip for now
-    if (DB_MODE === 'dual') {
-      console.warn('[db-layer] Dual-mode transaction: Postgres replay not yet implemented');
+    // Dual mode: replay captured queries on Postgres (best-effort, non-blocking)
+    if (DB_MODE === 'dual' && queryLog.length > 0) {
+      pgReplayTransaction(queryLog).catch(err =>
+        console.error('[db-layer] Postgres transaction replay failed:', err.message)
+      );
     }
 
     return sqliteResult;
@@ -260,6 +272,27 @@ function sqliteSqlToPostgres(sql) {
 async function pgWrite(sql, params) {
   const pgSql = sqliteSqlToPostgres(sql);
   await pg.query(pgSql, params);
+}
+
+/**
+ * Replay a list of captured SQLite transaction queries on Postgres.
+ * Best-effort: logs errors but does not fail the primary (SQLite) operation.
+ */
+async function pgReplayTransaction(queryLog) {
+  const client = await pg.getClient();
+  try {
+    await client.query('BEGIN');
+    for (const { sql, params } of queryLog) {
+      const pgSql = sqliteSqlToPostgres(sql);
+      await client.query(pgSql, params);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ============================================================================

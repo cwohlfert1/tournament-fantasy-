@@ -34,8 +34,8 @@ function getConnectionString() {
   }
   const projectRef = match[1];
 
-  // Supabase Postgres connection string format
-  return `postgresql://postgres.${projectRef}:${key}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`;
+  // Supabase Postgres connection string format (session pooler, IPv4)
+  return `postgresql://postgres.${projectRef}:${key}@aws-1-us-west-2.pooler.supabase.com:5432/postgres`;
 }
 
 function initPool() {
