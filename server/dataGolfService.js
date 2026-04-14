@@ -740,17 +740,32 @@ async function syncDgOddsTiers(tournamentId) {
   const tourn = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournamentId);
   if (!tourn) return { error: 'tournament_not_found' };
 
-  // Guard: NEVER re-tier if ANY active pool exists for this tournament.
-  // Once a league is created and members can see tiers, odds must be frozen.
-  // Re-tiering causes duplicates, tier disappearances, and corrupted picks.
-  const activePool = await db.get(`
+  // Variance-aware skip — replaces the unconditional active-pool early return.
+  // If a pool's existing odds have real variance, the data is already real and
+  // we preserve it (commissioner manual edits, prior real-odds sync). If the
+  // odds have NO variance (every player at the same value, e.g. placeholder
+  // 350:1), the data is fake and we should rebuild. The per-league loop below
+  // applies the same check to decide whether to overwrite each league.
+  const _allPools = await db.all(`
     SELECT gl.id, gl.name FROM golf_leagues gl
     WHERE gl.pool_tournament_id = ? AND gl.status != 'archived'
-    LIMIT 1
   `, tournamentId);
-  if (activePool) {
-    console.log(`[datagolf] Odds tiers SKIPPED for "${tourn.name}" — active pool "${activePool.name}" exists`);
-    return { skipped: true, reason: 'active_pool_exists', league: activePool.name };
+  if (_allPools.length > 0) {
+    let allHaveVariance = true;
+    for (const p of _allPools) {
+      const decimals = await db.all(
+        'SELECT odds_decimal FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND odds_decimal IS NOT NULL',
+        p.id, tournamentId
+      );
+      const vals = decimals.map(d => d.odds_decimal).filter(d => Number.isFinite(d));
+      const hasVariance = vals.length >= 2 && (Math.max(...vals) - Math.min(...vals)) > 0.01;
+      if (!hasVariance) { allHaveVariance = false; break; }
+    }
+    if (allHaveVariance) {
+      console.log(`[datagolf] Odds tiers SKIPPED for "${tourn.name}" — all ${_allPools.length} pool(s) have real-odds variance (preserving)`);
+      return { skipped: true, reason: 'all_pools_have_real_odds', pool_count: _allPools.length };
+    }
+    console.log(`[datagolf] Proceeding with odds-tier rebuild for "${tourn.name}" — at least one pool has placeholder odds`);
   }
 
   // Fetch DG betting odds (1hr cache keyed per tournament)
@@ -836,6 +851,25 @@ async function syncDgOddsTiers(tournamentId) {
   `;
 
   for (const { id: leagueId } of leagues) {
+    // Per-league variance check — same logic as the early return, applied per pool.
+    // A league with real odds variance is preserved (real data, possibly commissioner-edited).
+    // A league with no variance (placeholder odds) gets its locks cleared and rebuilt.
+    const decimals = await db.all(
+      'SELECT odds_decimal FROM pool_tier_players WHERE league_id = ? AND tournament_id = ? AND odds_decimal IS NOT NULL',
+      leagueId, tournamentId
+    );
+    const vals = decimals.map(d => d.odds_decimal).filter(d => Number.isFinite(d));
+    const hasVariance = vals.length >= 2 && (Math.max(...vals) - Math.min(...vals)) > 0.01;
+    if (hasVariance) {
+      // Real odds in place — don't touch. Preserves prior outrights syncs + manual edits.
+      continue;
+    }
+    // Placeholder data — clear locks so rebuild can write real values
+    await db.run(
+      'UPDATE pool_tier_players SET odds_locked_at = NULL WHERE league_id = ? AND tournament_id = ?',
+      leagueId, tournamentId
+    );
+
     await db.transaction(async (tx) => {
       await tx.run(dedupSql, tournamentId, tournamentId);
 

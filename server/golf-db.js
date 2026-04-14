@@ -2616,21 +2616,45 @@ runOnce('delete-stale-masters-2026-scores-v2', () => {
 // ── Add odds_locked_at column + freeze all current Masters tier odds ──────────
 try { db.exec('ALTER TABLE pool_tier_players ADD COLUMN odds_locked_at TEXT'); } catch (_) {}
 
-// Lock all existing tier odds RIGHT NOW so no future sync/restore/migration can change them.
-// This runs on every boot (not runOnce) as a safety net.
+// Variance-aware boot lock. Replaces the prior unconditional lock that
+// indiscriminately froze any unlocked tier_players for any future tournament
+// — the migration that locked RBC Heritage's placeholder "350:1" odds and
+// blocked the real-odds sync from running.
+//
+// Rule: only lock a (league, tournament) pair if its existing odds_decimal
+// values have real variance (i.e. came from a real source). All-same-value
+// rows are placeholders and must remain unlocked so the next outrights sync
+// can replace them with real data.
 try {
-  const locked = db.prepare(`
-    UPDATE pool_tier_players SET odds_locked_at = COALESCE(odds_locked_at, datetime('now'))
-    WHERE odds_locked_at IS NULL
-      AND league_id IN (
-        SELECT id FROM golf_leagues WHERE pool_tournament_id IN (
-          SELECT id FROM golf_tournaments WHERE end_date >= date('now')
-        )
-      )
-  `).run();
-  if (locked.changes > 0) console.log(`[boot] Locked odds on ${locked.changes} tier players (odds_locked_at set)`);
+  const candidates = db.prepare(`
+    SELECT DISTINCT ptp.league_id, ptp.tournament_id
+    FROM pool_tier_players ptp
+    JOIN golf_leagues gl ON gl.id = ptp.league_id
+    JOIN golf_tournaments gt ON gt.id = ptp.tournament_id
+    WHERE ptp.odds_locked_at IS NULL
+      AND gl.pool_tournament_id = ptp.tournament_id
+      AND gt.end_date >= date('now')
+  `).all();
+  let lockedTotal = 0;
+  let skippedPlaceholder = 0;
+  for (const { league_id, tournament_id } of candidates) {
+    const decimals = db.prepare(`
+      SELECT odds_decimal FROM pool_tier_players
+      WHERE league_id = ? AND tournament_id = ? AND odds_decimal IS NOT NULL
+    `).all(league_id, tournament_id).map(r => r.odds_decimal);
+    const hasVariance = decimals.length >= 2 && (Math.max(...decimals) - Math.min(...decimals)) > 0.01;
+    if (!hasVariance) { skippedPlaceholder++; continue; }
+    const r = db.prepare(`
+      UPDATE pool_tier_players SET odds_locked_at = datetime('now')
+      WHERE league_id = ? AND tournament_id = ? AND odds_locked_at IS NULL
+    `).run(league_id, tournament_id);
+    lockedTotal += r.changes;
+  }
+  if (lockedTotal > 0 || skippedPlaceholder > 0) {
+    console.log(`[boot] variance-locked ${lockedTotal} tier_player rows (skipped ${skippedPlaceholder} placeholder pool(s))`);
+  }
 } catch (e) {
-  console.error('[boot] odds lock error:', e.message);
+  console.error('[boot] variance-lock error:', e.message);
 }
 
 // ── Merge "Last, First" duplicate golf_players into "First Last" ──────────────
