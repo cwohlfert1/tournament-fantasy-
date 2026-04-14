@@ -437,7 +437,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [unpaidBannerDismissed, setUnpaidBannerDismissed] = useState(false);
 
   function fetchUnpaid() {
-    if (!(league?.buy_in_amount > 0)) return;
+    // Always fetch — Pool Communications + Roster export are valuable on free
+    // pools too. Unpaid Entries section gates separately on buy_in_amount > 0.
     api.get(`/golf/leagues/${leagueId}/unpaid-summary`).then(r => setUnpaidSummary(r.data)).catch(() => {});
     api.get(`/golf/commissioner/${leagueId}/unpaid`).then(r => setUnpaidList(r.data)).catch(() => {});
   }
@@ -908,7 +909,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       )}
 
       {/* ─── Pool Communications: Get Emails (Option 1) + Send via TourneyRun (Option 2) ─── */}
-      {unpaidList && unpaidList.total_entries > 0 && (
+      {/* Gate on member count only (no buy-in dependency) — free pools deserve roster + email tools too. */}
+      {unpaidList?.total_entries > 0 && (
         <div data-testid="pool-comms-section" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 700, letterSpacing: '0.02em' }}>Message Pool Members</div>
