@@ -3,7 +3,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../api';
-import MastersPromoBanner from '../../components/golf/MastersPromoBanner';
 import { ArrowRight, Plus, MessageCircle, CheckCircle, XCircle, Trophy, DollarSign, Star, Flag, BarChart2, Clipboard, Mail, FileText } from 'lucide-react';
 
 const STYLES = ``;
@@ -96,6 +95,63 @@ const TESTIMONIALS = [
   },
 ];
 
+// ── 2026 PGA Tour schedule (used by the dynamic "next up" hero) ─────────────
+// Update this list once a year; the page derives current/next/upcoming
+// from today's date so no other code has to change between events.
+const TOUR_SCHEDULE = [
+  { name: 'AT&T Pebble Beach Pro-Am',     start: '2026-02-12', end: '2026-02-15', type: 'signature' },
+  { name: 'Genesis Invitational',         start: '2026-02-19', end: '2026-02-22', type: 'signature' },
+  { name: 'Arnold Palmer Invitational',   start: '2026-03-05', end: '2026-03-08', type: 'signature' },
+  { name: 'Masters Tournament',           start: '2026-04-09', end: '2026-04-13', type: 'major'     },
+  { name: 'RBC Heritage',                 start: '2026-04-16', end: '2026-04-19', type: 'signature' },
+  { name: 'Cadillac Championship',        start: '2026-04-30', end: '2026-05-03', type: 'signature' },
+  { name: 'Truist Championship',          start: '2026-05-07', end: '2026-05-10', type: 'signature' },
+  { name: 'PGA Championship',             start: '2026-05-11', end: '2026-05-17', type: 'major'     },
+  { name: 'The Memorial Tournament',      start: '2026-06-04', end: '2026-06-07', type: 'signature' },
+  { name: 'US Open',                      start: '2026-06-15', end: '2026-06-21', type: 'major'     },
+  { name: 'Travelers Championship',       start: '2026-06-25', end: '2026-06-28', type: 'signature' },
+  { name: 'The Open Championship',        start: '2026-07-13', end: '2026-07-19', type: 'major'     },
+];
+
+// today's date with time stripped — single source of truth for status
+function _today() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+
+// 'live' | 'next' | 'upcoming' | 'completed' — derived from start/end dates
+function getEventStatus(t, today = _today(), nextUpName = null) {
+  const start = new Date(t.start + 'T00:00:00');
+  const end   = new Date(t.end   + 'T23:59:59');
+  if (end < today) return 'completed';
+  if (today >= start && today <= end) return 'live';
+  if (nextUpName && t.name === nextUpName) return 'next';
+  return 'upcoming';
+}
+
+// First future-or-live event in the schedule; null if season is over
+function getCurrentOrNextEvent(today = _today()) {
+  return TOUR_SCHEDULE.find(t => new Date(t.end + 'T23:59:59') >= today) || null;
+}
+// Specifically the live event (or null)
+function getLiveEvent(today = _today()) {
+  return TOUR_SCHEDULE.find(t => {
+    const s = new Date(t.start + 'T00:00:00');
+    const e = new Date(t.end   + 'T23:59:59');
+    return today >= s && today <= e;
+  }) || null;
+}
+// Next event AFTER today (excludes a currently-live one)
+function getNextUpEvent(today = _today()) {
+  return TOUR_SCHEDULE.find(t => new Date(t.start + 'T00:00:00') > today) || null;
+}
+function getUpcomingEvents(limit = 4, today = _today()) {
+  const next = getNextUpEvent(today);
+  if (!next) return [];
+  const startIdx = TOUR_SCHEDULE.indexOf(next) + 1;
+  return TOUR_SCHEDULE.slice(startIdx, startIdx + limit);
+}
+function getNextMajor(today = _today()) {
+  return TOUR_SCHEDULE.find(t => t.type === 'major' && new Date(t.start + 'T00:00:00') > today) || null;
+}
+
 // ── Date formatter ────────────────────────────────────────────────────────────
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -159,10 +215,101 @@ function TournamentBadge({ status, isMajor }) {
   );
 }
 
+// ── Dynamic tour-schedule banner ────────────────────────────────────────────
+// Shows the live event (if any) or the next-up event with a countdown.
+// Followed by the next 3 events as a stripped-down list.
+function TourScheduleBanner() {
+  const live = getLiveEvent();
+  const next = getNextUpEvent();
+  const featured = live || next;
+  if (!featured) return null; // Season is over — render nothing rather than stale data
+
+  const upcoming = getUpcomingEvents(3);
+  const isLive = !!live;
+  const isMajor = featured.type === 'major';
+  const days = !isLive ? daysUntil(featured.start) : null;
+
+  return (
+    <div className="px-4 pt-2 pb-6">
+      <div className="max-w-3xl mx-auto">
+        {/* Featured event card */}
+        <div
+          data-testid="tour-schedule-featured"
+          style={{
+            background: 'linear-gradient(180deg, rgba(34,197,94,0.04) 0%, rgba(0,0,0,0) 100%)',
+            border: '1px solid rgba(34,197,94,0.18)',
+            borderRadius: 14,
+            padding: '16px 18px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            {isLive ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#4ade80', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} className="animate-pulse" />
+                Live Now
+              </span>
+            ) : (
+              <span style={{ color: '#9ca3af', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Next Up</span>
+            )}
+            {isMajor && (
+              <span style={{ color: '#f59e0b', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 999 }}>
+                Major
+              </span>
+            )}
+          </div>
+          <div style={{ color: '#fff', fontSize: 22, fontWeight: 900, letterSpacing: '-0.01em', marginBottom: 4 }}>
+            {featured.name}
+          </div>
+          <div style={{ color: '#6b7280', fontSize: 13 }}>
+            {formatDateRange(featured.start, featured.end)}
+            {!isLive && days != null && (
+              <span style={{ color: days <= 7 ? '#22c55e' : '#9ca3af', marginLeft: 10 }}>
+                · {days === 0 ? 'Starts today' : days === 1 ? '1 day away' : `${days} days away`}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Upcoming list */}
+        {upcoming.length > 0 && (
+          <div style={{ marginTop: 14, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }}>
+            <div style={{ padding: '8px 14px', color: '#6b7280', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              Upcoming
+            </div>
+            {upcoming.map((t, i) => (
+              <div
+                key={t.name}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderBottom: i === upcoming.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <span style={{ color: '#d1d5db', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                  {t.type === 'major' && (
+                    <span style={{ color: '#f59e0b', fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>Major</span>
+                  )}
+                </div>
+                <span style={{ color: '#6b7280', fontSize: 12, flexShrink: 0, marginLeft: 12 }}>
+                  {formatDateRange(t.start, t.end)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function GolfLanding() {
   useDocTitle('Fantasy Golf & Office Pools | TourneyRun', {
-    description: 'Run golf office pools for the Masters and every PGA tournament. Pick players by tier, track live leaderboards, and keep 100% of your prize pool.',
+    description: 'Run golf office pools for every PGA tournament. Pick players by tier, track live leaderboards, and keep 100% of your prize pool.',
     image: 'https://www.tourneyrun.app/golf-og-image.png',
   });
   const { user } = useAuth();
@@ -192,6 +339,13 @@ export default function GolfLanding() {
     'Golf fantasy on TourneyRun, one draft, majors count 1.5x. ' +
     'Join here: https://www.tourneyrun.app/golf'
   );
+
+  // Dynamic event references used in the marketing scoreboards & callouts.
+  // All derive from TOUR_SCHEDULE so they auto-update as time passes.
+  const featuredEvent  = getLiveEvent() || getNextUpEvent();
+  const featuredIsLive = !!getLiveEvent();
+  const nextMajor      = getNextMajor();
+  const featuredName   = featuredEvent?.name || 'PGA Tour';
 
   return (
     <div className="bg-gray-950">
@@ -262,6 +416,11 @@ export default function GolfLanding() {
       </div>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* Dynamic tour schedule — auto-updates from TOUR_SCHEDULE              */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      <TourScheduleBanner />
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
       {/* PGA Scoreboard mockup                                                */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <div className="px-4 pb-0 pt-2">
@@ -274,19 +433,21 @@ export default function GolfLanding() {
                 {[0,1,2].map(i => <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: '#1f2937' }} />)}
               </div>
               <div style={{ flex: 1, background: '#080f08', borderRadius: 6, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: '#1f2937', fontSize: 11 }}>tourneyrun.com · PGA Scoreboard · Valspar Championship</span>
+                <span style={{ color: '#1f2937', fontSize: 11 }}>tourneyrun.com · PGA Scoreboard · {featuredName}</span>
               </div>
             </div>
 
             {/* Tournament header */}
             <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #0a1209' }}>
               <div>
-                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>Valspar Championship</div>
-                <div style={{ color: '#4b5563', fontSize: 11, marginTop: 2 }}>Innisbrook Resort · Round 2</div>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{featuredName}</div>
+                <div style={{ color: '#4b5563', fontSize: 11, marginTop: 2 }}>
+                  {featuredEvent ? formatDateRange(featuredEvent.start, featuredEvent.end) : 'PGA Tour'}
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.18)', borderRadius: 8, padding: '4px 10px' }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 700 }}>Live</span>
+                <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 700 }}>{featuredIsLive ? 'Live' : 'Next Up'}</span>
               </div>
             </div>
 
@@ -898,7 +1059,7 @@ export default function GolfLanding() {
               ))}
               <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ color: '#f59e0b', fontSize: 13 }}>★</span>
-                <span style={{ color: '#f59e0b', fontSize: 12, fontWeight: 600 }}>Masters next — all points ×1.5</span>
+                <span style={{ color: '#f59e0b', fontSize: 12, fontWeight: 600 }}>{nextMajor ? `${nextMajor.name} next — all points ×1.5` : 'Majors count ×1.5'}</span>
               </div>
             </div>
           </div>
@@ -939,7 +1100,7 @@ export default function GolfLanding() {
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1f2937' }} />
             </div>
             <div style={{ flex: 1, background: '#0a1509', borderRadius: 6, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#374151', fontSize: 11 }}>PGA Tour Live · Masters 2026 · Round 3</span>
+              <span style={{ color: '#374151', fontSize: 11 }}>PGA Tour Live · {featuredName} · 2026</span>
             </div>
           </div>
 
@@ -1072,9 +1233,6 @@ export default function GolfLanding() {
             </div>
           ))}
         </div>
-
-        {/* Masters promo banner */}
-        <MastersPromoBanner />
 
         {/* Pricing callout */}
         <div style={{ maxWidth: 480, margin: '0 auto 32px', background: 'rgba(0,232,122,0.04)', border: '1.5px solid rgba(0,232,122,0.2)', borderRadius: 16, padding: '20px 24px' }}>
@@ -1216,7 +1374,7 @@ export default function GolfLanding() {
       <Section className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
         <div ref={howItWorksRef} id="how-it-works" className="max-w-4xl mx-auto">
           <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-3">
-            Up and running before the Masters
+            Up and running before {nextMajor ? `the ${nextMajor.name.replace(/^The /, '')}` : 'the next major'}
           </h2>
           <p className="text-gray-500 text-center text-sm mb-12">Four steps. Five minutes.</p>
 
@@ -1296,60 +1454,58 @@ export default function GolfLanding() {
       </Section>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
-      {/* Masters CTA                                                          */}
+      {/* Next-major CTA — auto-updates from TOUR_SCHEDULE                     */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0a1a0f 0%, #0d2310 50%, #0a1a0f 100%)',
-        borderTop: '1px solid #14532d55',
-        borderBottom: '1px solid #14532d55',
-        padding: '56px 24px',
-        textAlign: 'center',
-      }}>
-        <div style={{ maxWidth: 600, margin: '0 auto' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.25)', borderRadius: 999, padding: '5px 14px', marginBottom: 20 }}>
-            <span style={{ color: '#eab308', fontSize: 14 }}>★</span>
-            <span style={{ color: '#eab308', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Major Tournament</span>
-          </div>
-          <h2 style={{ color: '#fff', fontSize: 'clamp(26px, 5vw, 40px)', fontWeight: 900, lineHeight: 1.15, marginBottom: 14 }}>
-            {(() => {
-              const m = tournaments.find(t => t.is_major && t.name?.includes('Masters'));
-              if (m?.start_date) {
-                const d = new Date(m.start_date + 'T12:00:00');
-                return `The Masters is ${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`;
-              }
-              return 'The Masters is coming.';
-            })()}
-          </h2>
-          <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: 1.6, marginBottom: 8 }}>
-            The biggest event in golf. All points × 1.5 for Masters week.
-          </p>
-          <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 32 }}>
-            Set up your pool in 5 minutes. First picks start Sunday night.
-          </p>
-          <Link
-            to="/golf/create?format=pool"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: '#16a34a',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 15,
-              padding: '14px 32px',
-              borderRadius: 999,
-              textDecoration: 'none',
-              boxShadow: '0 0 32px rgba(34,197,94,0.25)',
-              transition: 'background 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
-            onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
-          >
-            Create Your Masters Pool →
-          </Link>
-          <div style={{ marginTop: 16, color: '#374151', fontSize: 12 }}>
-            Free to create · From $12.99/tournament for pools
+      {nextMajor && (
+        <div style={{
+          background: 'linear-gradient(135deg, #0a1a0f 0%, #0d2310 50%, #0a1a0f 100%)',
+          borderTop: '1px solid #14532d55',
+          borderBottom: '1px solid #14532d55',
+          padding: '56px 24px',
+          textAlign: 'center',
+        }}>
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.25)', borderRadius: 999, padding: '5px 14px', marginBottom: 20 }}>
+              <span style={{ color: '#eab308', fontSize: 14 }}>★</span>
+              <span style={{ color: '#eab308', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Major Tournament</span>
+            </div>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px, 5vw, 40px)', fontWeight: 900, lineHeight: 1.15, marginBottom: 14 }}>
+              {(() => {
+                const d = new Date(nextMajor.start + 'T12:00:00');
+                return `${nextMajor.name} is ${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`;
+              })()}
+            </h2>
+            <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: 1.6, marginBottom: 8 }}>
+              All points × 1.5 for major week.
+            </p>
+            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 32 }}>
+              Set up your pool in 5 minutes. First picks start Sunday night.
+            </p>
+            <Link
+              to="/golf/create?format=pool"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: '#16a34a',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 15,
+                padding: '14px 32px',
+                borderRadius: 999,
+                textDecoration: 'none',
+                boxShadow: '0 0 32px rgba(34,197,94,0.25)',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
+              onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
+            >
+              Create Your {nextMajor.name.replace(/^The /, '')} Pool →
+            </Link>
+            <div style={{ marginTop: 16, color: '#374151', fontSize: 12 }}>
+              Free to create · From $12.99/tournament for pools
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* S8: Schedule preview                                                 */}
@@ -1468,7 +1624,9 @@ export default function GolfLanding() {
             Skip the weekly grind.<br />Do this all season long.
           </h2>
           <p className="text-gray-400 text-base leading-relaxed mb-8">
-            Grab your crew and draft before the Masters.
+            {nextMajor
+              ? `Grab your crew and draft before the ${nextMajor.name.replace(/^The /, '')}.`
+              : 'Grab your crew and draft before the next major.'}{' '}
             One draft. 13 events. Bragging rights til The Open.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -1533,12 +1691,13 @@ export default function GolfLanding() {
       </footer>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
-      {/* Sticky mobile CTA bar (Masters countdown)                            */}
+      {/* Sticky mobile CTA bar — counts down to the next major                */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       {(() => {
-        const mastersTournament = tournaments.find(t => t.is_major && t.name?.includes('Masters'));
-        const days = mastersTournament ? daysUntil(mastersTournament.start_date) : -1;
+        if (!nextMajor) return null;
+        const days = daysUntil(nextMajor.start);
         if (days < 0) return null;
+        const shortName = nextMajor.name.replace(/^The /, '').replace(/ Tournament| Championship/, '');
         return (
           <div style={{
             position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
@@ -1548,7 +1707,7 @@ export default function GolfLanding() {
           }} className="md:hidden">
             <span style={{ color: '#9ca3af', fontSize: 13, fontWeight: 500, lineHeight: 1.3, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <Flag size={13} color="#22c55e" strokeWidth={2} />
-              Masters in {days} day{days === 1 ? '' : 's'}
+              {shortName} in {days} day{days === 1 ? '' : 's'}
             </span>
             <Link
               to="/golf/create"
