@@ -304,7 +304,33 @@ function TierConfigEditor({ tiers, onChange, fieldPlayers }) {
   }
 
   function addTier() {
-    onChange([...tiers, { tier: tiers.length + 1, odds_min: '', odds_max: '', picks: 1, approxPlayers: null }]);
+    // Auto-scale beyond the default 5 tiers in ~250-odds increments.
+    // Close the previously-last (open-ended) tier, then open the new last one.
+    // Step size: 250. Example progression after the 5-tier default:
+    //   T6: 501:1 – 750:1, T7: 751:1+ (then close to 1000:1, T8: 1001:1+, etc.)
+    const STEP = 250;
+    const parseOdds = s => parseInt(String(s || '').split(':')[0]) || 0;
+    const next = [...tiers];
+    const lastIdx = next.length - 1;
+    if (lastIdx >= 0) {
+      const last = next[lastIdx];
+      // Only auto-close if user hasn't already specified an upper bound
+      if (!last.odds_max) {
+        const lastMin = parseOdds(last.odds_min);
+        const closedMax = (lastMin > 0 ? lastMin + STEP - 1 : STEP);
+        next[lastIdx] = { ...last, odds_max: `${closedMax}:1` };
+      }
+    }
+    const prevMax = parseOdds(next[lastIdx]?.odds_max) || 0;
+    const newMin  = prevMax + 1;
+    next.push({
+      tier: next.length + 1,
+      odds_min: newMin > 1 ? `${newMin}:1` : '',
+      odds_max: '', // open-ended last tier
+      picks: 1,
+      approxPlayers: null,
+    });
+    onChange(next);
   }
 
   function removeTier(i) {
@@ -488,11 +514,14 @@ const DEFAULT_FORM = {
   pool_tier: 'standard',
   comm_pro_price: 12.99,
   pick_sheet_format: 'tiered',
+  // Default 5 tiers covering elite favorites through deep longshots.
+  // Last tier is always open-ended; addTier() auto-scales beyond.
   pool_tiers: [
-    { tier: 1, odds_min: '1:1',   odds_max: '25:1',  picks: 1, approxPlayers: 8  },
-    { tier: 2, odds_min: '26:1',  odds_max: '50:1',  picks: 2, approxPlayers: 14 },
-    { tier: 3, odds_min: '51:1',  odds_max: '100:1', picks: 2, approxPlayers: 18 },
-    { tier: 4, odds_min: '101:1', odds_max: '',       picks: 2, approxPlayers: null },
+    { tier: 1, odds_min: '1:1',   odds_max: '30:1',  picks: 1, approxPlayers: 10 },
+    { tier: 2, odds_min: '31:1',  odds_max: '55:1',  picks: 1, approxPlayers: 15 },
+    { tier: 3, odds_min: '56:1',  odds_max: '100:1', picks: 2, approxPlayers: 20 },
+    { tier: 4, odds_min: '101:1', odds_max: '250:1', picks: 1, approxPlayers: 30 },
+    { tier: 5, odds_min: '251:1', odds_max: '',      picks: 2, approxPlayers: null },
   ],
   pool_drop_count: 0,
   pool_max_entries: 1,
