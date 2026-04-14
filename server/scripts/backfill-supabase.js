@@ -108,14 +108,26 @@ function parameterize(sql) {
   return sql.replace(/\?/g, () => `$${++idx}`);
 }
 
-// ── Get Postgres column names for a table ───────────────────────────────────
+// ── Get Postgres column names for a table (with retry on transient errors) ──
 async function getPgColumns(table) {
-  const result = await pool.query(`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = $1
-    ORDER BY ordinal_position
-  `, [table]);
-  return result.rows.map(r => r.column_name);
+  let attempts = 0;
+  while (attempts < 5) {
+    try {
+      const result = await pool.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = $1
+        ORDER BY ordinal_position
+      `, [table]);
+      return result.rows.map(r => r.column_name);
+    } catch (err) {
+      attempts++;
+      if (attempts < 5 && (err.code === 'ENOTFOUND' || err.message.includes('terminated') || err.message.includes('ECONNRESET'))) {
+        await new Promise(r => setTimeout(r, 2000 * attempts));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 // ── Get SQLite column names for a table ─────────────────────────────────────
@@ -161,47 +173,30 @@ async function backfillTable(table) {
   let errors = 0;
   const errorSamples = [];
 
-  // Batch insert using a single Postgres client for efficiency
-  const client = await pool.connect();
-  try {
-    // Process in chunks of 100 for large tables
-    const CHUNK_SIZE = 100;
-    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-      const chunk = rows.slice(i, i + CHUNK_SIZE);
-
-      // Use a transaction per chunk for atomicity
-      await client.query('BEGIN');
+  // Use pool.query per row — fresh connection each time, resilient to pool drops.
+  // Slower than batched client but handles long-running backfills reliably.
+  for (const row of rows) {
+    const values = commonCols.map(c => row[c]);
+    let attempts = 0;
+    while (attempts < 3) {
       try {
-        for (const row of chunk) {
-          const values = commonCols.map(c => {
-            const val = row[c];
-            // Convert SQLite JSON strings that Postgres expects as JSONB
-            if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
-              try { JSON.parse(val); return val; } catch { return val; }
-            }
-            return val;
-          });
-          try {
-            const result = await client.query(insertSql, values);
-            inserted += result.rowCount;
-          } catch (err) {
-            errors++;
-            if (errorSamples.length < 3) {
-              errorSamples.push(err.message);
-            }
+        const result = await pool.query(insertSql, values);
+        inserted += result.rowCount;
+        break;
+      } catch (err) {
+        attempts++;
+        if (err.message.includes('terminated') || err.message.includes('ECONNRESET')) {
+          // Retry on connection errors, give pool a moment to recover
+          if (attempts < 3) {
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
           }
         }
-        await client.query('COMMIT');
-      } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        errors += chunk.length;
-        if (errorSamples.length < 3) {
-          errorSamples.push(`Chunk rollback: ${err.message}`);
-        }
+        errors++;
+        if (errorSamples.length < 3) errorSamples.push(err.message);
+        break;
       }
     }
-  } finally {
-    client.release();
   }
 
   const status = errors > 0 ? 'PARTIAL' : 'OK';
@@ -251,7 +246,12 @@ async function backfillTable(table) {
     }
 
     process.stdout.write(`  ${table}... `);
-    const result = await backfillTable(table);
+    let result;
+    try {
+      result = await backfillTable(table);
+    } catch (err) {
+      result = { table, status: 'ERROR', reason: err.message, inserted: 0, total: 0, errors: 1 };
+    }
     results.push(result);
 
     totalInserted += result.inserted;
