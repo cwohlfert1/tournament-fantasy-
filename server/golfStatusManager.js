@@ -213,6 +213,73 @@ async function mapMissingDataGolfEventIds() {
   return mapped;
 }
 
+// ── PHASE 5a: ESPN player_id anchoring at T-2 days ───────────────────────────
+// For tournaments scheduled to start within ~2 days, fetch ESPN's leaderboard
+// and store athlete.id on golf_tournament_fields rows. During the event the
+// score sync can use the cached ESPN ID instead of doing fresh name-matching
+// every poll — reduces failure surface (diacritics, suffix variants) and is
+// cheaper. Idempotent: only updates rows where espn_player_id IS NULL.
+async function applyEspnPlayerIdAnchoring() {
+  const candidates = db.prepare(`
+    SELECT t.id, t.name, t.espn_event_id
+    FROM golf_tournaments t
+    WHERE t.status IN ('scheduled', 'active')
+      AND t.espn_event_id IS NOT NULL
+      AND date(t.start_date) BETWEEN date('now', '-1 day') AND date('now', '+2 days')
+      AND EXISTS (
+        SELECT 1 FROM golf_tournament_fields f
+        WHERE f.tournament_id = t.id AND f.espn_player_id IS NULL
+      )
+  `).all();
+  if (candidates.length === 0) return [];
+
+  const { matchPlayerName } = require('./utils/playerNameNorm');
+  const anchored = [];
+  for (const t of candidates) {
+    try {
+      const url = `https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${t.espn_event_id}`;
+      const body = await new Promise(resolve => {
+        https.get(url, { timeout: 8000 }, res => {
+          let b = ''; res.on('data', c => b += c); res.on('end', () => resolve(b));
+        }).on('error', () => resolve(null)).on('timeout', function() { this.destroy(); resolve(null); });
+      });
+      if (!body) continue;
+      const data = JSON.parse(body);
+      const competitors = data.events?.[0]?.competitions?.[0]?.competitors || [];
+      if (competitors.length === 0) continue;
+
+      // Build a list of golf_players for the players in this tournament's field
+      const players = db.prepare(`
+        SELECT gp.id, gp.name FROM golf_tournament_fields f
+        JOIN golf_players gp ON gp.id = f.player_id
+        WHERE f.tournament_id = ?
+      `).all(t.id);
+
+      const upd = db.prepare(
+        'UPDATE golf_tournament_fields SET espn_player_id = ? WHERE tournament_id = ? AND player_id = ? AND (espn_player_id IS NULL OR espn_player_id = \'\')'
+      );
+      let updated = 0;
+      for (const c of competitors) {
+        const dn = c.athlete?.displayName;
+        const espnId = c.athlete?.id;
+        if (!dn || !espnId) continue;
+        const m = matchPlayerName(dn, players, t.name);
+        if (m) {
+          const r = upd.run(String(espnId), t.id, m.id);
+          if (r.changes > 0) updated++;
+        }
+      }
+      if (updated > 0) {
+        logChange('espn-id-anchor', `${t.name}: anchored espn_player_id on ${updated} field row(s)`);
+        anchored.push({ id: t.id, name: t.name, anchored: updated });
+      }
+    } catch (e) {
+      console.error(`[status-heal] espn-anchor failed for ${t.name}:`, e.message);
+    }
+  }
+  return anchored;
+}
+
 // ── PHASE 5: pool-vs-field sanity check ──────────────────────────────────────
 // Detects pools whose pool_tier_players don't match the linked tournament's
 // golf_tournament_fields — the failure mode that broke RBC Heritage week.
@@ -273,15 +340,16 @@ async function runStatusHeal(opts = {}) {
   if (skipNetwork) {
     return { dateChanges, espnChanges: [], fieldSyncs: [], dgMappings: [] };
   }
-  const espnChanges = await applyEspnStatusHeal();
-  const fieldSyncs  = await applyPreTournamentFieldSync();
-  const dgMappings  = await mapMissingDataGolfEventIds();
+  const espnChanges  = await applyEspnStatusHeal();
+  const fieldSyncs   = await applyPreTournamentFieldSync();
+  const dgMappings   = await mapMissingDataGolfEventIds();
+  const espnAnchors  = await applyEspnPlayerIdAnchoring();
   const sanityIssues = applyPoolFieldSanityCheck();
-  const total = dateChanges.length + espnChanges.length + fieldSyncs.length + dgMappings.length + sanityIssues.length;
+  const total = dateChanges.length + espnChanges.length + fieldSyncs.length + dgMappings.length + espnAnchors.length + sanityIssues.length;
   if (total > 0) {
-    console.log(`[status-heal] complete: ${dateChanges.length} date, ${espnChanges.length} ESPN, ${fieldSyncs.length} field-syncs, ${dgMappings.length} DG mappings, ${sanityIssues.length} pool-field warnings`);
+    console.log(`[status-heal] complete: ${dateChanges.length} date, ${espnChanges.length} ESPN, ${fieldSyncs.length} field-syncs, ${dgMappings.length} DG mappings, ${espnAnchors.length} espn-id anchors, ${sanityIssues.length} pool-field warnings`);
   }
-  return { dateChanges, espnChanges, fieldSyncs, dgMappings, sanityIssues };
+  return { dateChanges, espnChanges, fieldSyncs, dgMappings, espnAnchors, sanityIssues };
 }
 
 // ── Daily 6am cron ───────────────────────────────────────────────────────────
@@ -317,6 +385,7 @@ module.exports = {
   applyEspnStatusHeal,
   applyPreTournamentFieldSync,
   mapMissingDataGolfEventIds,
+  applyEspnPlayerIdAnchoring,
   applyPoolFieldSanityCheck,
   scheduleDailyHeal,
   fetchEspnEventStatus,

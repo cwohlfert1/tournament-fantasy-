@@ -38,7 +38,13 @@ function normalizePlayerName(name) {
     .toLowerCase()
     .replace(/[.\-''']/g, '')       // strip periods, hyphens, apostrophes (J.T.→jt)
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    // Strip generational suffixes ("Davis Love III", "John Daly Jr.")
+    // — ESPN sometimes drops them, sometimes keeps them. Normalizing to no
+    // suffix on both sides means "John Daly Jr" matches "John Daly" cleanly.
+    // Order matters: longer alternatives first so 'iii' wins over 'ii'.
+    // Plain 'v' is intentionally NOT stripped (too ambiguous with real names).
+    .replace(/\s+(iii|iv|jr|sr|ii)$/, '');
 }
 
 /**
