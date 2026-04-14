@@ -584,10 +584,13 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
           SELECT pp.player_id, pp.player_name, pp.tier_number,
                  COALESCE(pp.country, gp.country) AS country,
                  pp.is_dropped, pp.tiebreaker_score,
+                 gtf.espn_player_id,
                  gs.fantasy_points, gs.round1, gs.round2, gs.round3, gs.round4,
                  gs.finish_position, gs.made_cut
           FROM pool_picks pp
           LEFT JOIN golf_players gp ON gp.id = pp.player_id
+          LEFT JOIN golf_tournament_fields gtf
+            ON gtf.tournament_id = pp.tournament_id AND gtf.player_id = pp.player_id
           LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = ?
           WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
             AND COALESCE(pp.entry_number, 1) = ?

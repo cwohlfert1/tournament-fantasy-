@@ -4,6 +4,8 @@ import { Check, Lock, Trophy, ChevronRight } from 'lucide-react';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
 import GolfLoader from '../../../components/golf/GolfLoader';
+import PlayerAvatar from '../../../components/golf/PlayerAvatar';
+import { tierAccent } from '../../../utils/golfTierColors';
 
 const ROSTER_TIER_COLORS = {
   1: { bg: 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'rgba(245,158,11,0.3)', accent: '#f59e0b', label: '#fbbf24' },
@@ -274,9 +276,12 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
     <div style={{
       background: isDropped ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.03)',
       border: `1px solid ${isDropped ? 'rgba(107,114,128,0.2)' : countingBorder}`,
+      borderLeft: `3px solid ${tierAccent(pick.tier_number)}`, // tier identity carries through to roster
       borderRadius: 14,
+      borderTopLeftRadius: 0,
+      borderBottomLeftRadius: 0,
       padding: '14px 16px',
-      display: 'flex', alignItems: 'center', gap: 14,
+      display: 'flex', alignItems: 'center', gap: 12,
       position: 'relative', overflow: 'hidden',
       animation: `fadeSlideUp 0.35s ease both`,
       animationDelay: `${idx * 60}ms`,
@@ -286,9 +291,17 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 6px 24px ${tc.border}`; }}
     onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
     >
+      {/* ESPN headshot — same face users saw on the picks screen */}
+      <PlayerAvatar
+        name={pick.player_name}
+        tier={pick.tier_number}
+        espnPlayerId={pick.espn_player_id}
+        size={36}
+      />
+      {/* Country flag retained for context */}
       {espnFlagHref
-        ? <img src={espnFlagHref} alt={espnCountryAlt || ''} style={{ width: 22, height: 15, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
-        : <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{toFlag(pick.country)}</span>}
+        ? <img src={espnFlagHref} alt={espnCountryAlt || ''} style={{ width: 18, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
+        : <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{toFlag(pick.country)}</span>}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

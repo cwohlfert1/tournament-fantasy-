@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { Flag, Trophy } from 'lucide-react';
 import api from '../../../api';
+import PlayerAvatar from '../../../components/golf/PlayerAvatar';
+import { tierAccent } from '../../../utils/golfTierColors';
 import { isStrokeBased, computeRanks, scoreColor } from './golfScoringUtils';
 
 // Convert "Last, First" (DataGolf format) → "First Last"
@@ -350,9 +352,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
                     const isPending  = p.is_pending;
                     const isMC       = p.is_mc || (p.made_cut === 0);
                     return (
-                      <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none', opacity: isDropped ? 0.45 : 1 }}>
+                      <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none', opacity: isDropped ? 0.45 : 1, borderLeft: `2px solid ${tierAccent(p.tier_number || tier)}`, paddingLeft: 8 }}>
+                        <PlayerAvatar name={p.player_name} tier={p.tier_number || tier} espnPlayerId={p.espn_player_id} size={24} />
                         <span style={{ flex: 1, color: isDropped ? '#6b7280' : '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isDropped ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
+                          <span style={{ fontSize: 12, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                           {flipName(p.player_name)}
                         </span>
                         {isDropped && (dropsLocked
@@ -383,9 +386,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
                   const fp = p.fantasy_points || 0;
                   const fpColor = fp > 0 ? '#22c55e' : fp < 0 ? '#ef4444' : '#6b7280';
                   return (
-                    <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+                    <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: pi > 0 ? '1px solid rgba(255,255,255,0.03)' : 'none', borderLeft: `2px solid ${tierAccent(p.tier_number || tier)}`, paddingLeft: 8 }}>
+                      <PlayerAvatar name={p.player_name} tier={p.tier_number || tier} espnPlayerId={p.espn_player_id} size={24} />
                       <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
+                        <span style={{ fontSize: 12, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                         {p.player_name}
                       </span>
                       {isWD ? (

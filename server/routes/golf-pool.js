@@ -330,9 +330,14 @@ router.get('/leagues/:id/tier-players', authMiddleware, async (req, res) => {
     if (!tid) return res.json({ tiers: [], tournament_id: null });
 
     const players = await db.all(`
-      SELECT ptp.*, COALESCE(ptp.country, gp.country) AS country
+      SELECT ptp.*,
+             COALESCE(ptp.country, gp.country) AS country,
+             gp.world_ranking AS gp_world_ranking,
+             gtf.espn_player_id
       FROM pool_tier_players ptp
       LEFT JOIN golf_players gp ON gp.id = ptp.player_id
+      LEFT JOIN golf_tournament_fields gtf
+        ON gtf.tournament_id = ptp.tournament_id AND gtf.player_id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ? AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
       GROUP BY ptp.player_id
       ORDER BY ptp.tier_number ASC, ptp.world_ranking ASC
@@ -435,10 +440,15 @@ router.get('/leagues/:id/picks/my', authMiddleware, async (req, res) => {
     const tid = req.query.tournament_id || league.pool_tournament_id;
     if (!tid) return res.json({ picks: [], submitted: false });
 
-    const picks = await db.all(
-      'SELECT * FROM pool_picks WHERE league_id = ? AND tournament_id = ? AND user_id = ? ORDER BY tier_number ASC',
-      req.params.id, tid, req.user.id
-    );
+    const picks = await db.all(`
+      SELECT pp.*, gtf.espn_player_id, gp.world_ranking AS gp_world_ranking
+      FROM pool_picks pp
+      LEFT JOIN golf_tournament_fields gtf
+        ON gtf.tournament_id = pp.tournament_id AND gtf.player_id = pp.player_id
+      LEFT JOIN golf_players gp ON gp.id = pp.player_id
+      WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
+      ORDER BY pp.tier_number ASC
+    `, req.params.id, tid, req.user.id);
 
     // Tier config for total target
     let tiersConfig = [];
