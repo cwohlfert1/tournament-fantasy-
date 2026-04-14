@@ -443,9 +443,9 @@ async function maybeEmailRoundStandings() {
       const leagues = await db.all("SELECT id, name FROM leagues WHERE status IN ('drafting', 'active')");
       for (const league of leagues) {
         try {
-          const payload = buildStandings(league.id);
+          const payload = await buildStandings(league.id);
           if (!payload?.standings?.length) continue;
-          syncTotalPoints(league.id, payload.standings);
+          await syncTotalPoints(league.id, payload.standings);
 
           const members = await db.all(`
             SELECT lm.user_id, u.email, u.username
@@ -495,10 +495,10 @@ async function pushStandingsToLeagues(io) {
   const leagues = await db.all("SELECT id FROM leagues WHERE status IN ('drafting', 'active')");
   for (const { id } of leagues) {
     try {
-      const payload = buildStandings(id);
+      const payload = await buildStandings(id);
       if (payload) {
-        syncTotalPoints(id, payload.standings);
-        checkAndPostRankChanges(id, payload.standings, io);
+        await syncTotalPoints(id, payload.standings);
+        await checkAndPostRankChanges(id, payload.standings, io);
         io.to(`leaderboard_${id}`).emit('standings_update', {
           ...payload,
           updatedAt: new Date().toISOString(),
