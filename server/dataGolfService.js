@@ -9,6 +9,7 @@
 const https   = require('https');
 const db      = require('./db/index');
 const { v4: uuidv4 } = require('uuid');
+const { toFirstLast } = require('./utils/playerNameNorm');
 
 const BASE = 'https://feeds.datagolf.com';
 
@@ -140,7 +141,7 @@ async function syncPlayerList() {
   const byName  = new Map(); // lowercase full name → dgData
   const byDgId  = new Map(); // dg_id → dgData
   for (const p of players) {
-    const name    = (p.player_name || p.name || '').trim();
+    const name    = toFirstLast((p.player_name || p.name || '').trim());
     const dgId    = p.dg_id;
     const country = normalizeCountry(p.country);
     if (!name || !dgId) continue;
@@ -318,7 +319,7 @@ async function _applyFieldToTournament(tourn, field) {
   let inserted = 0, created = 0;
   await db.transaction(async (tx) => {
     for (const f of field) {
-      const name    = (f.player_name || f.name || '').trim();
+      const name    = toFirstLast((f.player_name || f.name || '').trim());
       const dgId    = f.dg_id;
       const country = normalizeCountry(f.country);
       const ranking = f.dg_id ? null : null; // DG field doesn't include ranking; will get from player record
@@ -637,7 +638,7 @@ async function syncLiveStats(tournamentId) {
   let synced = 0;
   for (const s of liveStats) {
     const dgId   = s.dg_id;
-    const name   = s.player_name || s.name || '';
+    const name   = toFirstLast(s.player_name || s.name || '');
     const sgTotal = s.sg_total ?? null;
     if (sgTotal === null) continue;
 

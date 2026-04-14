@@ -22,7 +22,16 @@
  */
 
 function normalizePlayerName(name) {
-  return (name || '')
+  let s = (name || '').trim();
+  // "Last, First [Middle...]" → "First Middle Last" before any other normalization.
+  // DataGolf historically returned this format and it polluted golf_players.
+  // Skip if the post-comma part looks like a suffix only (Jr/Sr/II/III/IV) —
+  // that's "Davis Love, III" not a swap candidate.
+  const comma = s.match(/^([^,]+?),\s*(.+)$/);
+  if (comma && !/^(jr|sr|ii|iii|iv)\.?$/i.test(comma[2].trim())) {
+    s = comma[2].trim() + ' ' + comma[1].trim();
+  }
+  return s
     // Explicit substitutions for characters that do NOT decompose via NFD.
     // ø, æ, œ, ł, ð, þ, ß are precomposed ligatures — NFD leaves them unchanged.
     .replace(/[øØ]/g, 'o')
@@ -36,7 +45,7 @@ function normalizePlayerName(name) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[.\-''']/g, '')       // strip periods, hyphens, apostrophes (J.T.→jt)
+    .replace(/[.\-,''']/g, '')      // strip periods, hyphens, commas, apostrophes (J.T.→jt)
     .replace(/\s+/g, ' ')
     .trim()
     // Strip generational suffixes ("Davis Love III", "John Daly Jr.")
@@ -169,4 +178,18 @@ function validatePlayerData(player) {
   return { ...player, ...rounds, country_code, normalized_name, warnings };
 }
 
-module.exports = { normalizePlayerName, matchPlayerName, validatePlayerData };
+/**
+ * Convert "Last, First [Middle]" → "First Middle Last" for storage. Preserves
+ * casing/diacritics — this is the canonical insert form, not a comparison key.
+ * Returns the input unchanged if it doesn't look like a comma-swapped name
+ * (e.g. "Davis Love, III" is left alone — that's a suffix, not a swap).
+ */
+function toFirstLast(name) {
+  const s = (name || '').trim();
+  const m = s.match(/^([^,]+?),\s*(.+)$/);
+  if (!m) return s;
+  if (/^(jr|sr|ii|iii|iv)\.?$/i.test(m[2].trim())) return s;
+  return m[2].trim() + ' ' + m[1].trim();
+}
+
+module.exports = { normalizePlayerName, matchPlayerName, validatePlayerData, toFirstLast };

@@ -2922,6 +2922,64 @@ runOnce('dedup-golf-players-by-name-v2', () => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// dedup-golf-players-by-comma-format
+//
+// v2's UNIQUE INDEX on LOWER(name) didn't catch "Last, First" ↔ "First Last"
+// duplicates because the strings differ. ESPN headshot anchoring failed for
+// RBC Heritage (1/82 anchored) because field FKs pointed at the comma-format
+// row ("Berger, Daniel") while ESPN sends "Daniel Berger" — name match missed.
+//
+// This migration finds pairs where the swapped form already exists, picks
+// the "First Last" row as canonical, repoints all FK references, and deletes
+// the comma-format row. Going forward, dataGolfService.toFirstLast() prevents
+// new comma-format rows from being inserted.
+// ─────────────────────────────────────────────────────────────────────────────
+runOnce('dedup-golf-players-by-comma-format', () => {
+  try {
+    const commaRows = db.prepare(`
+      SELECT id, name FROM golf_players WHERE name LIKE '%, %'
+    `).all();
+    if (commaRows.length === 0) {
+      console.log('[migration] dedup-comma-format: no comma-format rows');
+      return;
+    }
+    let merged = 0, droppedRefs = 0, renamed = 0;
+    db.transaction(() => {
+      for (const row of commaRows) {
+        // Convert "Last, First Middle" → "First Middle Last"
+        const m = row.name.match(/^([^,]+?),\s*(.+)$/);
+        if (!m) continue;
+        if (/^(jr|sr|ii|iii|iv)\.?$/i.test(m[2].trim())) continue; // suffix, not a swap
+        const canonical = m[2].trim() + ' ' + m[1].trim();
+
+        const keep = db.prepare('SELECT id FROM golf_players WHERE LOWER(name) = LOWER(?) AND id != ?').get(canonical, row.id);
+        if (keep) {
+          // Repoint FKs from comma-format → canonical, then delete comma row.
+          for (const tbl of ['pool_tier_players', 'golf_tournament_fields', 'pool_picks', 'golf_scores']) {
+            try {
+              db.prepare(`UPDATE OR IGNORE ${tbl} SET player_id = ? WHERE player_id = ?`).run(keep.id, row.id);
+              const left = db.prepare(`DELETE FROM ${tbl} WHERE player_id = ?`).run(row.id);
+              droppedRefs += left.changes;
+            } catch (_) {}
+          }
+          db.prepare('DELETE FROM golf_players WHERE id = ?').run(row.id);
+          merged++;
+        } else {
+          // No canonical twin — just rename in place to "First Last" form.
+          try {
+            db.prepare('UPDATE golf_players SET name = ? WHERE id = ?').run(canonical, row.id);
+            renamed++;
+          } catch (_) { /* would violate unique idx — skip; v2 will handle */ }
+        }
+      }
+    })();
+    console.log(`[migration] dedup-comma-format: merged ${merged}, renamed ${renamed}, dropped ${droppedRefs} conflicting refs (scanned ${commaRows.length} comma-format rows)`);
+  } catch (e) {
+    console.error('[migration] dedup-comma-format error:', e.message);
+  }
+});
+
 // ── Missed-cut rule (per-league) + no-cut flag (per-tournament) ──────────────
 // missed_cut_rule values:
 //   'fixed'           — assign par + missed_cut_penalty (default 8) per missed round
