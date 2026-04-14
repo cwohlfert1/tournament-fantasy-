@@ -264,7 +264,7 @@ router.post('/leagues', authMiddleware, async (req, res) => {
   try {
     const {
       name, team_name, max_teams = 8, buy_in_amount = 0, payment_instructions = '',
-      payout_first = 70, payout_second = 20, payout_third = 10, pick_time_limit = 60,
+      pick_time_limit = 60,
       format_type = 'tourneyrun',
       // TourneyRun
       salary_cap = 2400, core_spots = 4, flex_spots = 4, faab_budget = 500, use_faab = 1,
@@ -288,10 +288,6 @@ router.post('/leagues', authMiddleware, async (req, res) => {
     } = req.body;
 
     if (!name || !team_name) return res.status(400).json({ error: 'League name and team name required' });
-    const p1 = Math.max(0, parseInt(payout_first) || 0);
-    const p2 = Math.max(0, parseInt(payout_second) || 0);
-    const p3 = Math.max(0, parseInt(payout_third) || 0);
-    if (p1 + p2 + p3 > 100) return res.status(400).json({ error: 'Payouts exceed 100%' });
 
     const fmt = ['pool', 'salary_cap', 'tourneyrun'].includes(format_type) ? format_type : 'tourneyrun';
 
@@ -336,7 +332,7 @@ router.post('/leagues', authMiddleware, async (req, res) => {
     await db.run(`
       INSERT INTO golf_leagues (
         id, name, commissioner_id, invite_code, status, max_teams,
-        buy_in_amount, payment_instructions, payout_first, payout_second, payout_third,
+        buy_in_amount, payment_instructions,
         roster_size, starters_per_week, pick_time_limit, season_year,
         format_type, salary_cap, weekly_salary_cap, core_spots, flex_spots,
         faab_budget, use_faab, picks_per_team, scoring_style,
@@ -345,10 +341,10 @@ router.post('/leagues', authMiddleware, async (req, res) => {
         pick_sheet_format, pool_tiers, pool_salary_cap, pool_cap_unit,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds,
         pool_tournament_id, pool_drop_count, pool_max_entries
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       id, name, req.user.id, invite_code, 'pending_payment', parseInt(max_teams) || 8,
-      parseFloat(buy_in_amount) || 0, payment_instructions, p1, p2, p3,
+      parseFloat(buy_in_amount) || 0, payment_instructions,
       roster_size, starters_per_week, parseInt(pick_time_limit) || 60,
       fmt, parseInt(salary_cap) || 2400, parseInt(weekly_salary_cap) || 50000,
       parseInt(core_spots) || 4, parseInt(flex_spots) || 4,
@@ -401,7 +397,7 @@ router.get('/leagues/preview/:code', async (req, res) => {
   try {
     const league = await db.get(`
       SELECT gl.id, gl.name, gl.format_type, gl.max_teams, gl.buy_in_amount,
-             gl.payout_first, gl.payout_second, gl.payout_third, gl.picks_per_team,
+             gl.payout_places, gl.picks_per_team,
              gl.pool_tournament_id,
              gt.name AS pool_tournament_name,
              gt.start_date AS pool_tournament_start,
@@ -498,6 +494,11 @@ router.get('/leagues/:id', authMiddleware, async (req, res) => {
     const myMember = members.find(m => m.user_id === req.user.id);
     if (!myMember && !isCommissioner) return res.status(403).json({ error: 'Not a member' });
     try { league.pool_tiers = JSON.parse(league.pool_tiers || '[]'); } catch (_) { league.pool_tiers = []; }
+    // Admin fee is private to the commissioner — players see only the net prize pool via /pools/:id/payouts
+    if (!isCommissioner) {
+      delete league.admin_fee_type;
+      delete league.admin_fee_value;
+    }
     res.json({ league, members, isCommissioner, myMember });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
@@ -1431,12 +1432,11 @@ router.patch('/leagues/:id/settings', authMiddleware, async (req, res) => {
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not commissioner' });
 
-    const { buy_in_amount, payout_1st, payout_2nd, payout_3rd, venmo, zelle, paypal, pool_drop_count, pool_tiers, picks_per_team,
+    const { buy_in_amount, venmo, zelle, paypal, pool_drop_count, pool_tiers, picks_per_team,
             pool_max_entries, weekly_salary_cap, starters_per_week, scoring_style } = req.body;
 
-    // Payout settings — supports both legacy scalar and new JSON format
+    // Payout splits — JSONB array: [{ place: 1, pct: 50 }, { place: 2, pct: 30 }, ...]
     if (req.body.payout_splits !== undefined) {
-      // New JSON format: [{ place: 1, pct: 50 }, { place: 2, pct: 30 }, ...]
       let splits = req.body.payout_splits;
       if (typeof splits === 'string') try { splits = JSON.parse(splits); } catch { splits = []; }
       if (!Array.isArray(splits) || splits.length === 0) return res.status(400).json({ error: 'At least 1 payout place required' });
@@ -1447,26 +1447,24 @@ router.patch('/leagues/:id/settings', authMiddleware, async (req, res) => {
         if ((parseFloat(p.pct) || 0) < 1 || (parseFloat(p.pct) || 0) > 99) return res.status(400).json({ error: 'Each place must be 1-99%' });
       }
       const splitsJson = JSON.stringify(splits.map((p, i) => ({ place: i + 1, pct: Math.round(parseFloat(p.pct) * 100) / 100 })));
-      // Update JSON + keep legacy scalars in sync
-      const p1 = parseFloat(splits[0]?.pct) || 0;
-      const p2 = parseFloat(splits[1]?.pct) || 0;
-      const p3 = parseFloat(splits[2]?.pct) || 0;
-      await db.run('UPDATE golf_leagues SET payout_places = ?, payout_first = ?, payout_second = ?, payout_third = ?, buy_in_amount = ? WHERE id = ?',
-        splitsJson, p1, p2, p3, parseFloat(buy_in_amount) || league.buy_in_amount || 0, req.params.id);
-    } else if (payout_1st !== undefined) {
-      // Legacy scalar format
-      const p1 = Math.round((parseFloat(payout_1st) || 0) * 100) / 100;
-      const p2 = Math.round((parseFloat(payout_2nd) || 0) * 100) / 100;
-      const p3 = Math.round((parseFloat(payout_3rd) || 0) * 100) / 100;
-      if (Math.abs(p1 + p2 + p3 - 100) > 0.5) return res.status(400).json({ error: 'Payouts must sum to 100%' });
-      await db.run('UPDATE golf_leagues SET buy_in_amount = ?, payout_first = ?, payout_second = ?, payout_third = ? WHERE id = ?',
-        parseFloat(buy_in_amount) || 0, p1, p2, p3, req.params.id);
+      await db.run('UPDATE golf_leagues SET payout_places = ?, buy_in_amount = ? WHERE id = ?',
+        splitsJson, parseFloat(buy_in_amount) || league.buy_in_amount || 0, req.params.id);
     }
 
-    // Admin fee
-    if (req.body.admin_fee_pct !== undefined) {
-      const fee = Math.max(0, Math.min(50, parseFloat(req.body.admin_fee_pct) || 0));
-      await db.run('UPDATE golf_leagues SET admin_fee_pct = ? WHERE id = ?', fee, req.params.id);
+    // Admin fee — type='flat'|'percent'|null, value is dollars or percent
+    // Passing null type clears the fee. Validation: flat >= 0, percent 0-50.
+    if (req.body.admin_fee_type !== undefined || req.body.admin_fee_value !== undefined) {
+      const rawType = req.body.admin_fee_type;
+      const type = (rawType === 'flat' || rawType === 'percent') ? rawType : null;
+      let value = parseFloat(req.body.admin_fee_value);
+      if (!Number.isFinite(value) || value <= 0) { value = null; }
+      if (type === 'percent' && value !== null) value = Math.max(0, Math.min(50, value));
+      if (type === 'flat'    && value !== null) value = Math.max(0, value);
+      // If either is null, clear both to keep the pair consistent
+      const finalType  = (type && value !== null) ? type  : null;
+      const finalValue = (type && value !== null) ? value : null;
+      await db.run('UPDATE golf_leagues SET admin_fee_type = ?, admin_fee_value = ? WHERE id = ?',
+        finalType, finalValue, req.params.id);
     }
 
     // Pool-specific settings

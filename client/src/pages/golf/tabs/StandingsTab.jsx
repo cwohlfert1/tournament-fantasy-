@@ -191,6 +191,7 @@ function prizeForRank(rank, total, payoutSplits) {
 
 export default function StandingsTab({ leagueId, league, currentUserId }) {
   const [data, setData]           = useState(null);
+  const [payouts, setPayouts]     = useState(null); // { net_pool, payouts: [{ place, pct, amount }] }
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded]   = useState(null);
@@ -208,6 +209,14 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   };
 
   useEffect(() => { fetchStandings(); }, [leagueId]); // eslint-disable-line
+
+  // Fetch player-safe payout breakdown (net pool + per-place amounts, admin fee hidden).
+  useEffect(() => {
+    if (!leagueId) return;
+    api.get(`/golf/pools/${leagueId}/payouts`)
+      .then(r => setPayouts(r.data))
+      .catch(() => setPayouts(null));
+  }, [leagueId]);
 
   useEffect(() => {
     if (data && currentUserId) {
@@ -237,22 +246,25 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   const hasScores   = data?.has_scores;
   const tournamentWinner = data?.tournament_winner;
 
-  // Parse payout splits — prefer JSON, fall back to legacy scalars
+  // Parse payout splits from JSONB (source of truth). Never reads admin_fee_*.
   const payoutSplits = (() => {
-    let places = [];
-    try { places = JSON.parse(league?.payout_places || '[]'); } catch {}
-    if (places.length > 0) return places;
-    const splits = [];
-    if (league?.payout_first)  splits.push({ place: 1, pct: league.payout_first });
-    if (league?.payout_second) splits.push({ place: 2, pct: league.payout_second });
-    if (league?.payout_third)  splits.push({ place: 3, pct: league.payout_third });
-    return splits.length > 0 ? splits : [{ place: 1, pct: 70 }, { place: 2, pct: 20 }, { place: 3, pct: 10 }];
+    try {
+      const raw = league?.payout_places;
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === 'string' && raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [{ place: 1, pct: 70 }, { place: 2, pct: 20 }, { place: 3, pct: 10 }];
   })();
-  const adminFee = league?.admin_fee_pct || 0;
-  const grossPool = league?.payout_pool_override
+  // Prize pool: prefer API-computed net_pool (hides admin fee).
+  // Falls back to payout_pool_override or gross × entries during initial load.
+  const netPoolFromApi = payouts?.net_pool;
+  const grossFallback = league?.payout_pool_override
     ? league.payout_pool_override
     : (league?.buy_in_amount || 0) * standings.length;
-  const prizeTotal = Math.round(grossPool * (1 - adminFee / 100) * 100) / 100;
+  const prizeTotal = Number.isFinite(netPoolFromApi) ? netPoolFromApi : grossFallback;
   const hasPrize = prizeTotal > 0 && standings.length > 0;
 
   if (standings.length === 0) {

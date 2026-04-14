@@ -33,16 +33,15 @@ function getMeta(fmt) { return FORMAT_META[fmt] || FORMAT_META.tourneyrun; }
 // ── Prize breakdown helper ─────────────────────────────────────────────────────
 
 function parsePayout(league) {
-  let places = [];
-  try { places = JSON.parse(league.payout_places || '[]'); } catch (_) {}
-  if (!places.length && league.payout_first) {
-    places = [
-      { place: 1, pct: parseFloat(league.payout_first)  || 0 },
-      { place: 2, pct: parseFloat(league.payout_second) || 0 },
-      { place: 3, pct: parseFloat(league.payout_third)  || 0 },
-    ].filter(p => p.pct > 0);
-  }
-  return places;
+  try {
+    const raw = league?.payout_places;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (_) {}
+  return [];
 }
 
 const PLACE_ICONS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];

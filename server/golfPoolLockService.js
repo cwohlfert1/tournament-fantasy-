@@ -229,9 +229,19 @@ async function sendLockUnpaidNotice(league, tourn) {
   if (!commEmailRow?.email) return;
 
   const paidCount = allEntries.length - unpaid.length;
-  const adminFee = league.admin_fee_pct || 0;
-  const paidPrizePool = Math.round(paidCount * buyIn * (1 - adminFee / 100));
-  const expectedPrizePool = Math.round(allEntries.length * buyIn * (1 - adminFee / 100));
+  // Compute admin fee from new fields. Inline to avoid cross-module dependency.
+  function feeAmount(gross) {
+    const type = league.admin_fee_type;
+    const value = parseFloat(league.admin_fee_value) || 0;
+    if (!type || value <= 0) return 0;
+    if (type === 'flat')    return Math.min(value, gross);
+    if (type === 'percent') return gross * (value / 100);
+    return 0;
+  }
+  const paidGross = paidCount * buyIn;
+  const expectedGross = allEntries.length * buyIn;
+  const paidPrizePool = Math.round(paidGross - feeAmount(paidGross));
+  const expectedPrizePool = Math.round(expectedGross - feeAmount(expectedGross));
 
   const commNameRow = await db.get('SELECT username FROM users WHERE id = ?', league.commissioner_id);
 

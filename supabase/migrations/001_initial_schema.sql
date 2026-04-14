@@ -101,9 +101,8 @@ CREATE TABLE IF NOT EXISTS golf_leagues (
   max_teams INTEGER DEFAULT 10,
   buy_in_amount REAL DEFAULT 0,
   payment_instructions TEXT DEFAULT '',
-  payout_first INTEGER DEFAULT 70,
-  payout_second INTEGER DEFAULT 20,
-  payout_third INTEGER DEFAULT 10,
+  admin_fee_type TEXT,
+  admin_fee_value REAL,
   season_year INTEGER DEFAULT 2026,
   week_lock_day TEXT DEFAULT 'thursday',
   roster_size INTEGER DEFAULT 8,
@@ -147,7 +146,6 @@ CREATE TABLE IF NOT EXISTS golf_leagues (
   paypal TEXT,
   pool_drops_applied INTEGER DEFAULT 0,
   pool_max_entries INTEGER DEFAULT 1,
-  admin_fee_pct REAL DEFAULT 0,
   lock_unpaid_dismissed INTEGER DEFAULT 0
 );
 

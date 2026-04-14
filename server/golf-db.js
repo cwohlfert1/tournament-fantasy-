@@ -12,9 +12,8 @@ try { db.exec(`
     max_teams INTEGER DEFAULT 10,
     buy_in_amount REAL DEFAULT 0,
     payment_instructions TEXT DEFAULT '',
-    payout_first INTEGER DEFAULT 70,
-    payout_second INTEGER DEFAULT 20,
-    payout_third INTEGER DEFAULT 10,
+    admin_fee_type TEXT,
+    admin_fee_value REAL,
     season_year INTEGER DEFAULT 2026,
     week_lock_day TEXT DEFAULT 'thursday',
     roster_size INTEGER DEFAULT 8,
@@ -489,10 +488,9 @@ try {
     SET status               = 'active',
         scoring_style        = 'total_strokes',
         payout_pool_override = 1000,
-        payout_first         = 70,
-        payout_second        = 20,
-        payout_third         = 10
+        payout_places        = '[{"place":1,"pct":70},{"place":2,"pct":20},{"place":3,"pct":10}]'
     WHERE id = '68b1e250-6afc-4e80-ad7b-d8a22ae3ad7d'
+      AND (payout_places IS NULL OR payout_places = '' OR payout_places = '[]')
   `).run();
 } catch (e) { console.error('[golf-db] Beta Group 1.0 config fix error:', e.message); }
 
@@ -2725,8 +2723,59 @@ try {
   }
 } catch (e) { console.error('[boot] diacritic normalization error:', e.message); }
 
-// ── Admin fee column ─────────────────────────────────────────────────────────
-try { db.exec('ALTER TABLE golf_leagues ADD COLUMN admin_fee_pct REAL DEFAULT 0'); } catch (_) {}
+// ── Admin fee columns: flexible type ('flat' | 'percent') + value ────────────
+// Replaces admin_fee_pct. Backfilled below from the legacy column when present.
+try { db.exec('ALTER TABLE golf_leagues ADD COLUMN admin_fee_type TEXT'); } catch (_) {}
+try { db.exec('ALTER TABLE golf_leagues ADD COLUMN admin_fee_value REAL'); } catch (_) {}
+
+// ── Backfill new admin fee cols from legacy admin_fee_pct (runs once) ────────
+runOnce('backfill-admin-fee-type-value-from-pct', () => {
+  try {
+    // Skip if legacy column no longer exists (already dropped on a prior boot)
+    const hasLegacy = db.prepare("SELECT 1 FROM pragma_table_info('golf_leagues') WHERE name = 'admin_fee_pct'").get();
+    if (!hasLegacy) return;
+    const rows = db.prepare(
+      "SELECT id, admin_fee_pct FROM golf_leagues WHERE admin_fee_pct > 0 AND (admin_fee_type IS NULL OR admin_fee_value IS NULL)"
+    ).all();
+    const upd = db.prepare("UPDATE golf_leagues SET admin_fee_type = 'percent', admin_fee_value = ? WHERE id = ?");
+    let n = 0;
+    for (const r of rows) { upd.run(r.admin_fee_pct, r.id); n++; }
+    if (n > 0) console.log(`[migration] backfill-admin-fee: converted ${n} leagues to admin_fee_type='percent'`);
+  } catch (e) { console.error('[migration] backfill-admin-fee error:', e.message); }
+});
+
+// ── Migrate legacy payout_first/second/third into payout_places JSONB ────────
+runOnce('migrate-legacy-payout-splits-to-jsonb', () => {
+  try {
+    const hasLegacy = db.prepare("SELECT 1 FROM pragma_table_info('golf_leagues') WHERE name = 'payout_first'").get();
+    if (!hasLegacy) return;
+    const rows = db.prepare(
+      "SELECT id, payout_first, payout_second, payout_third, payout_places FROM golf_leagues " +
+      "WHERE payout_places IS NULL OR payout_places = '' OR payout_places = '[]'"
+    ).all();
+    const upd = db.prepare("UPDATE golf_leagues SET payout_places = ? WHERE id = ?");
+    let n = 0;
+    for (const r of rows) {
+      const splits = [];
+      if ((r.payout_first  || 0) > 0) splits.push({ place: 1, pct: r.payout_first });
+      if ((r.payout_second || 0) > 0) splits.push({ place: 2, pct: r.payout_second });
+      if ((r.payout_third  || 0) > 0) splits.push({ place: 3, pct: r.payout_third });
+      if (splits.length === 0) continue;
+      upd.run(JSON.stringify(splits), r.id);
+      n++;
+    }
+    if (n > 0) console.log(`[migration] migrate-legacy-payouts: converted ${n} leagues to JSONB splits`);
+  } catch (e) { console.error('[migration] migrate-legacy-payouts error:', e.message); }
+});
+
+// ── Drop legacy columns now that data is migrated ────────────────────────────
+runOnce('drop-legacy-payout-and-admin-fee-cols', () => {
+  const drops = ['admin_fee_pct', 'payout_first', 'payout_second', 'payout_third'];
+  for (const col of drops) {
+    try { db.exec(`ALTER TABLE golf_leagues DROP COLUMN ${col}`); console.log(`[migration] dropped golf_leagues.${col}`); }
+    catch (_) { /* column may not exist on fresh DBs — safe to ignore */ }
+  }
+});
 
 // ── Reminder emails tracking table ────────────────────────────────────────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS reminder_emails_sent (

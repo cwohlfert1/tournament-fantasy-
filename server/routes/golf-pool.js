@@ -9,6 +9,36 @@ const router = express.Router();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Compute the admin fee dollar amount for a given gross pool.
+ * Returns 0 if the league has no configured fee.
+ *   flat    → value (capped at grossPool so fee can't exceed the pool)
+ *   percent → grossPool × (value / 100)
+ */
+function computeAdminFee(league, grossPool) {
+  if (!league || !league.admin_fee_type || league.admin_fee_value == null) return 0;
+  const v = parseFloat(league.admin_fee_value) || 0;
+  if (v <= 0) return 0;
+  if (league.admin_fee_type === 'flat')    return Math.min(v, grossPool);
+  if (league.admin_fee_type === 'percent') return grossPool * (v / 100);
+  return 0;
+}
+
+/**
+ * Parse payout_places JSONB column into an array of { place, pct }.
+ * Returns [] if missing or malformed.
+ */
+function parsePayoutSplits(league) {
+  if (!league) return [];
+  try {
+    const raw = league.payout_places;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
 function oddsDisplayToDecimal(str) {
   if (!str) return 999;
   const parts = String(str).split(':');
@@ -1365,16 +1395,17 @@ router.get('/leagues/:id/unpaid-summary', authMiddleware, async (req, res) => {
     const effectivePaid = hasAnyPaidTracking ? paidCount : totalEntries;
 
     const buyIn = league.buy_in_amount || 0;
-    const adminFee = league.admin_fee_pct || 0;
     const grossPool = effectivePaid * buyIn;
-    const prizePool = Math.round(grossPool * (1 - adminFee / 100) * 100) / 100;
+    const prizePool = Math.round((grossPool - computeAdminFee(league, grossPool)) * 100) / 100;
+    const expectedGross = totalEntries * buyIn;
+    const expectedPool = Math.round((expectedGross - computeAdminFee(league, expectedGross)) * 100) / 100;
 
     res.json({
       unpaid: totalEntries - effectivePaid,
       paid: effectivePaid,
       total: totalEntries,
       prizePool,
-      expectedPool: Math.round(totalEntries * buyIn * (1 - adminFee / 100) * 100) / 100,
+      expectedPool,
       buy_in: buyIn,
     });
   } catch (err) {
@@ -1616,6 +1647,106 @@ router.get('/leagues/:id/admin/entry-picks', authMiddleware, async (req, res) =>
   } catch (err) {
     console.error('[entry-picks]', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/pools/:id/payouts — PLAYER-SAFE payout breakdown.
+// Returns ONLY: net prize pool + per-place dollar amounts.
+// Never exposes gross pool, admin fee type, or admin fee value.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/pools/:id/payouts', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+
+    // Require membership OR commissioner (same as GET /leagues/:id)
+    const isCommissioner = league.commissioner_id === req.user.id;
+    if (!isCommissioner) {
+      const member = await db.get('SELECT 1 FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?', req.params.id, req.user.id);
+      if (!member) return res.status(403).json({ error: 'Not a member' });
+    }
+
+    // Gross pool = entries × buy_in. Prefer paid entries; fall back to total entries.
+    const buyIn = league.buy_in_amount || 0;
+    const tid = league.pool_tournament_id || null;
+    const paidRow = tid ? await db.get(
+      'SELECT COUNT(*) AS cnt FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ? AND is_paid = 1',
+      req.params.id, tid
+    ) : { cnt: 0 };
+    const totalRow = await db.get('SELECT COUNT(*) AS cnt FROM golf_league_members WHERE golf_league_id = ?', req.params.id);
+    const paidCount = paidRow?.cnt || 0;
+    const totalEntries = totalRow?.cnt || 0;
+    const effectivePaid = paidCount > 0 ? paidCount : totalEntries;
+
+    const grossPool = effectivePaid * buyIn;
+    const netPool = Math.max(0, Math.round((grossPool - computeAdminFee(league, grossPool)) * 100) / 100);
+
+    const splits = parsePayoutSplits(league);
+    const payouts = splits.map(s => ({
+      place: parseInt(s.place, 10),
+      pct:   parseFloat(s.pct) || 0,
+      amount: Math.round(netPool * ((parseFloat(s.pct) || 0) / 100) * 100) / 100,
+    }));
+
+    res.json({
+      net_pool: netPool,
+      buy_in: buyIn,
+      paid_entries: effectivePaid,
+      payouts,
+    });
+  } catch (err) {
+    console.error('[pool-payouts]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/commissioner/:id/payouts/full — COMMISSIONER-ONLY full breakdown.
+// Shows gross pool, admin fee type/value/amount, net pool, and per-place amounts.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/commissioner/:id/payouts/full', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Not commissioner' });
+
+    const buyIn = league.buy_in_amount || 0;
+    const tid = league.pool_tournament_id || null;
+    const paidRow = tid ? await db.get(
+      'SELECT COUNT(*) AS cnt FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ? AND is_paid = 1',
+      req.params.id, tid
+    ) : { cnt: 0 };
+    const totalRow = await db.get('SELECT COUNT(*) AS cnt FROM golf_league_members WHERE golf_league_id = ?', req.params.id);
+    const paidCount = paidRow?.cnt || 0;
+    const totalEntries = totalRow?.cnt || 0;
+    const effectivePaid = paidCount > 0 ? paidCount : totalEntries;
+
+    const grossPool = effectivePaid * buyIn;
+    const feeAmount = Math.round(computeAdminFee(league, grossPool) * 100) / 100;
+    const netPool   = Math.max(0, Math.round((grossPool - feeAmount) * 100) / 100);
+
+    const splits = parsePayoutSplits(league);
+    const payouts = splits.map(s => ({
+      place:  parseInt(s.place, 10),
+      pct:    parseFloat(s.pct) || 0,
+      amount: Math.round(netPool * ((parseFloat(s.pct) || 0) / 100) * 100) / 100,
+    }));
+
+    res.json({
+      buy_in: buyIn,
+      paid_entries: effectivePaid,
+      total_entries: totalEntries,
+      gross_pool: Math.round(grossPool * 100) / 100,
+      admin_fee_type:   league.admin_fee_type || null,
+      admin_fee_value:  league.admin_fee_value != null ? parseFloat(league.admin_fee_value) : null,
+      admin_fee_amount: feeAmount,
+      net_pool: netPool,
+      payouts,
+    });
+  } catch (err) {
+    console.error('[commissioner-payouts]', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

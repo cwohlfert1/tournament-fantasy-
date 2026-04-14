@@ -622,11 +622,7 @@ export default function CreateGolfLeague() {
         format_type: format,
         buy_in_amount: parseFloat(form.buy_in_amount) || 0,
         use_faab: form.use_faab ? 1 : 0,
-        // backward-compat scalar fields derived from payout_places
-        payout_first:  parseInt(form.payout_places[0]?.pct) || 0,
-        payout_second: parseInt(form.payout_places[1]?.pct) || 0,
-        payout_third:  parseInt(form.payout_places[2]?.pct) || 0,
-        // JSON fields
+        // JSONB source of truth for payout splits
         payout_places:    JSON.stringify(form.payout_places),
         payment_methods:  JSON.stringify(form.payment_methods),
         pool_tiers:       JSON.stringify(form.pool_tiers),

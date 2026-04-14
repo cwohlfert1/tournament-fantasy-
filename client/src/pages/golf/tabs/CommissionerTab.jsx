@@ -369,20 +369,26 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   // Pool settings
   const [buyIn, setBuyIn] = useState(String(league?.buy_in_amount ?? 0));
 
-  // Dynamic payout splits — initialize from JSON or legacy scalars
+  // Dynamic payout splits — source of truth is payout_places JSONB.
   const [payoutSplits, setPayoutSplits] = useState(() => {
     let places = [];
-    try { places = JSON.parse(league?.payout_places || '[]'); } catch {}
-    if (places.length > 0) return places;
-    // Fallback to legacy scalar columns
-    const splits = [];
-    if (league?.payout_first)  splits.push({ place: 1, pct: league.payout_first });
-    if (league?.payout_second) splits.push({ place: 2, pct: league.payout_second });
-    if (league?.payout_third)  splits.push({ place: 3, pct: league.payout_third });
-    return splits.length > 0 ? splits : [{ place: 1, pct: 70 }, { place: 2, pct: 20 }, { place: 3, pct: 10 }];
+    try {
+      const raw = league?.payout_places;
+      if (Array.isArray(raw)) places = raw;
+      else if (typeof raw === 'string' && raw) places = JSON.parse(raw);
+    } catch {}
+    return (Array.isArray(places) && places.length > 0)
+      ? places
+      : [{ place: 1, pct: 70 }, { place: 2, pct: 20 }, { place: 3, pct: 10 }];
   });
-  const [adminFeePct, setAdminFeePct] = useState(String(league?.admin_fee_pct ?? 0));
-  const [adminFeeEnabled, setAdminFeeEnabled] = useState((league?.admin_fee_pct ?? 0) > 0);
+  // Admin fee: type ('flat' | 'percent') + value. Null type = no fee.
+  const [adminFeeType, setAdminFeeType] = useState(league?.admin_fee_type || 'percent');
+  const [adminFeeValue, setAdminFeeValue] = useState(
+    league?.admin_fee_value != null ? String(league.admin_fee_value) : ''
+  );
+  const [adminFeeEnabled, setAdminFeeEnabled] = useState(
+    !!league?.admin_fee_type && parseFloat(league?.admin_fee_value) > 0
+  );
   const [picksPerTeam, setPicksPerTeam] = useState(String(league?.picks_per_team ?? 8));
   const [dropCount, setDropCount] = useState(String(league?.pool_drop_count ?? 2));
   const [maxEntries, setMaxEntries] = useState(String(league?.pool_max_entries ?? 1));
@@ -518,8 +524,11 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
   // Prize pool
   const grossPool = members.length * (parseFloat(buyIn) || league?.buy_in_amount || 0);
-  const adminFee = adminFeeEnabled ? (parseFloat(adminFeePct) || 0) : 0;
-  const prizePool = Math.round(grossPool * (1 - adminFee / 100) * 100) / 100;
+  const feeValue = parseFloat(adminFeeValue) || 0;
+  const feeAmount = adminFeeEnabled && feeValue > 0
+    ? (adminFeeType === 'flat' ? Math.min(feeValue, grossPool) : grossPool * (feeValue / 100))
+    : 0;
+  const prizePool = Math.max(0, Math.round((grossPool - feeAmount) * 100) / 100);
 
   // Scoring label
   const scoringLabel = league?.scoring_style === 'fantasy_points'
@@ -604,7 +613,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       await api.patch(`/golf/leagues/${leagueId}/settings`, {
         buy_in_amount: parseFloat(buyIn) || 0,
         payout_splits: payoutSplits,
-        admin_fee_pct: adminFeeEnabled ? (parseFloat(adminFeePct) || 0) : 0,
+        admin_fee_type:  adminFeeEnabled && feeValue > 0 ? adminFeeType : null,
+        admin_fee_value: adminFeeEnabled && feeValue > 0 ? feeValue     : null,
         ...(!isSalaryCap && {
           picks_per_team: Math.max(1, parseInt(picksPerTeam) || 8),
           pool_drop_count: Math.max(0, parseInt(dropCount) || 0),
@@ -1016,13 +1026,18 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                   </div>
                 </div>
 
-                {/* Admin fee (commissioner only) */}
-                <div>
+                {/* Admin fee (commissioner only) — flat $ or % */}
+                <div data-testid="admin-fee-section">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <label className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Admin Fee</label>
                     <button
                       type="button"
-                      onClick={() => { setAdminFeeEnabled(!adminFeeEnabled); if (adminFeeEnabled) setAdminFeePct('0'); }}
+                      data-testid="admin-fee-toggle"
+                      onClick={() => {
+                        const next = !adminFeeEnabled;
+                        setAdminFeeEnabled(next);
+                        if (!next) setAdminFeeValue('');
+                      }}
                       style={{
                         width: 36, height: 20, borderRadius: 10, padding: 2,
                         background: adminFeeEnabled ? '#22c55e' : '#374151',
@@ -1038,19 +1053,49 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                     </button>
                   </div>
                   {adminFeeEnabled && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="number" min="1" max="50" step="1"
-                        value={adminFeePct}
-                        onChange={e => setAdminFeePct(e.target.value)}
-                        className="input w-16 text-sm text-center"
-                      />
-                      <span style={{ color: '#4b5563', fontSize: 11 }}>% of pool</span>
-                      {grossPool > 0 && (
-                        <span style={{ color: '#6b7280', fontSize: 11 }}>
-                          (${(grossPool * (parseFloat(adminFeePct) || 0) / 100).toFixed(2)} fee · ${prizePool.toFixed(2)} prize pool)
-                        </span>
-                      )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Type selector: $ or % */}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {[
+                          { key: 'percent', label: '% of pool' },
+                          { key: 'flat',    label: 'Flat $'   },
+                        ].map(opt => (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            data-testid={`admin-fee-type-${opt.key}`}
+                            onClick={() => setAdminFeeType(opt.key)}
+                            style={{
+                              padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                              border: `1.5px solid ${adminFeeType === opt.key ? '#22c55e' : 'rgba(255,255,255,0.1)'}`,
+                              background: adminFeeType === opt.key ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.03)',
+                              color: adminFeeType === opt.key ? '#22c55e' : '#9ca3af',
+                              cursor: 'pointer',
+                            }}
+                          >{opt.label}</button>
+                        ))}
+                      </div>
+                      {/* Value input */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {adminFeeType === 'flat' && <span style={{ color: '#9ca3af', fontSize: 13 }}>$</span>}
+                        <input
+                          type="number"
+                          min={adminFeeType === 'flat' ? '0.01' : '1'}
+                          max={adminFeeType === 'flat' ? undefined : '50'}
+                          step={adminFeeType === 'flat' ? '0.01' : '1'}
+                          value={adminFeeValue}
+                          onChange={e => setAdminFeeValue(e.target.value)}
+                          placeholder={adminFeeType === 'flat' ? '0.00' : '0'}
+                          className="input w-20 text-sm text-center"
+                          data-testid="admin-fee-value"
+                        />
+                        {adminFeeType === 'percent' && <span style={{ color: '#4b5563', fontSize: 11 }}>%</span>}
+                        {grossPool > 0 && feeValue > 0 && (
+                          <span style={{ color: '#6b7280', fontSize: 11 }} data-testid="admin-fee-preview">
+                            (${feeAmount.toFixed(2)} fee · ${prizePool.toFixed(2)} prize pool)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                   <p style={{ color: '#374151', fontSize: 10, marginTop: 4 }}>Only visible to you. Members see prize pool after fee.</p>
