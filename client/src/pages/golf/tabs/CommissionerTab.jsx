@@ -428,26 +428,53 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
   // Unpaid entry tracking
   const [unpaidSummary, setUnpaidSummary] = useState(null);
+  const [unpaidList, setUnpaidList] = useState(null);   // { unpaid: [...], total_entries, unpaid_count }
   const [remindingSending, setRemindingSending] = useState(false);
   const [unpaidBannerDismissed, setUnpaidBannerDismissed] = useState(false);
 
-  useEffect(() => {
-    if (league?.buy_in_amount > 0) {
-      api.get(`/golf/leagues/${leagueId}/unpaid-summary`)
-        .then(r => setUnpaidSummary(r.data))
-        .catch(() => {});
-    }
-  }, [leagueId, league?.buy_in_amount]);
+  function fetchUnpaid() {
+    if (!(league?.buy_in_amount > 0)) return;
+    api.get(`/golf/leagues/${leagueId}/unpaid-summary`).then(r => setUnpaidSummary(r.data)).catch(() => {});
+    api.get(`/golf/commissioner/${leagueId}/unpaid`).then(r => setUnpaidList(r.data)).catch(() => {});
+  }
+  useEffect(fetchUnpaid, [leagueId, league?.buy_in_amount]); // eslint-disable-line
 
-  async function sendPayReminders() {
+  async function sendPayReminders({ confirm = false } = {}) {
     setRemindingSending(true);
     try {
-      const r = await api.post(`/golf/leagues/${leagueId}/remind-unpaid`);
+      const r = await api.post(`/golf/commissioner/${leagueId}/unpaid/remind`, { confirm });
       alert(`Reminders sent to ${r.data.sent} unpaid member${r.data.sent !== 1 ? 's' : ''}`);
+      fetchUnpaid();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to send reminders');
+      const data = err.response?.data;
+      // 24h pool-level lockout — ask the commissioner to confirm an override.
+      if (err.response?.status === 409 && data?.recently_sent) {
+        const when = data.last_sent_at ? new Date(data.last_sent_at).toLocaleString() : 'recently';
+        const ok = window.confirm(
+          `A payment reminder was already sent for this pool ${when}.\n\nSend another reminder now anyway?`
+        );
+        if (ok) { setRemindingSending(false); return sendPayReminders({ confirm: true }); }
+      } else {
+        alert(data?.error || 'Failed to send reminders');
+      }
     }
     setRemindingSending(false);
+  }
+
+  function downloadUnpaidCsv() {
+    // Token-bearing fetch → blob → click-download. window.open won't carry the JWT.
+    api.get(`/golf/commissioner/${leagueId}/unpaid/csv`, { responseType: 'blob' })
+      .then(r => {
+        const cd = r.headers?.['content-disposition'] || '';
+        const m  = cd.match(/filename="([^"]+)"/);
+        const filename = m ? m[1] : `unpaid-${leagueId}.csv`;
+        const url = window.URL.createObjectURL(new Blob([r.data], { type: 'text/csv' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        window.URL.revokeObjectURL(url);
+      })
+      .catch(err => alert(err.response?.data?.error || 'Failed to download CSV'));
   }
 
   // Blast modal
@@ -754,7 +781,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <button
-              onClick={sendPayReminders}
+              onClick={() => sendPayReminders()}
               disabled={remindingSending}
               style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}
             >{remindingSending ? 'Sending...' : `Remind Unpaid (${unpaidSummary.unpaid})`}</button>
@@ -762,6 +789,57 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
               onClick={() => setUnpaidBannerDismissed(true)}
               style={{ color: '#6b7280', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer' }}
             >&times;</button>
+          </div>
+        </div>
+      )}
+
+      {/* Unpaid entries detailed table — bordered rows, no pills */}
+      {league?.buy_in_amount > 0 && unpaidList && unpaidList.unpaid_count > 0 && (
+        <div data-testid="unpaid-entries-section" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: '#e5e7eb', fontSize: 13, fontWeight: 700, letterSpacing: '0.02em' }}>Unpaid Entries</div>
+              <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                {unpaidList.unpaid_count} of {unpaidList.total_entries} entries unpaid
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                data-testid="unpaid-csv-button"
+                onClick={downloadUnpaidCsv}
+                style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
+              >Download CSV</button>
+              <button
+                type="button"
+                data-testid="unpaid-remind-button"
+                onClick={() => sendPayReminders()}
+                disabled={remindingSending}
+                style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}
+              >{remindingSending ? 'Sending…' : 'Send Payment Reminder'}</button>
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            {unpaidList.unpaid.map((u, i) => (
+              <div
+                key={`${u.user_id}_${u.entry_number}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.4fr 1.6fr 0.5fr 0.9fr 0.5fr',
+                  gap: 10,
+                  alignItems: 'center',
+                  padding: '10px 4px',
+                  borderBottom: i === unpaidList.unpaid.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ color: '#ffffff', fontWeight: 600 }}>{u.full_name || u.username}</div>
+                <div style={{ color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
+                <div style={{ color: '#6b7280' }}>#{u.entry_number}</div>
+                <div style={{ color: '#6b7280' }}>{u.entry_date ? new Date(u.entry_date).toLocaleDateString() : '—'}</div>
+                <div style={{ color: '#fbbf24', fontWeight: 700, textAlign: 'right' }}>UNPAID</div>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -672,10 +672,18 @@ CREATE TABLE IF NOT EXISTS promo_code_uses (
 
 CREATE TABLE IF NOT EXISTS mass_email_log (
   id TEXT PRIMARY KEY,
-  league_id TEXT,
+  sent_by TEXT,
+  audience TEXT,
+  subject TEXT,
+  body_preview TEXT,
+  recipient_count INTEGER DEFAULT 0,
+  sent_at TIMESTAMPTZ DEFAULT NOW(),
   email_type TEXT,
-  sent_at TIMESTAMPTZ DEFAULT NOW()
+  league_id TEXT,
+  tournament_id TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_mass_email_log_league_type_sent
+  ON mass_email_log (league_id, email_type, sent_at);
 
 CREATE TABLE IF NOT EXISTS commissioner_actions (
   id TEXT PRIMARY KEY,

@@ -994,10 +994,20 @@ try {
       body_preview TEXT,
       recipient_count INTEGER DEFAULT 0,
       sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      email_type TEXT,
+      league_id TEXT,
+      tournament_id TEXT,
       FOREIGN KEY (sent_by) REFERENCES users(id)
     );
   `);
 } catch (e) { console.error('[golf-db] mass_email_log table error:', e.message); }
+
+// Add categorization cols for existing databases (idempotent)
+try { db.exec(`ALTER TABLE mass_email_log ADD COLUMN email_type TEXT`);    } catch (_) {}
+try { db.exec(`ALTER TABLE mass_email_log ADD COLUMN league_id TEXT`);     } catch (_) {}
+try { db.exec(`ALTER TABLE mass_email_log ADD COLUMN tournament_id TEXT`); } catch (_) {}
+// Index to make the "sent in last 24h" lookup fast
+try { db.exec(`CREATE INDEX IF NOT EXISTS idx_mass_email_log_league_type_sent ON mass_email_log (league_id, email_type, sent_at)`); } catch (_) {}
 
 try {
   db.exec(`

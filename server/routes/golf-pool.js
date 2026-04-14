@@ -1281,72 +1281,214 @@ router.post('/admin/set-drop-count', authMiddleware, async (req, res) => {
   }
 });
 
-// ── POST /leagues/:id/remind-unpaid ───────────────────────────────────────────
-// Commissioner sends targeted payment reminders to unpaid members only.
-router.post('/leagues/:id/remind-unpaid', authMiddleware, async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared helper: build the unpaid-entry list for a league + its pool tournament.
+// Returns rows: { user_id, username, email, full_name, entry_number, entry_date, amount_owed }
+// Entry date is MIN(pool_picks.submitted_at) per (user, entry_number).
+// ─────────────────────────────────────────────────────────────────────────────
+async function listUnpaidEntries(leagueId, league) {
+  const tid = league.pool_tournament_id;
+  if (!tid) return [];
+
+  const allEntries = await db.all(`
+    SELECT pp.user_id,
+           COALESCE(pp.entry_number, 1) AS entry_number,
+           MIN(pp.submitted_at)         AS entry_date,
+           u.username,
+           u.email,
+           u.full_name,
+           glm.team_name
+    FROM pool_picks pp
+    JOIN users u ON u.id = pp.user_id
+    LEFT JOIN golf_league_members glm
+      ON glm.golf_league_id = pp.league_id AND glm.user_id = pp.user_id
+    WHERE pp.league_id = ? AND pp.tournament_id = ?
+    GROUP BY pp.user_id, COALESCE(pp.entry_number, 1)
+    ORDER BY MIN(pp.submitted_at) ASC
+  `, leagueId, tid);
+
+  const paid = new Set();
+  const paidRows = await db.all(
+    'SELECT user_id, entry_number FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ? AND is_paid = 1',
+    leagueId, tid
+  );
+  paidRows.forEach(r => paid.add(`${r.user_id}_${r.entry_number}`));
+  const legacyPaid = await db.all(
+    'SELECT user_id FROM golf_league_members WHERE golf_league_id = ? AND is_paid = 1',
+    leagueId
+  );
+  legacyPaid.forEach(r => paid.add(`${r.user_id}_1`));
+
+  const buyIn = parseFloat(league.buy_in_amount) || 0;
+  return allEntries
+    .filter(e => !paid.has(`${e.user_id}_${e.entry_number}`))
+    .map(e => ({
+      user_id: e.user_id,
+      username: e.username,
+      email: e.email,
+      full_name: e.full_name,
+      team_name: e.team_name,
+      entry_number: e.entry_number,
+      entry_date: e.entry_date,
+      amount_owed: buyIn,
+    }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/commissioner/:leagueId/unpaid — list of unpaid entrants.
+// Commissioner auth required. Email addresses are sensitive — never expose
+// this endpoint to non-commissioners.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/commissioner/:leagueId/unpaid', authMiddleware, async (req, res) => {
   try {
-    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.id);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const unpaid = await listUnpaidEntries(req.params.leagueId, league);
 
+    // Total entries for the "X of Y unpaid" count
+    const tid = league.pool_tournament_id;
+    const totalRow = tid ? await db.get(
+      'SELECT COUNT(DISTINCT user_id || \'_\' || COALESCE(entry_number, 1)) AS cnt FROM pool_picks WHERE league_id = ? AND tournament_id = ?',
+      req.params.leagueId, tid
+    ) : { cnt: 0 };
+
+    res.json({ unpaid, total_entries: totalRow?.cnt || 0, unpaid_count: unpaid.length });
+  } catch (err) {
+    console.error('[commissioner-unpaid]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/commissioner/:leagueId/unpaid/csv — CSV download.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/commissioner/:leagueId/unpaid/csv', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const unpaid = await listUnpaidEntries(req.params.leagueId, league);
+
+    // CSV escape: wrap in quotes + double any quotes inside
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['Name', 'Email', 'Entry Number', 'Amount Owed'].map(esc).join(',');
+    const lines = unpaid.map(u => [
+      u.full_name || u.username || '',
+      u.email || '',
+      u.entry_number,
+      (parseFloat(u.amount_owed) || 0).toFixed(2),
+    ].map(esc).join(','));
+    const csv = [header, ...lines].join('\r\n') + '\r\n';
+
+    const slug = (league.name || 'pool').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'pool';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="unpaid-${slug}-${dateStr}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('[commissioner-unpaid-csv]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/golf/commissioner/:leagueId/unpaid/remind — send reminder emails.
+// Body: { confirm?: boolean, dry_run?: boolean }
+// Pool-level 24h guard: returns 409 with { recently_sent: true, last_sent_at }
+// unless confirm=true. Logs to mass_email_log on success.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/commissioner/:leagueId/unpaid/remind', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
     const tid = league.pool_tournament_id;
     if (!tid) return res.status(400).json({ error: 'No tournament linked' });
 
-    const commissioner = await db.get('SELECT username, full_name FROM users WHERE id = ?', req.user.id);
-    const commName = commissioner?.full_name || commissioner?.username || 'Your commissioner';
+    const confirm = req.body?.confirm === true;
+    const dryRun  = req.body?.dry_run === true;
 
-    // Get all entries with picks submitted
-    const allEntries = await db.all(`
-      SELECT DISTINCT pp.user_id, COALESCE(pp.entry_number, 1) as entry_number,
-             u.email, u.username
-      FROM pool_picks pp
-      JOIN users u ON u.id = pp.user_id
-      WHERE pp.league_id = ? AND pp.tournament_id = ?
-    `, req.params.id, tid);
-
-    // Get paid entries
-    const paidEntries = new Set();
-    const paidFromTable = await db.all('SELECT user_id, entry_number FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ? AND is_paid = 1',
-      req.params.id, tid);
-    paidFromTable.forEach(r => paidEntries.add(`${r.user_id}_${r.entry_number}`));
-    // Legacy: entry 1 from golf_league_members
-    const paidFromLegacy = await db.all('SELECT user_id FROM golf_league_members WHERE golf_league_id = ? AND is_paid = 1',
-      req.params.id);
-    paidFromLegacy.forEach(r => paidEntries.add(`${r.user_id}_1`));
-
-    const unpaid = allEntries.filter(e => !paidEntries.has(`${e.user_id}_${e.entry_number}`));
-    if (unpaid.length === 0) return res.json({ ok: true, sent: 0, message: 'All entries are paid' });
-
-    // Deduplicate by user (send one email per user, not per entry)
-    const uniqueUsers = new Map();
-    for (const e of unpaid) {
-      if (!uniqueUsers.has(e.user_id)) uniqueUsers.set(e.user_id, e);
-    }
-
-    const { sendPayReminder } = require('../mailer');
-    const tournRow = await db.get('SELECT start_date FROM golf_tournaments WHERE id = ?', tid);
-    const lockTime = league.picks_lock_time || (computeLockTime(tournRow?.start_date || '').toISOString());
-
-    let sent = 0;
-    for (const [, member] of uniqueUsers) {
-      try {
-        await sendPayReminder(member.email, {
-          username: member.username,
-          leagueName: league.name,
-          buyIn: league.buy_in_amount || 0,
-          commissionerName: commName,
-          paymentMethods: league.payment_methods,
-          lockTime,
+    // 24h pool-level lockout — any prior unpaid_reminder for this league.
+    if (!confirm) {
+      const prior = await db.get(
+        `SELECT sent_at FROM mass_email_log
+         WHERE email_type = 'unpaid_reminder' AND league_id = ?
+           AND sent_at > datetime('now', '-24 hours')
+         ORDER BY sent_at DESC LIMIT 1`,
+        req.params.leagueId
+      );
+      if (prior) {
+        return res.status(409).json({
+          recently_sent: true,
+          last_sent_at: prior.sent_at,
+          message: 'A reminder was sent for this pool in the last 24 hours. Confirm to send again.',
         });
-        sent++;
-      } catch (err) {
-        console.error(`[remind-unpaid] Failed for ${member.email}:`, err.message);
       }
     }
 
-    res.json({ ok: true, sent, total_unpaid: unpaid.length });
+    const unpaid = await listUnpaidEntries(req.params.leagueId, league);
+    // Deduplicate by user so we never spam the same inbox twice
+    const uniqueByUser = new Map();
+    for (const u of unpaid) if (!uniqueByUser.has(u.user_id)) uniqueByUser.set(u.user_id, u);
+    const recipients = Array.from(uniqueByUser.values());
+
+    if (recipients.length === 0) {
+      return res.json({ ok: true, sent: 0, message: 'All entries are paid' });
+    }
+
+    if (dryRun) {
+      return res.json({
+        ok: true,
+        dry_run: true,
+        would_send: recipients.length,
+        recipients: recipients.map(r => ({
+          user_id: r.user_id, username: r.username, entry_number: r.entry_number,
+        })),
+      });
+    }
+
+    const commissioner = await db.get('SELECT username, full_name FROM users WHERE id = ?', req.user.id);
+    const commName = commissioner?.full_name || commissioner?.username || 'your commissioner';
+    const tourn = await db.get('SELECT name FROM golf_tournaments WHERE id = ?', tid);
+
+    const { sendUnpaidReminder } = require('../mailer');
+    let sent = 0, failed = 0;
+    for (const r of recipients) {
+      const firstName = (r.full_name || r.username || '').split(/\s+/)[0];
+      try {
+        await sendUnpaidReminder(r.email, {
+          firstName,
+          poolName: league.name,
+          tournamentName: tourn?.name || 'the upcoming tournament',
+          amount: league.buy_in_amount || 0,
+          commissionerName: commName,
+        });
+        sent++;
+      } catch (err) {
+        failed++;
+        console.error(`[unpaid-remind] send failed for ${r.email}:`, err.message);
+      }
+    }
+
+    // Log only if we actually delivered at least one
+    if (sent > 0) {
+      try {
+        const { v4: uuidv4 } = require('uuid');
+        await db.run(
+          `INSERT INTO mass_email_log (id, sent_by, audience, subject, body_preview, recipient_count, email_type, league_id, tournament_id)
+           VALUES (?, ?, ?, ?, ?, ?, 'unpaid_reminder', ?, ?)`,
+          uuidv4(), req.user.id, 'unpaid_entrants',
+          `Payment reminder: ${league.name} — ${tourn?.name || ''}`,
+          `Sent to ${sent} unpaid entrant${sent === 1 ? '' : 's'}`,
+          sent, req.params.leagueId, tid
+        );
+      } catch (err) { console.error('[unpaid-remind] log write failed:', err.message); }
+    }
+
+    res.json({ ok: true, sent, failed, total_unpaid: unpaid.length });
   } catch (err) {
-    console.error('[remind-unpaid]', err);
+    console.error('[unpaid-remind]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

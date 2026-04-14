@@ -601,6 +601,7 @@ module.exports = {
   sendRoundStandings,
   sendPayReminder,
   sendCommUnpaidNotice,
+  sendUnpaidReminder,
 };
 
 // ── Pay reminder to unpaid member ────────────────────────────────────────────
@@ -665,6 +666,39 @@ ${emailHeader()}
         ${ctaButton(leagueUrl, 'Mark as Paid in Commissioner Hub &rarr;')}
       </td></tr>
 ${emailFooter('tourneyrun.app &middot; Commissioner notification')}
+`),
+  });
+}
+
+// ── Commissioner-triggered payment reminder (unpaid-entry-guard feature) ─────
+// Sent once per unpaid entrant when the commissioner clicks "Send Payment
+// Reminder" in the Unpaid Entries panel. Separate from sendPayReminder — this
+// one is worded for the post-picks-in phase (scores won't count until paid).
+async function sendUnpaidReminder(toEmail, { firstName, poolName, tournamentName, amount, commissionerName }) {
+  const name = firstName || 'there';
+  const comm = commissionerName || 'your commissioner';
+  const amt = (typeof amount === 'number' ? amount : parseFloat(amount) || 0).toFixed(2);
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `Payment reminder: ${poolName} — ${tournamentName}`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:22px;font-weight:700;color:#ffffff;">Hi ${name},</h1>
+        <p style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;">
+          You're entered in <strong style="color:#ffffff;">${poolName}</strong> for <strong style="color:#ffffff;">${tournamentName}</strong> but your entry fee of <strong style="color:#ffffff;">$${amt}</strong> hasn't been marked as paid yet.
+        </p>
+        <p style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;">
+          Your picks are in but your score won't count until payment is confirmed. Please send payment to <strong style="color:#ffffff;">${comm}</strong> to get on the board.
+        </p>
+        <p style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;">
+          Once paid, <strong style="color:#ffffff;">${comm}</strong> will mark you as paid and your score will go live.
+        </p>
+        <p style="font-size:15px;color:#9ca3af;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:6px;margin-left:0;">Good luck!</p>
+        <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:0;">&mdash; The TourneyRun Team</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${poolName}`)}
 `),
   });
 }
