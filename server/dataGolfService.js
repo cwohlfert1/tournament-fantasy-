@@ -289,15 +289,15 @@ async function syncFieldForTournament(tournamentId) {
 async function _applyFieldToTournament(tourn, field) {
   console.log(`[datagolf] Applying field of ${field.length} players to ${tourn.name}`);
 
-  // NUCLEAR GUARD: if ANY league linked to this tournament has locked odds,
-  // skip the entire tier rebuild section. WD detection and field update still run.
-  const _anyLockedLeague = await db.get(`
-    SELECT 1 FROM pool_tier_players ptp
-    JOIN golf_leagues gl ON gl.id = ptp.league_id
-    WHERE gl.pool_tournament_id = ? AND ptp.odds_locked_at IS NOT NULL
-    LIMIT 1
-  `, tourn.id);
-  const _skipTierRebuild = !!_anyLockedLeague;
+  // The previous "nuclear guard" early-exited the entire tier rebuild if ANY
+  // league had locked odds. That over-corrected — it preserved stale lock data
+  // (e.g. RBC Beta carrying 781 wrong-source players the lock was protecting).
+  // The per-league loop below now checks each league's lock for STALENESS:
+  // if the locked rows mostly aren't in the current field, the lock is stale
+  // and we clear it before rebuilding. This preserves genuine commissioner
+  // edits (where the lock IS protecting current-field data) while letting
+  // wrong-source data get corrected automatically.
+  const _skipTierRebuild = false;
 
   const _getGPSql  = 'SELECT * FROM golf_players WHERE datagolf_id = ? LIMIT 1';
   const _getGPNSql = 'SELECT * FROM golf_players WHERE name = ? LIMIT 1';
@@ -387,14 +387,31 @@ async function _applyFieldToTournament(tourn, field) {
 
   const leagueResults = [];
   for (const league of affectedLeagues) {
-    // Guard: never rebuild tiers for leagues with locked odds
+    // Stale-lock check: if the locked tier_players don't actually represent
+    // the current field (>20% mismatch), the lock is protecting wrong data.
+    // Clear it so the rebuild can replace it with the right field.
     const hasLockedOdds = await db.get(
       'SELECT 1 FROM pool_tier_players WHERE league_id = ? AND odds_locked_at IS NOT NULL LIMIT 1',
       league.id
     );
     if (hasLockedOdds) {
-      leagueResults.push({ league: league.name, skipped: 'odds_locked' });
-      continue;
+      const all = await db.all(
+        'SELECT player_id FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?',
+        league.id, tourn.id
+      );
+      const inField = all.filter(r => fieldPlayerIds.has(r.player_id)).length;
+      const matchPct = all.length > 0 ? inField / all.length : 0;
+      if (matchPct >= 0.80) {
+        // Lock is genuine — preserves commissioner's manual odds edits
+        leagueResults.push({ league: league.name, skipped: 'odds_locked', match_pct: Math.round(matchPct * 100) });
+        continue;
+      }
+      console.log(`[datagolf] STALE LOCK on "${league.name}" — only ${inField}/${all.length} (${Math.round(matchPct * 100)}%) match new field, clearing locks and rebuilding`);
+      await db.run(
+        'UPDATE pool_tier_players SET odds_locked_at = NULL WHERE league_id = ? AND tournament_id = ?',
+        league.id, tourn.id
+      );
+      // fall through to rebuild
     }
 
     let tiersConfig = [];

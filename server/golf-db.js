@@ -2842,4 +2842,60 @@ runOnce('clear-r4-round-emails-for-final', () => {
   } catch (e) { console.error('[migration] clear-r4 error:', e.message); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// dedup-golf-players-by-name-v2
+//
+// The original dedup-golf-players-by-name migration ran historically but new
+// dups appeared after (e.g. RBC Heritage week: 212 rows for "Matt Kuchar",
+// 212 for "Seamus Power"). This v2 re-runs the dedup AND adds a UNIQUE INDEX
+// on LOWER(name) so the same class of corruption can never recur.
+//
+// Conflict-safe re-pointing: when re-pointing FK references from dup → keep,
+// some target rows would violate existing UNIQUE constraints
+// (e.g. pool_tier_players(league_id, player_id) is UNIQUE). UPDATE OR IGNORE
+// skips those rows; we then DELETE the un-repointed leftovers.
+// ─────────────────────────────────────────────────────────────────────────────
+runOnce('dedup-golf-players-by-name-v2', () => {
+  try {
+    const dupes = db.prepare(`SELECT name, COUNT(*) AS cnt FROM golf_players GROUP BY name HAVING cnt > 1`).all();
+    if (dupes.length > 0) {
+      let merged = 0, droppedRefs = 0;
+      db.transaction(() => {
+        for (const { name } of dupes) {
+          const rows = db.prepare(`
+            SELECT id FROM golf_players WHERE name = ?
+            ORDER BY (datagolf_id IS NOT NULL) DESC, (world_ranking IS NOT NULL) DESC, rowid DESC
+          `).all(name);
+          const keep = rows[0];
+          for (const dup of rows.slice(1)) {
+            for (const tbl of ['pool_tier_players', 'golf_tournament_fields', 'pool_picks', 'golf_scores']) {
+              try {
+                db.prepare(`UPDATE OR IGNORE ${tbl} SET player_id = ? WHERE player_id = ?`).run(keep.id, dup.id);
+                const left = db.prepare(`DELETE FROM ${tbl} WHERE player_id = ?`).run(dup.id);
+                droppedRefs += left.changes;
+              } catch (_) {}
+            }
+            db.prepare('DELETE FROM golf_players WHERE id = ?').run(dup.id);
+            merged++;
+          }
+        }
+      })();
+      console.log(`[migration] dedup-v2: merged ${merged} player rows from ${dupes.length} name(s); dropped ${droppedRefs} conflicting downstream refs`);
+    } else {
+      console.log('[migration] dedup-v2: no duplicates');
+    }
+    // Permanent guard: reject any future name collision at insert/update time.
+    // Note: SQLite indexes on expressions only work as constraints when a real
+    // unique index exists; CREATE UNIQUE INDEX ON LOWER(name) is supported.
+    try {
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_golf_players_name_lower ON golf_players (LOWER(name))');
+      console.log('[migration] dedup-v2: UNIQUE INDEX on LOWER(name) ensured');
+    } catch (e) {
+      console.error('[migration] dedup-v2: UNIQUE INDEX failed (likely residual dups):', e.message);
+    }
+  } catch (e) {
+    console.error('[migration] dedup-v2 error:', e.message);
+  }
+});
+
 module.exports = db;

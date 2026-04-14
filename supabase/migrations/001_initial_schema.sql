@@ -91,6 +91,10 @@ CREATE TABLE IF NOT EXISTS golf_players (
   odds_decimal REAL,
   datagolf_id INTEGER
 );
+-- Prevents the golf_players name-dup class of corruption (e.g. 212 rows for
+-- "Matt Kuchar" that appeared during RBC Heritage week 2026-04-14).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_golf_players_name_lower
+  ON golf_players (LOWER(name));
 
 CREATE TABLE IF NOT EXISTS golf_leagues (
   id TEXT PRIMARY KEY,

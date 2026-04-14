@@ -213,6 +213,53 @@ async function mapMissingDataGolfEventIds() {
   return mapped;
 }
 
+// ── PHASE 5: pool-vs-field sanity check ──────────────────────────────────────
+// Detects pools whose pool_tier_players don't match the linked tournament's
+// golf_tournament_fields — the failure mode that broke RBC Heritage week.
+// Threshold: >20% orphans = log a warning. Doesn't auto-correct (the smarter
+// odds_locked check in dataGolfService handles that on the next sync).
+function applyPoolFieldSanityCheck() {
+  const issues = [];
+  let pools = [];
+  try {
+    pools = db.prepare(`
+      SELECT gl.id, gl.name AS league_name, gl.pool_tournament_id, gt.name AS tourn_name
+      FROM golf_leagues gl
+      JOIN golf_tournaments gt ON gt.id = gl.pool_tournament_id
+      WHERE gl.format_type = 'pool'
+        AND gl.pool_tournament_id IS NOT NULL
+        AND gt.status IN ('scheduled', 'active')
+    `).all();
+  } catch (e) {
+    console.error('[status-heal] sanity-check query failed:', e.message);
+    return issues;
+  }
+  for (const p of pools) {
+    const total = db.prepare(
+      'SELECT COUNT(*) AS n FROM pool_tier_players WHERE league_id = ? AND tournament_id = ?'
+    ).get(p.id, p.pool_tournament_id).n;
+    if (total === 0) continue;
+    const orphans = db.prepare(`
+      SELECT COUNT(*) AS n FROM pool_tier_players ptp
+      WHERE ptp.league_id = ? AND ptp.tournament_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM golf_tournament_fields f
+          WHERE f.tournament_id = ptp.tournament_id AND f.player_id = ptp.player_id
+        )
+    `).get(p.id, p.pool_tournament_id).n;
+    const orphanPct = orphans / total;
+    if (orphanPct > 0.20) {
+      issues.push({
+        league_id: p.id, league: p.league_name, tournament: p.tourn_name,
+        total, orphans, pct: Math.round(orphanPct * 100),
+      });
+      logChange('pool-field-mismatch',
+        `${p.league_name} / ${p.tourn_name}: ${orphans}/${total} (${Math.round(orphanPct * 100)}%) tier_players not in field`);
+    }
+  }
+  return issues;
+}
+
 // ── PUBLIC: orchestrator ─────────────────────────────────────────────────────
 
 /**
@@ -229,11 +276,12 @@ async function runStatusHeal(opts = {}) {
   const espnChanges = await applyEspnStatusHeal();
   const fieldSyncs  = await applyPreTournamentFieldSync();
   const dgMappings  = await mapMissingDataGolfEventIds();
-  const total = dateChanges.length + espnChanges.length + fieldSyncs.length + dgMappings.length;
+  const sanityIssues = applyPoolFieldSanityCheck();
+  const total = dateChanges.length + espnChanges.length + fieldSyncs.length + dgMappings.length + sanityIssues.length;
   if (total > 0) {
-    console.log(`[status-heal] complete: ${dateChanges.length} date, ${espnChanges.length} ESPN, ${fieldSyncs.length} field-syncs, ${dgMappings.length} DG mappings`);
+    console.log(`[status-heal] complete: ${dateChanges.length} date, ${espnChanges.length} ESPN, ${fieldSyncs.length} field-syncs, ${dgMappings.length} DG mappings, ${sanityIssues.length} pool-field warnings`);
   }
-  return { dateChanges, espnChanges, fieldSyncs, dgMappings };
+  return { dateChanges, espnChanges, fieldSyncs, dgMappings, sanityIssues };
 }
 
 // ── Daily 6am cron ───────────────────────────────────────────────────────────
@@ -269,6 +317,7 @@ module.exports = {
   applyEspnStatusHeal,
   applyPreTournamentFieldSync,
   mapMissingDataGolfEventIds,
+  applyPoolFieldSanityCheck,
   scheduleDailyHeal,
   fetchEspnEventStatus,
 };
