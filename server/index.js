@@ -564,18 +564,28 @@ setTimeout(backfillCompleted, 15 * 1000); // backfill after server is up
 const { scheduleDataGolfSync } = require('./dataGolfService');
 scheduleDataGolfSync();
 
-// Self-heal: correct any tournament marked 'completed' while still within its date window
-// (guards against sync bugs that prematurely complete a live tournament)
+// ── Tournament status auto-management ────────────────────────────────────────
+// Replaces the prior single-shot self-heal. Three layers:
+//   1. SYNC date-based heal at boot — runs before any request, no network
+//   2. ASYNC full heal in background — adds ESPN status check, T-7 field sync,
+//      DataGolf event ID auto-mapping
+//   3. Daily cron at 6am ET — re-runs the full heal so this never silently breaks
+const golfStatus = require('./golfStatusManager');
 try {
-  const healed = sqliteDb.prepare(`
-    UPDATE golf_tournaments SET status = 'active'
-    WHERE status = 'completed'
-      AND date('now') BETWEEN date(start_date, '-1 day') AND date(end_date, '+1 day')
-  `).run();
-  if (healed.changes > 0) console.log(`[startup] Corrected ${healed.changes} tournament(s) incorrectly marked completed during active window`);
+  const dateChanges = golfStatus.applyDateBasedHeal();
+  if (dateChanges.length > 0) {
+    console.log(`[status-heal] boot date-heal: ${dateChanges.length} change(s)`);
+  }
 } catch (e) {
-  console.error('[startup] Golf status self-heal error:', e.message);
+  console.error('[status-heal] boot date-heal error:', e.message);
 }
+// Full async heal: ESPN status, pre-tournament field sync, DG mapping.
+// Runs after server.listen so it doesn't delay startup.
+setTimeout(() => {
+  golfStatus.runStatusHeal({ skipNetwork: false })
+    .catch(e => console.error('[status-heal] boot async heal error:', e.message));
+}, 30 * 1000);
+golfStatus.scheduleDailyHeal();
 
 // ── DISABLED: the team-name string mismatch DELETE was too broad and wiped
 //    valid player_stats rows where ESPN displayName != our DB team string
