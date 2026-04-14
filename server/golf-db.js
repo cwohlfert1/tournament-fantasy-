@@ -2922,4 +2922,18 @@ runOnce('dedup-golf-players-by-name-v2', () => {
   }
 });
 
+// ── Missed-cut rule (per-league) + no-cut flag (per-tournament) ──────────────
+// missed_cut_rule values:
+//   'fixed'           — assign par + missed_cut_penalty (default 8) per missed round
+//   'highest_carded'  — assign worst raw score from any player that round
+//   'stroke_penalty'  — same math as 'fixed' but commissioner picks penalty (1-10)
+//   'exclude'         — leave score NULL (no fantasy points from missed rounds)
+//
+// no_cut on golf_tournaments — when 1, the tournament has no cut (limited
+// invitational fields where every player plays 4 rounds). Pool creation UI
+// auto-selects 'exclude' for these. Default 0; commissioner can flag manually.
+try { db.exec(`ALTER TABLE golf_leagues ADD COLUMN missed_cut_rule TEXT DEFAULT 'fixed'`); } catch (_) {}
+try { db.exec(`ALTER TABLE golf_leagues ADD COLUMN missed_cut_penalty INTEGER DEFAULT 8`); } catch (_) {}
+try { db.exec(`ALTER TABLE golf_tournaments ADD COLUMN no_cut INTEGER DEFAULT 0`); } catch (_) {}
+
 module.exports = db;

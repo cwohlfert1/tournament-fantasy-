@@ -26,6 +26,39 @@ function fetchJson(url) {
 }
 
 // ── Fantasy points (same formula as commissioner entry) ────────────────────────
+/**
+ * Apply the league's missed-cut rule to substitute NULL round scores for
+ * missed-cut/WD players with rule-derived to-par values.
+ *
+ *   rule = 'fixed' | 'stroke_penalty'  → unfinished rounds = +penalty (to-par)
+ *   rule = 'highest_carded'            → unfinished rounds = max to-par from any player that round
+ *   rule = 'exclude'                   → leave NULL (no fantasy points from missed rounds)
+ *
+ * Only applied when madeCut === false (confirmed missed cut, WD, or DQ).
+ * For madeCut === null (in progress) or true (made cut), returns scores unchanged.
+ *
+ * Caveat: if multiple pool leagues link to the same tournament with DIFFERENT
+ * rules, the first-found league's rule is used (one row per tournament/player
+ * in golf_scores). Document this if it becomes a real-world conflict.
+ */
+function applyMissedCutRule(scores, madeCut, rule = 'fixed', penalty = 8, roundMaxes = null) {
+  if (madeCut !== false) return scores;
+  if (rule === 'exclude') return scores;
+  const adj = { ...scores };
+  for (const r of ['r1', 'r2', 'r3', 'r4']) {
+    if (adj[r] == null) {
+      if (rule === 'highest_carded' && roundMaxes && Number.isFinite(roundMaxes[r])) {
+        adj[r] = roundMaxes[r];
+      } else {
+        // 'fixed' and 'stroke_penalty' both use the configured penalty.
+        // Fallback: 'highest_carded' with no field data uses penalty too.
+        adj[r] = penalty;
+      }
+    }
+  }
+  return adj;
+}
+
 function calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, isMajor) {
   // r1-r4 are now to-par values (e.g. -7, +2). Each under-par round earns positive pts.
   let pts = 0;
@@ -433,6 +466,29 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
     console.log('[golf-sync] Sample parse:', sample.join(' | '));
   }
 
+  // Pre-compute round-max to-par scores across the field — used by
+  // 'highest_carded' missed-cut rule below. Built from competitors actually
+  // returned by ESPN; only includes rounds with completed scores.
+  const roundMaxes = { r1: -Infinity, r2: -Infinity, r3: -Infinity, r4: -Infinity };
+  for (const comp of competitors) {
+    const p = parseCompetitor(comp);
+    for (const r of ['r1', 'r2', 'r3', 'r4']) {
+      if (p[r] != null && p[r] > roundMaxes[r]) roundMaxes[r] = p[r];
+    }
+  }
+
+  // Look up the missed-cut rule from the first associated pool league for this
+  // tournament. Multi-league caveat: if leagues differ, the first wins (one
+  // golf_scores row per tournament/player). For RBC + most events, only one
+  // pool league per tournament — works fine.
+  const ruleRow = await db.get(`
+    SELECT missed_cut_rule, missed_cut_penalty FROM golf_leagues
+    WHERE pool_tournament_id = ? AND format_type IN ('pool', 'salary_cap')
+    LIMIT 1
+  `, tournament.id);
+  const mcRule    = ruleRow?.missed_cut_rule    || 'fixed';
+  const mcPenalty = ruleRow?.missed_cut_penalty != null ? ruleRow.missed_cut_penalty : 8;
+
   await db.transaction(async (tx) => {
     for (const comp of competitors) {
       const { name, r1, r2, r3, r4, madeCut, finishPos } = parseCompetitor(comp);
@@ -447,10 +503,14 @@ async function syncTournamentScores(tournamentId, { par = 72, silent = false } =
       // Persist ESPN display name → canonical player mapping for future syncs
       await tx.run(espnPlayerUpsertSQL, name, player.name, player.country, norm(name));
 
-      const fp = calcFantasyPts(r1, r2, r3, r4, finishPos, madeCut, par, !!tournament.is_major);
+      // Apply missed-cut rule: substitute null R3/R4 with rule-derived to-par
+      // values for confirmed missed-cut/WD players. madeCut === null (R1/R2
+      // in progress) and madeCut === true (made cut) are returned unchanged.
+      const adj = applyMissedCutRule({ r1, r2, r3, r4 }, madeCut, mcRule, mcPenalty, roundMaxes);
+      const fp = calcFantasyPts(adj.r1, adj.r2, adj.r3, adj.r4, finishPos, madeCut, par, !!tournament.is_major);
       // made_cut stored as: 1=confirmed made cut, 0=missed/WD/DQ, NULL=unknown (R1/R2 in progress)
       const madeCutDb = madeCut === null ? null : (madeCut ? 1 : 0);
-      await tx.run(upsertSQL, uuidv4(), tournament.id, player.id, r1, r2, r3, r4, madeCutDb, finishPos, fp);
+      await tx.run(upsertSQL, uuidv4(), tournament.id, player.id, adj.r1, adj.r2, adj.r3, adj.r4, madeCutDb, finishPos, fp);
       synced++;
     }
   });
@@ -1113,4 +1173,4 @@ async function syncEspnFieldForTournament(tournamentId) {
   return { fieldCount, leaguesRebuilt: affectedLeagues.length };
 }
 
-module.exports = { syncTournamentScores, scheduleAutoSync, getSyncStatus, backfillCompleted, setIo, syncTournamentField, parseCompetitor, calcFantasyPts, syncEspnFieldForTournament };
+module.exports = { syncTournamentScores, scheduleAutoSync, getSyncStatus, backfillCompleted, setIo, syncTournamentField, parseCompetitor, calcFantasyPts, applyMissedCutRule, syncEspnFieldForTournament };

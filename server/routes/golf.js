@@ -329,6 +329,18 @@ router.post('/leagues', authMiddleware, async (req, res) => {
 
     const poolMaxEntries = Math.max(1, Math.min(3, parseInt(req.body.pool_max_entries) || 1));
 
+    // Missed-cut rule defaults: 'fixed' +8 unless commissioner picked another
+    // option, OR the linked tournament is no_cut (then force 'exclude').
+    const VALID_RULES = ['fixed', 'highest_carded', 'stroke_penalty', 'exclude'];
+    let mcRule = VALID_RULES.includes(req.body.missed_cut_rule) ? req.body.missed_cut_rule : 'fixed';
+    let mcPenalty = parseInt(req.body.missed_cut_penalty, 10);
+    if (!Number.isFinite(mcPenalty)) mcPenalty = 8;
+    mcPenalty = Math.max(1, Math.min(10, mcPenalty));
+    if (poolTournamentIdFinal) {
+      const tNoCut = await db.get('SELECT no_cut FROM golf_tournaments WHERE id = ?', poolTournamentIdFinal);
+      if (tNoCut && tNoCut.no_cut === 1) mcRule = 'exclude';
+    }
+
     await db.run(`
       INSERT INTO golf_leagues (
         id, name, commissioner_id, invite_code, status, max_teams,
@@ -340,8 +352,9 @@ router.post('/leagues', authMiddleware, async (req, res) => {
         payment_methods, payout_places,
         pick_sheet_format, pool_tiers, pool_salary_cap, pool_cap_unit,
         auction_budget, faab_weekly_budget, draft_type, bid_timer_seconds,
-        pool_tournament_id, pool_drop_count, pool_max_entries
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        pool_tournament_id, pool_drop_count, pool_max_entries,
+        missed_cut_rule, missed_cut_penalty
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       id, name, req.user.id, invite_code, 'pending_payment', parseInt(max_teams) || 8,
       parseFloat(buy_in_amount) || 0, payment_instructions,
@@ -355,7 +368,8 @@ router.post('/leagues', authMiddleware, async (req, res) => {
       pickSheetFmt, poolTiersJson, parseInt(pool_salary_cap) || 50000, parseInt(pool_cap_unit) || 50000,
       parseInt(auction_budget) || 1000, parseInt(faab_weekly_budget) || 100,
       dtFinal, parseInt(bid_timer_seconds) || 30,
-      poolTournamentIdFinal, poolDropFinal, poolMaxEntries
+      poolTournamentIdFinal, poolDropFinal, poolMaxEntries,
+      mcRule, mcPenalty
     );
 
     // Persist pool_tiers to normalized table when Pool format
@@ -1434,6 +1448,29 @@ router.patch('/leagues/:id/settings', authMiddleware, async (req, res) => {
 
     const { buy_in_amount, venmo, zelle, paypal, pool_drop_count, pool_tiers, picks_per_team,
             pool_max_entries, weekly_salary_cap, starters_per_week, scoring_style } = req.body;
+
+    // Missed-cut rule edits — locked once tournament goes active to avoid
+    // mid-event scoring changes that would surprise members. Validates rule
+    // value and clamps penalty to 1-10.
+    if (req.body.missed_cut_rule !== undefined || req.body.missed_cut_penalty !== undefined) {
+      // Lock check: read the linked tournament's status, reject if active
+      if (league.pool_tournament_id) {
+        const tourn = await db.get('SELECT status FROM golf_tournaments WHERE id = ?', league.pool_tournament_id);
+        if (tourn && tourn.status === 'active') {
+          return res.status(409).json({ error: 'Tournament is active — missed-cut rule is locked' });
+        }
+      }
+      const VALID_RULES = ['fixed', 'highest_carded', 'stroke_penalty', 'exclude'];
+      const incomingRule = req.body.missed_cut_rule;
+      const finalRule = VALID_RULES.includes(incomingRule) ? incomingRule : league.missed_cut_rule || 'fixed';
+      let finalPenalty = parseInt(req.body.missed_cut_penalty, 10);
+      if (!Number.isFinite(finalPenalty)) finalPenalty = league.missed_cut_penalty ?? 8;
+      finalPenalty = Math.max(1, Math.min(10, finalPenalty));
+      await db.run(
+        'UPDATE golf_leagues SET missed_cut_rule = ?, missed_cut_penalty = ? WHERE id = ?',
+        finalRule, finalPenalty, req.params.id
+      );
+    }
 
     // Payout splits — JSONB array: [{ place: 1, pct: 50 }, { place: 2, pct: 30 }, ...]
     if (req.body.payout_splits !== undefined) {

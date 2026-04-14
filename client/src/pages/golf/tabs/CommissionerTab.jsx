@@ -392,6 +392,10 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [picksPerTeam, setPicksPerTeam] = useState(String(league?.picks_per_team ?? 8));
   const [dropCount, setDropCount] = useState(String(league?.pool_drop_count ?? 2));
   const [maxEntries, setMaxEntries] = useState(String(league?.pool_max_entries ?? 1));
+  // Missed-cut rule: locked once tournament goes active.
+  const [missedCutRule, setMissedCutRule] = useState(league?.missed_cut_rule || 'fixed');
+  const [missedCutPenalty, setMissedCutPenalty] = useState(String(league?.missed_cut_penalty ?? 8));
+  const tournamentActive = league?.pool_tournament_status === 'active';
   const [tierPicksCfg, setTierPicksCfg] = useState(() => {
     try { return JSON.parse(league?.pool_tiers || '[]'); } catch { return []; }
   });
@@ -644,6 +648,11 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         payout_splits: payoutSplits,
         admin_fee_type:  adminFeeEnabled && feeValue > 0 ? adminFeeType : null,
         admin_fee_value: adminFeeEnabled && feeValue > 0 ? feeValue     : null,
+        // Missed-cut rule (only sent when not locked by an active tournament)
+        ...(!tournamentActive && {
+          missed_cut_rule: missedCutRule,
+          missed_cut_penalty: Math.max(1, Math.min(10, parseInt(missedCutPenalty) || 8)),
+        }),
         ...(!isSalaryCap && {
           picks_per_team: Math.max(1, parseInt(picksPerTeam) || 8),
           pool_drop_count: Math.max(0, parseInt(dropCount) || 0),
@@ -1202,6 +1211,44 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                     </div>
                   )}
                   <p style={{ color: '#374151', fontSize: 10, marginTop: 4 }}>Only visible to you. Members see prize pool after fee.</p>
+                </div>
+
+                {/* Missed-cut rule (locked when tournament is active) */}
+                <div data-testid="missed-cut-section">
+                  <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                    Missed Cut Rule {tournamentActive && <span style={{ color: '#6b7280', fontWeight: 400, textTransform: 'none' }}>(locked — tournament active)</span>}
+                  </label>
+                  <select
+                    value={missedCutRule}
+                    onChange={e => setMissedCutRule(e.target.value)}
+                    disabled={tournamentActive}
+                    className="input w-full text-sm"
+                    data-testid="missed-cut-rule-select"
+                  >
+                    <option value="fixed">Fixed Penalty (+{missedCutPenalty || 8} per missed round)</option>
+                    <option value="highest_carded">Highest Carded Round (worst score from field)</option>
+                    <option value="stroke_penalty">Custom Stroke Penalty (set below)</option>
+                    <option value="exclude">Exclude (no penalty — for no-cut events)</option>
+                  </select>
+                  {(missedCutRule === 'stroke_penalty' || missedCutRule === 'fixed') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <span style={{ color: '#9ca3af', fontSize: 12 }}>Strokes per missed round</span>
+                      <input
+                        type="number" min="1" max="10" step="1"
+                        value={missedCutPenalty}
+                        onChange={e => setMissedCutPenalty(e.target.value)}
+                        disabled={tournamentActive || missedCutRule === 'fixed'}
+                        className="input w-16 text-sm text-center"
+                        data-testid="missed-cut-penalty"
+                      />
+                    </div>
+                  )}
+                  <p style={{ color: '#374151', fontSize: 10, marginTop: 4 }}>
+                    {missedCutRule === 'fixed'          && 'Each missed round = par + 8 strokes. Most common.'}
+                    {missedCutRule === 'highest_carded' && 'Live: missed players take the worst round score from the field.'}
+                    {missedCutRule === 'stroke_penalty' && 'Custom: pick 1–10 strokes over par per unfinished round.'}
+                    {missedCutRule === 'exclude'        && 'Missed-cut scores ignored. Use for limited-field/no-cut events.'}
+                  </p>
                 </div>
 
                 {/* Total picks per team */}

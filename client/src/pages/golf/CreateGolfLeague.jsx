@@ -525,6 +525,10 @@ const DEFAULT_FORM = {
   ],
   pool_drop_count: 0,
   pool_max_entries: 1,
+  // Missed-cut rule (default: +8 strokes per missed round). Auto-overridden
+  // to 'exclude' when commissioner picks a no_cut tournament.
+  missed_cut_rule: 'fixed',
+  missed_cut_penalty: 8,
   pool_salary_cap: 50000,
   pool_cap_unit: 50000,
   // DK
@@ -855,6 +859,49 @@ export default function CreateGolfLeague() {
                       onChange={v => set('pool_drop_count', v)}
                     />
                     <span className="text-gray-400 text-sm">worst players</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Missed Cut Rule */}
+              <div data-testid="missed-cut-section">
+                <label className="label mb-2.5">Missed Cut Rule</label>
+                <p className="text-gray-600 text-xs mb-3">How to score players who don't make the cut. Locked once tournament starts.</p>
+                <div className="space-y-2">
+                  {[
+                    { val: 'fixed',           title: `Fixed Penalty (+${form.missed_cut_penalty || 8})`, sub: `Each missed round = +${form.missed_cut_penalty || 8} strokes over par. Simple and most common.` },
+                    { val: 'highest_carded',  title: 'Highest Carded Round',                              sub: 'Missed players take the worst round score from the field that day. Updates live.' },
+                    { val: 'stroke_penalty',  title: 'Custom Stroke Penalty',                             sub: 'Set your own penalty (1–10) per unfinished round.' },
+                    { val: 'exclude',         title: 'Exclude (No Penalty)',                              sub: 'Missed-cut scores ignored entirely. Used for no-cut events.' },
+                  ].map(opt => {
+                    const active = (form.missed_cut_rule || 'fixed') === opt.val;
+                    return (
+                      <button key={opt.val} type="button"
+                        onClick={() => set('missed_cut_rule', opt.val)}
+                        className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${active ? 'border-green-500/50 bg-green-500/8' : 'border-gray-700 bg-gray-800/20 hover:border-gray-600'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${active ? 'border-green-400' : 'border-gray-600'}`}>
+                            {active && <div className="w-2 h-2 rounded-full bg-green-400" />}
+                          </div>
+                          <div>
+                            <div className={`font-bold text-sm ${active ? 'text-white' : 'text-gray-300'}`}>{opt.title}</div>
+                            <div className="text-gray-500 text-xs mt-0.5">{opt.sub}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {form.missed_cut_rule === 'stroke_penalty' && (
+                  <div className="flex items-center gap-3 mt-3 pl-1">
+                    <span className="text-gray-400 text-sm">Penalty</span>
+                    <input
+                      type="number" min="1" max="10" step="1"
+                      value={form.missed_cut_penalty || 8}
+                      onChange={e => { const v = Math.max(1, Math.min(10, parseInt(e.target.value) || 8)); set('missed_cut_penalty', v); }}
+                      className="input w-16 text-sm text-center"
+                    />
+                    <span className="text-gray-400 text-sm">strokes per missed round</span>
                   </div>
                 )}
               </div>

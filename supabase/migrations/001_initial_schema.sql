@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS golf_tournaments (
   espn_event_id TEXT,
   last_synced_at TIMESTAMPTZ,
   par INTEGER DEFAULT 72,
-  datagolf_event_id INTEGER
+  datagolf_event_id INTEGER,
+  no_cut INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS golf_players (
@@ -150,7 +151,9 @@ CREATE TABLE IF NOT EXISTS golf_leagues (
   paypal TEXT,
   pool_drops_applied INTEGER DEFAULT 0,
   pool_max_entries INTEGER DEFAULT 1,
-  lock_unpaid_dismissed INTEGER DEFAULT 0
+  lock_unpaid_dismissed INTEGER DEFAULT 0,
+  missed_cut_rule TEXT DEFAULT 'fixed',
+  missed_cut_penalty INTEGER DEFAULT 8
 );
 
 CREATE TABLE IF NOT EXISTS golf_league_members (
