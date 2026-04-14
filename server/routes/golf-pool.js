@@ -1282,6 +1282,56 @@ router.post('/admin/set-drop-count', authMiddleware, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shared helper: build the FULL entry list for a league + its pool tournament,
+// labeled with paid status. Returns one row per (user_id, entry_number).
+// Used by the all-entries CSV download in the commissioner panel.
+// ─────────────────────────────────────────────────────────────────────────────
+async function listAllEntries(leagueId, league) {
+  const tid = league.pool_tournament_id;
+  if (!tid) return [];
+
+  const allEntries = await db.all(`
+    SELECT pp.user_id,
+           COALESCE(pp.entry_number, 1) AS entry_number,
+           MIN(pp.submitted_at)         AS entry_date,
+           u.username,
+           u.email,
+           u.full_name,
+           glm.team_name
+    FROM pool_picks pp
+    JOIN users u ON u.id = pp.user_id
+    LEFT JOIN golf_league_members glm
+      ON glm.golf_league_id = pp.league_id AND glm.user_id = pp.user_id
+    WHERE pp.league_id = ? AND pp.tournament_id = ?
+    GROUP BY pp.user_id, COALESCE(pp.entry_number, 1)
+    ORDER BY MIN(pp.submitted_at) ASC
+  `, leagueId, tid);
+
+  const paid = new Set();
+  const paidRows = await db.all(
+    'SELECT user_id, entry_number FROM pool_entry_paid WHERE league_id = ? AND tournament_id = ? AND is_paid = 1',
+    leagueId, tid
+  );
+  paidRows.forEach(r => paid.add(`${r.user_id}_${r.entry_number}`));
+  const legacyPaid = await db.all(
+    'SELECT user_id FROM golf_league_members WHERE golf_league_id = ? AND is_paid = 1',
+    leagueId
+  );
+  legacyPaid.forEach(r => paid.add(`${r.user_id}_1`));
+
+  return allEntries.map(e => ({
+    user_id: e.user_id,
+    username: e.username,
+    email: e.email,
+    full_name: e.full_name,
+    team_name: e.team_name,
+    entry_number: e.entry_number,
+    entry_date: e.entry_date,
+    is_paid: paid.has(`${e.user_id}_${e.entry_number}`),
+  }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Shared helper: build the unpaid-entry list for a league + its pool tournament.
 // Returns rows: { user_id, username, email, full_name, entry_number, entry_date, amount_owed }
 // Entry date is MIN(pool_picks.submitted_at) per (user, entry_number).
@@ -1388,6 +1438,39 @@ router.get('/commissioner/:leagueId/unpaid/csv', authMiddleware, async (req, res
     res.send(csv);
   } catch (err) {
     console.error('[commissioner-unpaid-csv]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/commissioner/:leagueId/entries/csv — ALL entries (paid + unpaid).
+// Commissioner-only; emails are never exposed to non-commissioner endpoints.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/commissioner/:leagueId/entries/csv', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    const entries = await listAllEntries(req.params.leagueId, league);
+
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['Full Name', 'Email', 'Entry Number', 'Paid Status', 'Entry Date'].map(esc).join(',');
+    const lines = entries.map(e => [
+      e.full_name || e.username || '',
+      e.email || '',
+      e.entry_number,
+      e.is_paid ? 'PAID' : 'UNPAID',
+      e.entry_date ? new Date(e.entry_date).toISOString().slice(0, 10) : '',
+    ].map(esc).join(','));
+    const csv = [header, ...lines].join('\r\n') + '\r\n';
+
+    const slug = (league.name || 'pool').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'pool';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="entries-${slug}-${dateStr}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('[commissioner-entries-csv]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

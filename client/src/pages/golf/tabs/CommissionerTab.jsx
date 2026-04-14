@@ -461,13 +461,13 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
     setRemindingSending(false);
   }
 
-  function downloadUnpaidCsv() {
-    // Token-bearing fetch → blob → click-download. window.open won't carry the JWT.
-    api.get(`/golf/commissioner/${leagueId}/unpaid/csv`, { responseType: 'blob' })
+  // Token-bearing fetch → blob → click-download. window.open can't carry the JWT.
+  function downloadCsv(path, fallbackFilename) {
+    api.get(path, { responseType: 'blob' })
       .then(r => {
         const cd = r.headers?.['content-disposition'] || '';
         const m  = cd.match(/filename="([^"]+)"/);
-        const filename = m ? m[1] : `unpaid-${leagueId}.csv`;
+        const filename = m ? m[1] : fallbackFilename;
         const url = window.URL.createObjectURL(new Blob([r.data], { type: 'text/csv' }));
         const a = document.createElement('a');
         a.href = url; a.download = filename;
@@ -476,6 +476,8 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       })
       .catch(err => alert(err.response?.data?.error || 'Failed to download CSV'));
   }
+  function downloadUnpaidCsv()  { downloadCsv(`/golf/commissioner/${leagueId}/unpaid/csv`,   `unpaid-${leagueId}.csv`); }
+  function downloadEntriesCsv() { downloadCsv(`/golf/commissioner/${leagueId}/entries/csv`,  `entries-${leagueId}.csv`); }
 
   // Blast modal
   const [blastModal, setBlastModal] = useState(null); // string (pre-filled message) or null
@@ -803,13 +805,19 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                 {unpaidList.unpaid_count} of {unpaidList.total_entries} entries unpaid
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                data-testid="entries-csv-button"
+                onClick={downloadEntriesCsv}
+                style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
+              >Download All Entries (CSV)</button>
               <button
                 type="button"
                 data-testid="unpaid-csv-button"
                 onClick={downloadUnpaidCsv}
                 style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
-              >Download CSV</button>
+              >Download Unpaid (CSV)</button>
               <button
                 type="button"
                 data-testid="unpaid-remind-button"
@@ -841,6 +849,23 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Roster export — visible when the Unpaid Entries section is hidden
+          (all entries paid OR no buy-in) but at least one entry exists. */}
+      {unpaidList && unpaidList.total_entries > 0 && unpaidList.unpaid_count === 0 && (
+        <div data-testid="roster-export-fallback" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ color: '#e5e7eb', fontSize: 13, fontWeight: 700 }}>Roster</div>
+            <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{unpaidList.total_entries} entries · all paid</div>
+          </div>
+          <button
+            type="button"
+            data-testid="entries-csv-button-fallback"
+            onClick={downloadEntriesCsv}
+            style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
+          >Download All Entries (CSV)</button>
         </div>
       )}
 
