@@ -1,6 +1,6 @@
 const https = require('https');
 const { v4: uuidv4 } = require('uuid');
-const db = require('./db');
+const db = require('./db/index');
 const { buildStandings, syncTotalPoints } = require('./standingsBuilder');
 const { postEliminations, checkAndPostRankChanges } = require('./wallUtils');
 const { sendLeagueStandingsEmail } = require('./mailer');
@@ -126,10 +126,10 @@ function teamsMatch(ourTeam, espnName) {
   return a.includes(b) || b.includes(a);
 }
 
-function findMatchingGame(espnTeam1, espnTeam2, includeCompleted = false) {
+async function findMatchingGame(espnTeam1, espnTeam2, includeCompleted = false) {
   const games = includeCompleted
-    ? db.prepare('SELECT * FROM games').all()
-    : db.prepare('SELECT * FROM games WHERE is_completed = 0').all();
+    ? await db.all('SELECT * FROM games')
+    : await db.all('SELECT * FROM games WHERE is_completed = 0');
   for (const game of games) {
     const fwd = teamsMatch(game.team1, espnTeam1) && teamsMatch(game.team2, espnTeam2);
     const rev = teamsMatch(game.team1, espnTeam2) && teamsMatch(game.team2, espnTeam1);
@@ -138,15 +138,15 @@ function findMatchingGame(espnTeam1, espnTeam2, includeCompleted = false) {
   return null;
 }
 
-function findMatchingPlayer(espnDisplayName) {
+async function findMatchingPlayer(espnDisplayName) {
   if (!espnDisplayName) return null;
   const norm = espnDisplayName.toLowerCase().trim();
-  let p = db.prepare('SELECT * FROM players WHERE LOWER(name) = ?').get(norm);
+  let p = await db.get('SELECT * FROM players WHERE LOWER(name) = ?', norm);
   if (p) return p;
   const parts = norm.split(' ');
   if (parts.length >= 2) {
     const last = parts[parts.length - 1];
-    const rows = db.prepare("SELECT * FROM players WHERE LOWER(name) LIKE ?").all(`%${last}`);
+    const rows = await db.all("SELECT * FROM players WHERE LOWER(name) LIKE ?", `%${last}`);
     if (rows.length === 1) return rows[0];
   }
   return null;
@@ -154,11 +154,9 @@ function findMatchingPlayer(espnDisplayName) {
 
 async function processBoxScore(gameId, summary) {
   // Look up game metadata once — needed for round code and opponent derivation
-  const game = db.prepare('SELECT team1, team2, round_name FROM games WHERE id = ?').get(gameId);
+  const game = await db.get('SELECT team1, team2, round_name FROM games WHERE id = ?', gameId);
   const roundCode = game ? roundNameToCode(game.round_name) : '';
   const playedAt  = new Date().toISOString();
-
-  const byAthleteId = db.prepare("SELECT * FROM players WHERE espn_athlete_id = ? LIMIT 1");
 
   let playersUpdated = 0;
   const playerGroups = summary.boxscore?.players || [];
@@ -189,10 +187,10 @@ async function processBoxScore(gameId, summary) {
       // Match by espn_athlete_id first — most reliable, no team ambiguity.
       // Falls back to name matching with team-ID guard to prevent cross-team
       // contamination (name match only; ID-matched players are always correct).
-      let player = espnAthleteId ? byAthleteId.get(espnAthleteId) : null;
+      let player = espnAthleteId ? await db.get("SELECT * FROM players WHERE espn_athlete_id = ? LIMIT 1", espnAthleteId) : null;
 
       if (!player) {
-        player = findMatchingPlayer(displayName);
+        player = await findMatchingPlayer(displayName);
         if (player && groupEspnTeamId) {
           // String() on both sides: SQLite may store espn_team_id as integer
           const playerTeamId = player.espn_team_id != null ? String(player.espn_team_id) : '';
@@ -205,7 +203,7 @@ async function processBoxScore(gameId, summary) {
 
       if (!player) continue;
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO player_stats (id, game_id, player_id, points, round, opponent, played_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(game_id, player_id) DO UPDATE SET
@@ -213,7 +211,7 @@ async function processBoxScore(gameId, summary) {
           round     = COALESCE(NULLIF(player_stats.round,    ''), excluded.round),
           opponent  = COALESCE(NULLIF(player_stats.opponent, ''), excluded.opponent),
           played_at = COALESCE(player_stats.played_at, excluded.played_at)
-      `).run(uuidv4(), gameId, player.id, pts, roundCode, opponent, playedAt);
+      `, uuidv4(), gameId, player.id, pts, roundCode, opponent, playedAt);
       playersUpdated++;
     }
   }
@@ -229,14 +227,14 @@ async function processBoxScore(gameId, summary) {
 // Called at startup AND on a 30-min interval so games that fail the first time
 // are retried automatically.
 async function reingestCompletedGames(io) {
-  const completedGames = db.prepare(`
+  const completedGames = await db.all(`
     SELECT g.id, g.espn_event_id, g.team1, g.team2, g.game_date,
            (SELECT COUNT(*) FROM player_stats ps WHERE ps.game_id = g.id) AS existing_stat_count
     FROM games g
     WHERE g.is_completed = 1
       AND g.espn_event_id IS NOT NULL AND g.espn_event_id != ''
     ORDER BY g.game_date ASC
-  `).all();
+  `);
 
   if (!completedGames.length) {
     console.log('[reingest] No completed games with espn_event_id found.');
@@ -271,14 +269,14 @@ async function reingestCompletedGames(io) {
           const displayName   = entry.athlete?.displayName || entry.athlete?.shortName;
 
           const byId = espnAthleteId
-            ? db.prepare("SELECT id, name, espn_team_id FROM players WHERE espn_athlete_id = ? LIMIT 1").get(espnAthleteId)
+            ? await db.get("SELECT id, name, espn_team_id FROM players WHERE espn_athlete_id = ? LIMIT 1", espnAthleteId)
             : null;
 
           if (byId) {
             espnIdMatchCount++;
           } else {
             // Try name match
-            const byName = findMatchingPlayer(displayName);
+            const byName = await findMatchingPlayer(displayName);
             if (byName) {
               const playerTeamId = byName.espn_team_id != null ? String(byName.espn_team_id) : '';
               if (playerTeamId && groupEspnTeamId && playerTeamId !== groupEspnTeamId) {
@@ -290,9 +288,9 @@ async function reingestCompletedGames(io) {
             } else {
               // Log unmatched athletes that ARE in our drafted players (useful for debugging)
               const isDrafted = espnAthleteId
-                ? db.prepare("SELECT 1 FROM draft_picks dp JOIN players p ON p.id = dp.player_id WHERE p.espn_athlete_id = ? LIMIT 1").get(espnAthleteId)
+                ? await db.get("SELECT 1 FROM draft_picks dp JOIN players p ON p.id = dp.player_id WHERE p.espn_athlete_id = ? LIMIT 1", espnAthleteId)
                 : null;
-              if (isDrafted || (!espnAthleteId && db.prepare("SELECT 1 FROM players WHERE LOWER(name) LIKE ? LIMIT 1").get(`%${(displayName || '').split(' ').pop()?.toLowerCase()}%`))) {
+              if (isDrafted || (!espnAthleteId && await db.get("SELECT 1 FROM players WHERE LOWER(name) LIKE ? LIMIT 1", `%${(displayName || '').split(' ').pop()?.toLowerCase()}%`))) {
                 console.log(`[reingest]   NOMATCH "${displayName}" athlete_id=${espnAthleteId || 'none'} team_id=${groupEspnTeamId}`);
               }
             }
@@ -301,7 +299,8 @@ async function reingestCompletedGames(io) {
       }
 
       const inserted = await processBoxScore(game.id, summary);
-      const afterCount = db.prepare('SELECT COUNT(*) as c FROM player_stats WHERE game_id = ?').get(game.id)?.c ?? 0;
+      const afterRow = await db.get('SELECT COUNT(*) as c FROM player_stats WHERE game_id = ?', game.id);
+      const afterCount = afterRow?.c ?? 0;
 
       console.log(`[reingest] ${game.espn_event_id} ${game.team1} vs ${game.team2} (${game.game_date}) — ESPN athletes: ${espnAthleteCount}, id-match: ${espnIdMatchCount}, name-match: ${espnNameMatchCount}, skipped: ${espnSkippedCount}, inserted/updated: ${inserted}, total stats in DB: ${afterCount}`);
 
@@ -313,23 +312,24 @@ async function reingestCompletedGames(io) {
   }
 
   console.log(`[reingest] Complete — ${totalInserted} total stat rows inserted/updated across ${completedGames.length} game(s)`);
-  if (totalInserted > 0) pushStandingsToLeagues(io);
+  if (totalInserted > 0) await pushStandingsToLeagues(io);
   return totalInserted;
 }
 
-function recordResult(game, winnerTeam, score1, score2) {
+async function recordResult(game, winnerTeam, score1, score2) {
   if (game.is_completed) return;
   const loser = winnerTeam === game.team1 ? game.team2 : game.team1;
-  db.prepare(`
+  await db.run(`
     UPDATE games SET is_completed = 1, is_live = 0, winner_team = ?, team1_score = ?, team2_score = ? WHERE id = ?
-  `).run(winnerTeam, score1, score2, game.id);
+  `, winnerTeam, score1, score2, game.id);
 
   // Eliminate players — try both the ESPN display name and any known alias
   // (e.g. ESPN says "North Carolina State" but DB stores "NC State")
   const loserAlias = TEAM_ALIASES[loser] || null;
-  const elimStmt = db.prepare('UPDATE players SET is_eliminated = 1 WHERE team = ?');
-  const directChanges = elimStmt.run(loser).changes;
-  const aliasChanges  = loserAlias ? elimStmt.run(loserAlias).changes : 0;
+  const directResult = await db.run('UPDATE players SET is_eliminated = 1 WHERE team = ?', loser);
+  const directChanges = directResult.changes || 0;
+  const aliasResult = loserAlias ? await db.run('UPDATE players SET is_eliminated = 1 WHERE team = ?', loserAlias) : { changes: 0 };
+  const aliasChanges = aliasResult.changes || 0;
   console.log(`[ESPN] Game recorded: ${game.team1} vs ${game.team2} → winner: ${winnerTeam} | eliminated ${directChanges + aliasChanges} player(s)${loserAlias && aliasChanges > 0 ? ` (${aliasChanges} via alias "${loserAlias}")` : ''}`);
 
   // Will be called with io after this function returns — store loser + alias for caller
@@ -350,7 +350,7 @@ function parsePeriod(statusType, period) {
   return '';
 }
 
-function updateGameMetadata(gameId, event, comp) {
+async function updateGameMetadata(gameId, event, comp) {
   try {
     const statusType = comp.status?.type;
     const period = comp.status?.period || 0;
@@ -373,7 +373,7 @@ function updateGameMetadata(gameId, event, comp) {
     // Tip-off time (store raw UTC ISO)
     const tipOffTime = event.date || comp.startDate || '';
 
-    db.prepare(`
+    await db.run(`
       UPDATE games SET
         tip_off_time = CASE WHEN tip_off_time = '' OR tip_off_time IS NULL THEN ? ELSE tip_off_time END,
         tv_network   = CASE WHEN tv_network   = '' OR tv_network   IS NULL THEN ? ELSE tv_network   END,
@@ -381,24 +381,24 @@ function updateGameMetadata(gameId, event, comp) {
         current_period = ?,
         game_clock     = ?
       WHERE id = ?
-    `).run(tipOffTime, tvNetwork, locationStr, currentPeriod, gameClock, gameId);
+    `, tipOffTime, tvNetwork, locationStr, currentPeriod, gameClock, gameId);
   } catch (err) {
     console.error('[ESPN] updateGameMetadata error:', err.message);
   }
 }
 
 // ── Socket.io push (games feed) ──────────────────────────────────────────────
-function pushGamesUpdate(io) {
+async function pushGamesUpdate(io) {
   if (!io) return;
   try {
-    const games = db.prepare(`
+    const games = await db.all(`
       SELECT g.*,
              t1.seed AS team1_seed, t2.seed AS team2_seed
       FROM games g
       LEFT JOIN (SELECT team, MIN(seed) AS seed FROM players GROUP BY team) t1 ON t1.team = g.team1
       LEFT JOIN (SELECT team, MIN(seed) AS seed FROM players GROUP BY team) t2 ON t2.team = g.team2
       ORDER BY g.game_date ASC, g.tip_off_time ASC
-    `).all();
+    `);
     io.to('games_feed').emit('games_update', { games, updatedAt: new Date().toISOString() });
   } catch (err) {
     console.error('[ESPN] pushGamesUpdate error:', err.message);
@@ -412,23 +412,27 @@ function pushGamesUpdate(io) {
 async function maybeEmailRoundStandings() {
   try {
     // Find all distinct round names that have at least one game
-    const roundNames = db.prepare(`
+    const roundRows = await db.all(`
       SELECT DISTINCT round_name FROM games
       WHERE round_name IS NOT NULL AND round_name <> ''
-    `).all().map(r => r.round_name);
+    `);
+    const roundNames = roundRows.map(r => r.round_name);
 
     for (const roundName of roundNames) {
       if (_standingsEmailedRounds.has(roundName)) continue;
 
-      const total = db.prepare(
-        'SELECT COUNT(*) AS c FROM games WHERE round_name = ?'
-      ).get(roundName)?.c ?? 0;
-      const completed = db.prepare(
-        'SELECT COUNT(*) AS c FROM games WHERE round_name = ? AND is_completed = 1'
-      ).get(roundName)?.c ?? 0;
-      const live = db.prepare(
-        'SELECT COUNT(*) AS c FROM games WHERE round_name = ? AND is_live = 1'
-      ).get(roundName)?.c ?? 0;
+      const totalRow = await db.get(
+        'SELECT COUNT(*) AS c FROM games WHERE round_name = ?', roundName
+      );
+      const total = totalRow?.c ?? 0;
+      const completedRow = await db.get(
+        'SELECT COUNT(*) AS c FROM games WHERE round_name = ? AND is_completed = 1', roundName
+      );
+      const completed = completedRow?.c ?? 0;
+      const liveRow = await db.get(
+        'SELECT COUNT(*) AS c FROM games WHERE round_name = ? AND is_live = 1', roundName
+      );
+      const live = liveRow?.c ?? 0;
 
       if (total === 0 || completed < total || live > 0) continue;
 
@@ -436,19 +440,19 @@ async function maybeEmailRoundStandings() {
       _standingsEmailedRounds.add(roundName);
       console.log(`[email] ${roundName} complete — sending standings emails`);
 
-      const leagues = db.prepare("SELECT id, name FROM leagues WHERE status IN ('drafting', 'active')").all();
+      const leagues = await db.all("SELECT id, name FROM leagues WHERE status IN ('drafting', 'active')");
       for (const league of leagues) {
         try {
           const payload = buildStandings(league.id);
           if (!payload?.standings?.length) continue;
           syncTotalPoints(league.id, payload.standings);
 
-          const members = db.prepare(`
+          const members = await db.all(`
             SELECT lm.user_id, u.email, u.username
             FROM league_members lm
             JOIN users u ON u.id = lm.user_id
             WHERE lm.league_id = ?
-          `).all(league.id);
+          `, league.id);
 
           const standingsList = payload.standings.map(s => ({
             username:     s.username,
@@ -486,9 +490,9 @@ async function maybeEmailRoundStandings() {
 }
 
 // ── Socket.io push ───────────────────────────────────────────────────────────
-function pushStandingsToLeagues(io) {
+async function pushStandingsToLeagues(io) {
   if (!io) return;
-  const leagues = db.prepare("SELECT id FROM leagues WHERE status IN ('drafting', 'active')").all();
+  const leagues = await db.all("SELECT id FROM leagues WHERE status IN ('drafting', 'active')");
   for (const { id } of leagues) {
     try {
       const payload = buildStandings(id);
@@ -578,12 +582,12 @@ async function pullSchedule(io) {
       const winnerName  = isCompleted ? (score1 >= score2 ? team1Name : team2Name) : '';
 
       // Try to find an existing game by espn_event_id first, then by name matching
-      const byId = db.prepare('SELECT * FROM games WHERE espn_event_id = ?').get(espnEventId);
+      const byId = await db.get('SELECT * FROM games WHERE espn_event_id = ?', espnEventId);
       if (byId) {
         // Update metadata only — don't clobber scores already set by the poller.
         // round_name: use ESPN value when it's non-empty AND more specific than 'First Round'
         // (generate-bracket hardcodes 'First Round' for all games; ESPN is authoritative here).
-        db.prepare(`
+        await db.run(`
           UPDATE games SET
             game_date    = COALESCE(NULLIF(game_date,  ''), ?),
             round_name   = CASE WHEN ? <> '' AND ? <> 'First Round' THEN ? ELSE COALESCE(NULLIF(round_name, ''), ?) END,
@@ -592,15 +596,15 @@ async function pullSchedule(io) {
             location     = COALESCE(NULLIF(location,    ''), ?),
             region       = COALESCE(NULLIF(region,      ''), ?)
           WHERE espn_event_id = ?
-        `).run(gameDate, roundName, roundName, roundName, roundName, tipOffTime, tvNetwork, location, region, espnEventId);
+        `, gameDate, roundName, roundName, roundName, roundName, tipOffTime, tvNetwork, location, region, espnEventId);
         updated++;
         continue;
       }
 
       // Try name-matching against existing rows (e.g. ones created by schedule/generate)
-      const nameMatch = findMatchingGame(team1Name, team2Name, true);
+      const nameMatch = await findMatchingGame(team1Name, team2Name, true);
       if (nameMatch) {
-        db.prepare(`
+        await db.run(`
           UPDATE games SET
             espn_event_id = COALESCE(NULLIF(espn_event_id, ''), ?),
             game_date     = COALESCE(NULLIF(game_date,  ''), ?),
@@ -610,19 +614,19 @@ async function pullSchedule(io) {
             location      = COALESCE(NULLIF(location,    ''), ?),
             region        = COALESCE(NULLIF(region,      ''), ?)
           WHERE id = ?
-        `).run(espnEventId, gameDate, roundName, roundName, roundName, roundName, tipOffTime, tvNetwork, location, region, nameMatch.game.id);
+        `, espnEventId, gameDate, roundName, roundName, roundName, roundName, tipOffTime, tvNetwork, location, region, nameMatch.game.id);
         updated++;
         continue;
       }
 
       // New game — insert it
-      db.prepare(`
+      await db.run(`
         INSERT INTO games
           (id, espn_event_id, game_date, round_name, team1, team2,
            tip_off_time, tv_network, location, region,
            is_completed, winner_team, team1_score, team2_score)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      `,
         uuidv4(), espnEventId, gameDate, roundName, team1Name, team2Name,
         tipOffTime, tvNetwork, location, region,
         isCompleted ? 1 : 0, winnerName, score1, score2
@@ -632,7 +636,7 @@ async function pullSchedule(io) {
   }
 
   console.log(`[schedule] Done — ${inserted} inserted, ${updated} updated`);
-  if (io) pushGamesUpdate(io);
+  if (io) await pushGamesUpdate(io);
   return { inserted, updated };
 }
 
@@ -666,12 +670,12 @@ async function pollESPN(io) {
     // Prefer espn_event_id lookup (exact, no string matching) over name fuzzy matching.
     // The schedule sync stores espn_event_id once it links an ESPN event to a DB game,
     // so this covers the majority of cases reliably.
-    const byEspnId = db.prepare('SELECT * FROM games WHERE espn_event_id = ?').get(event.id);
-    const nameMatch = byEspnId ? null : findMatchingGame(espnTeam1, espnTeam2, true);
+    const byEspnId = await db.get('SELECT * FROM games WHERE espn_event_id = ?', event.id);
+    const nameMatch = byEspnId ? null : await findMatchingGame(espnTeam1, espnTeam2, true);
     const metaGame = byEspnId || nameMatch?.game || null;
 
     // Always update game metadata (tip-off time, TV, location, period, clock)
-    if (metaGame) updateGameMetadata(metaGame.id, event, comp);
+    if (metaGame) await updateGameMetadata(metaGame.id, event, comp);
 
     // Skip box score fetch for games not yet active
     if (!isInProgress && !isCompleted) continue;
@@ -683,7 +687,7 @@ async function pollESPN(io) {
       // Determine if ESPN's competitor order is reversed relative to our DB
       flipped = !teamsMatch(game.team1, espnTeam1);
     } else {
-      const liveMatch = findMatchingGame(espnTeam1, espnTeam2);
+      const liveMatch = await findMatchingGame(espnTeam1, espnTeam2);
       if (!liveMatch) {
         console.log(`[ESPN ${ts}] No DB match for "${espnTeam1}" vs "${espnTeam2}" (espn_id=${event.id}) — is_live will NOT be set`);
         continue;
@@ -696,7 +700,7 @@ async function pollESPN(io) {
       nowLiveGameIds.add(game.id);
       const s1 = flipped ? score2 : score1;
       const s2 = flipped ? score1 : score2;
-      db.prepare('UPDATE games SET is_live = 1, team1_score = ?, team2_score = ? WHERE id = ?').run(s1, s2, game.id);
+      await db.run('UPDATE games SET is_live = 1, team1_score = ?, team2_score = ? WHERE id = ?', s1, s2, game.id);
     }
 
     try {
@@ -708,7 +712,7 @@ async function pollESPN(io) {
         const winnerTeam = flipped
           ? (score2 > score1 ? game.team1 : game.team2)
           : (score1 > score2 ? game.team1 : game.team2);
-        recordResult(game, winnerTeam, flipped ? score2 : score1, flipped ? score1 : score2);
+        await recordResult(game, winnerTeam, flipped ? score2 : score1, flipped ? score1 : score2);
         if (recordResult._lastLoser) {
           const loserNames = [recordResult._lastLoser, recordResult._lastLoserAlias].filter(Boolean);
           postEliminations(loserNames, io);
@@ -723,15 +727,16 @@ async function pollESPN(io) {
   }
 
   // Clear is_live for games no longer in-progress
-  for (const { id } of db.prepare('SELECT id FROM games WHERE is_live = 1').all()) {
+  const liveGames = await db.all('SELECT id FROM games WHERE is_live = 1');
+  for (const { id } of liveGames) {
     if (!nowLiveGameIds.has(id)) {
-      db.prepare("UPDATE games SET is_live = 0, current_period = 'Final', game_clock = '' WHERE id = ?").run(id);
+      await db.run("UPDATE games SET is_live = 0, current_period = 'Final', game_clock = '' WHERE id = ?", id);
     }
   }
 
-  if (stats.scoresUpdated > 0) pushStandingsToLeagues(io);
-  pushGamesUpdate(io);
-  if (stats.eliminationsRecorded > 0) maybeEmailRoundStandings();
+  if (stats.scoresUpdated > 0) await pushStandingsToLeagues(io);
+  await pushGamesUpdate(io);
+  if (stats.eliminationsRecorded > 0) await maybeEmailRoundStandings();
 
   console.log(
     `[ESPN ${ts}] games=${stats.gamesChecked} scores=${stats.scoresUpdated} elims=${stats.eliminationsRecorded}`

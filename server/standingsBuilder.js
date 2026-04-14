@@ -3,24 +3,24 @@
  * Shared logic for computing league standings + sgLeader.
  * Used by both the REST endpoint (scores.js) and the ESPN poller socket push.
  */
-const db = require('./db');
+const db = require('./db/index');
 
-function buildStandings(leagueId) {
+async function buildStandings(leagueId) {
   // Fall back to pts_per_point = 1 if scoring settings haven't been configured yet
-  const settings = db.prepare('SELECT * FROM scoring_settings WHERE league_id = ?').get(leagueId)
+  const settings = await db.get('SELECT * FROM scoring_settings WHERE league_id = ?', leagueId)
     || { pts_per_point: 1 };
 
-  const members = db.prepare(`
+  const members = await db.all(`
     SELECT lm.*, u.username, u.venmo_handle, lm.avatar_url
     FROM league_members lm
     JOIN users u ON lm.user_id = u.id
     WHERE lm.league_id = ?
-  `).all(leagueId);
+  `, leagueId);
 
   // ── Fetch ALL picks + player info for this league in one batch query ────────
   // Using LEFT JOIN so picks with orphaned player_id still surface (shows up as
   // null player fields rather than silently disappearing from the results).
-  const allPicks = db.prepare(`
+  const allPicks = await db.all(`
     SELECT
       dp.user_id,
       dp.player_id,
@@ -39,7 +39,7 @@ function buildStandings(leagueId) {
     LEFT JOIN players p ON dp.player_id = p.id
     WHERE dp.league_id = ?
     ORDER BY dp.pick_number
-  `).all(leagueId);
+  `, leagueId);
 
   // Group picks by user_id for O(1) lookup per member.
   // Map avoids prototype pollution — plain objects inherit keys like 'toString'
@@ -51,12 +51,12 @@ function buildStandings(leagueId) {
   }
 
   // Batch-fetch next scheduled (unplayed, not live) game per team for "Next game" display
-  const upcomingGameRows = db.prepare(`
+  const upcomingGameRows = await db.all(`
     SELECT game_date, round_name, team1, team2, tip_off_time, tv_network
     FROM games
     WHERE is_completed = 0 AND (is_live IS NULL OR is_live = 0)
     ORDER BY game_date ASC
-  `).all();
+  `);
   const nextGameByTeam = {};
   for (const g of upcomingGameRows) {
     if (!nextGameByTeam[g.team1]) nextGameByTeam[g.team1] = g;
@@ -64,21 +64,25 @@ function buildStandings(leagueId) {
   }
 
   // Which player IDs are currently in a live game?
-  const liveGameIds = db.prepare('SELECT id FROM games WHERE is_live = 1').all().map(r => r.id);
+  const liveGameRows = await db.all('SELECT id FROM games WHERE is_live = 1');
+  const liveGameIds = liveGameRows.map(r => r.id);
   const livePlayerIds = new Set();
   if (liveGameIds.length > 0) {
     const placeholders = liveGameIds.map(() => '?').join(',');
-    const livePlayers = db.prepare(
-      `SELECT DISTINCT player_id FROM player_stats WHERE game_id IN (${placeholders})`
-    ).all(...liveGameIds);
+    const livePlayers = await db.all(
+      `SELECT DISTINCT player_id FROM player_stats WHERE game_id IN (${placeholders})`,
+      ...liveGameIds
+    );
     livePlayers.forEach(r => livePlayerIds.add(r.player_id));
   }
 
-  const standings = members.map(member => {
+  const standings = [];
+  for (const member of members) {
     const draftedPlayers = picksByUser.get(member.user_id) || [];
 
     let totalPoints = 0;
-    const playerStats = draftedPlayers.map(player => {
+    const playerStats = [];
+    for (const player of draftedPlayers) {
       // Detect orphaned draft_picks: the LEFT JOIN returns '[unknown]' for player
       // name when the player_id no longer exists in the players table. Silently
       // counting 0 points for these picks would produce wrong standings.
@@ -89,31 +93,31 @@ function buildStandings(leagueId) {
         );
       }
 
-      const stats = db.prepare(`
+      const stats = await db.get(`
         SELECT COALESCE(SUM(ps.points), 0) as total_points
         FROM player_stats ps
         JOIN games g ON ps.game_id = g.id
         WHERE ps.player_id = ?
-      `).get(player.player_id);
+      `, player.player_id);
 
       const fantasyPoints = (stats?.total_points ?? 0) * settings.pts_per_point;
       totalPoints += fantasyPoints;
 
       // Today's game stats for live/final display
       const today = new Date().toISOString().slice(0, 10);
-      const todayStats = db.prepare(`
+      const todayStats = await db.get(`
         SELECT ps.points, g.is_live, g.is_completed, g.team1, g.team2, g.winner_team
         FROM player_stats ps
         JOIN games g ON ps.game_id = g.id
         WHERE ps.player_id = ? AND g.game_date = ?
         ORDER BY g.game_date DESC
         LIMIT 1
-      `).get(player.player_id, today);
+      `, player.player_id, today);
 
       // Full game log (round, opponent, points per game played)
       // round_code: prefer ps.round (set by espnPoller roundNameToCode), fall back to
       // normalizing g.round_name (admin-entered stats skip the round column).
-      const gameLog = db.prepare(`
+      const gameLog = await db.all(`
         SELECT
           COALESCE(
             NULLIF(ps.round, ''),
@@ -139,7 +143,7 @@ function buildStandings(leagueId) {
         JOIN players p2 ON p2.id = ps.player_id
         WHERE ps.player_id = ?
         ORDER BY g.game_date ASC
-      `).all(player.player_id);
+      `, player.player_id);
 
 
       // Projected ETP = current_pts + (alive_players × tourney_ppg × games_remaining)
@@ -164,7 +168,7 @@ function buildStandings(leagueId) {
 
       const projEtp = Math.round(tourneyPpg * gamesRemaining * 10) / 10;
 
-      return {
+      playerStats.push({
         player_id:     player.player_id,
         name:          player.name,
         team:          player.team,
@@ -195,26 +199,26 @@ function buildStandings(leagueId) {
             tv_network:   g.tv_network   || null,
           };
         })(),
-      };
-    });
+      });
+    }
 
     const totalPlayers = draftedPlayers.length;
     const aliveCount   = draftedPlayers.filter(p => !p.is_eliminated).length;
 
-    return {
+    standings.push({
       ...member,
       total_points: Math.round(totalPoints * 10) / 10,
       players:      playerStats,
       totalPlayers,
       aliveCount,
-    };
-  });
+    });
+  }
 
   standings.sort((a, b) => b.total_points - a.total_points);
 
   // Single-game bonus — top 10 for expanded leaderboard.
   // Includes live games (is_live=1) so current scores update in real time.
-  const sgBoard = db.prepare(`
+  const sgBoard = await db.all(`
     SELECT
       ps.player_id,
       p.name  AS player_name,
@@ -235,7 +239,7 @@ function buildStandings(leagueId) {
     WHERE (g.is_completed = 1 OR g.is_live = 1) AND ps.points > 0 AND dp.player_id IS NOT NULL
     ORDER BY ps.points DESC
     LIMIT 10
-  `).all(leagueId, leagueId);
+  `, leagueId, leagueId);
 
   sgBoard.forEach(row => {
     row.opponent = row.team1 === row.player_team ? row.team2 : row.team1;
@@ -253,16 +257,15 @@ function buildStandings(leagueId) {
  * Callers that need the DB to reflect current standings (pollers, score endpoints)
  * call this after buildStandings(). Read-only callers (AI context, previews) skip it.
  */
-function syncTotalPoints(leagueId, standings) {
-  const stmt = db.prepare(
-    'UPDATE league_members SET total_points = ? WHERE league_id = ? AND user_id = ?'
-  );
-  const run = db.transaction(() => {
+async function syncTotalPoints(leagueId, standings) {
+  await db.transaction(async (tx) => {
     for (const s of standings) {
-      stmt.run(Math.round(s.total_points * 10) / 10, leagueId, s.user_id);
+      await tx.run(
+        'UPDATE league_members SET total_points = ? WHERE league_id = ? AND user_id = ?',
+        Math.round(s.total_points * 10) / 10, leagueId, s.user_id
+      );
     }
   });
-  run();
 }
 
 module.exports = { buildStandings, syncTotalPoints };

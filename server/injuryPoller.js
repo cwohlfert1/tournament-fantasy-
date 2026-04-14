@@ -1,6 +1,6 @@
 const https = require('https');
 const http = require('http');
-const db = require('./db');
+const db = require('./db/index');
 
 const INJURY_KEYWORDS = [
   'injured', 'out', 'doubtful', 'questionable', 'day-to-day',
@@ -68,8 +68,8 @@ function hasInjuryKeyword(text) {
 }
 
 // Build a map: normalized-name -> player row
-function buildPlayerIndex() {
-  const players = db.prepare('SELECT id, name FROM players').all();
+async function buildPlayerIndex() {
+  const players = await db.all('SELECT id, name FROM players');
   const index = new Map();
   for (const p of players) {
     const lower = p.name.toLowerCase().trim();
@@ -108,7 +108,7 @@ async function pollInjuries() {
   try {
     console.log('[Injuries] Scanning news feeds for injury reports...');
 
-    const playerIndex = buildPlayerIndex();
+    const playerIndex = await buildPlayerIndex();
     // Map of player_id -> best headline found
     const flagged = new Map();
 
@@ -131,23 +131,22 @@ async function pollInjuries() {
     }
 
     // Reset auto-detected flags only — preserve manual OUT designations
-    db.prepare("UPDATE players SET injury_flagged = 0, injury_headline = '' WHERE injury_status != 'OUT'").run();
-    const update = db.prepare('UPDATE players SET injury_flagged = 1, injury_headline = ? WHERE id = ?');
+    await db.run("UPDATE players SET injury_flagged = 0, injury_headline = '' WHERE injury_status != 'OUT'");
     for (const [id, headline] of flagged) {
-      update.run(headline, id);
+      await db.run('UPDATE players SET injury_flagged = 1, injury_headline = ? WHERE id = ?', headline, id);
     }
 
     // Clear flags for players who have played in the last 5 completed game days
     // (injury news may be stale — if they've suited up recently, they're not hurt)
     // Never clear manually designated OUT players.
-    const recentDates = db.prepare(`
+    const recentDates = (await db.all(`
       SELECT DISTINCT game_date FROM games
       WHERE is_completed = 1 ORDER BY game_date DESC LIMIT 5
-    `).all().map(r => r.game_date);
+    `)).map(r => r.game_date);
 
     if (recentDates.length > 0) {
       const ph = recentDates.map(() => '?').join(',');
-      const cleared = db.prepare(`
+      const cleared = await db.run(`
         UPDATE players SET injury_flagged = 0, injury_headline = ''
         WHERE injury_flagged = 1
         AND injury_status != 'OUT'
@@ -157,7 +156,7 @@ async function pollInjuries() {
           JOIN games g ON ps.game_id = g.id
           WHERE g.is_completed = 1 AND g.game_date IN (${ph})
         )
-      `).run(...recentDates);
+      `, ...recentDates);
       if (cleared.changes > 0) {
         console.log(`[Injuries] Cleared ${cleared.changes} flag(s) for players who played in the last ${recentDates.length} game day(s).`);
       }

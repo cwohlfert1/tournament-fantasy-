@@ -1,17 +1,17 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const { buildStandings, syncTotalPoints } = require('../standingsBuilder');
-const db = require('../db');
+const db = require('../db/index');
 
 const router = express.Router();
 
 // GET /api/scores/league/:leagueId/standings
-router.get('/league/:leagueId/standings', authMiddleware, (req, res) => {
+router.get('/league/:leagueId/standings', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const result = buildStandings(leagueId);
+    const result = await buildStandings(leagueId);
     if (!result) return res.status(404).json({ error: 'League not found' });
-    syncTotalPoints(leagueId, result.standings);
+    await syncTotalPoints(leagueId, result.standings);
 
     // Include the settings from the result
     res.json({
@@ -30,17 +30,17 @@ router.get('/league/:leagueId/standings', authMiddleware, (req, res) => {
 });
 
 // GET /api/scores/player/:playerId — all game stats for a player
-router.get('/player/:playerId', authMiddleware, (req, res) => {
+router.get('/player/:playerId', authMiddleware, async (req, res) => {
   try {
-    const stats = db.prepare(`
+    const stats = await db.all(`
       SELECT ps.*, g.game_date, g.round_name, g.team1, g.team2, g.winner_team
       FROM player_stats ps
       JOIN games g ON ps.game_id = g.id
       WHERE ps.player_id = ?
       ORDER BY g.game_date DESC
-    `).all(req.params.playerId);
+    `, req.params.playerId);
 
-    const player = db.prepare('SELECT * FROM players WHERE id = ?').get(req.params.playerId);
+    const player = await db.get('SELECT * FROM players WHERE id = ?', req.params.playerId);
 
     res.json({ player, stats });
   } catch (err) {

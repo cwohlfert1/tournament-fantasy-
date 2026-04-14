@@ -1,11 +1,11 @@
 const express = require('express');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
 // GET /api/players — get all players with optional filters
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { team, position, search } = req.query;
     let query = 'SELECT * FROM players WHERE 1=1';
@@ -25,7 +25,7 @@ router.get('/', (req, res) => {
     }
 
     query += ' ORDER BY season_ppg DESC';
-    const players = db.prepare(query).all(...params);
+    const players = await db.all(query, ...params);
     res.json({ players });
   } catch (err) {
     console.error(err);
@@ -34,7 +34,7 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/players/available/:leagueId — players not yet drafted
-router.get('/available/:leagueId', authMiddleware, (req, res) => {
+router.get('/available/:leagueId', authMiddleware, async (req, res) => {
   try {
     const { team, position, search } = req.query;
     let query = `
@@ -61,7 +61,7 @@ router.get('/available/:leagueId', authMiddleware, (req, res) => {
     }
 
     query += ' ORDER BY p.season_ppg DESC';
-    const players = db.prepare(query).all(...params);
+    const players = await db.all(query, ...params);
     res.json({ players });
   } catch (err) {
     console.error(err);
@@ -70,16 +70,16 @@ router.get('/available/:leagueId', authMiddleware, (req, res) => {
 });
 
 // DELETE /api/players/:id/injury-flag — commissioner clears an injury flag
-router.delete('/:id/injury-flag', authMiddleware, (req, res) => {
+router.delete('/:id/injury-flag', authMiddleware, async (req, res) => {
   try {
     // Must be commissioner of at least one active league
-    const league = db.prepare(`
+    const league = await db.get(`
       SELECT id FROM leagues
       WHERE commissioner_id = ? AND status NOT IN ('completed')
-    `).get(req.user.id);
+    `, req.user.id);
     if (!league) return res.status(403).json({ error: 'Only a league commissioner can clear injury flags' });
 
-    db.prepare("UPDATE players SET injury_flagged = 0, injury_status = '', injury_headline = '' WHERE id = ?").run(req.params.id);
+    await db.run("UPDATE players SET injury_flagged = 0, injury_status = '', injury_headline = '' WHERE id = ?", req.params.id);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

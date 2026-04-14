@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 const { isClean, NAME_BLOCKED_MSG } = require('../contentFilter');
 
@@ -12,7 +12,7 @@ const router = express.Router();
 const FREE_ACCESS_CODE = 'G7V9XM6W';
 
 // POST /api/leagues — create league
-router.post('/', authMiddleware, (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const {
       name,
@@ -39,7 +39,7 @@ router.post('/', authMiddleware, (req, res) => {
     // Verify the user from the JWT actually exists in this database.
     // On a fresh Railway deploy (before a volume is attached) the DB is empty,
     // so the FK constraint on commissioner_id would crash with a cryptic error.
-    const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(req.user.id);
+    const userExists = await db.get('SELECT id FROM users WHERE id = ?', req.user.id);
     if (!userExists) {
       return res.status(401).json({ error: 'Session expired — please log in again.' });
     }
@@ -59,28 +59,28 @@ router.post('/', authMiddleware, (req, res) => {
     const id = uuidv4();
     const invite_code = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO leagues (id, name, commissioner_id, invite_code, status, max_teams, total_rounds, pick_time_limit, auto_start_on_full, draft_start_time, buy_in_amount, payment_instructions, payout_first, payout_second, payout_third, payout_bonus)
       VALUES (?, ?, ?, ?, 'lobby', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, name, req.user.id, invite_code, max_teams, total_rounds, pick_time_limit, auto_start_on_full ? 1 : 0, draft_start_time || null, buyIn, payment_instructions || '', p1, p2, p3, Math.max(0, parseFloat(payout_bonus) || 0));
+    `, id, name, req.user.id, invite_code, max_teams, total_rounds, pick_time_limit, auto_start_on_full ? 1 : 0, draft_start_time || null, buyIn, payment_instructions || '', p1, p2, p3, Math.max(0, parseFloat(payout_bonus) || 0));
 
     // Create scoring settings
-    db.prepare(`
+    await db.run(`
       INSERT INTO scoring_settings (id, league_id) VALUES (?, ?)
-    `).run(uuidv4(), id);
+    `, uuidv4(), id);
 
     // Auto-join commissioner as first member
-    db.prepare(`
+    await db.run(`
       INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)
-    `).run(uuidv4(), id, req.user.id, team_name);
+    `, uuidv4(), id, req.user.id, team_name);
 
     // Commissioner must pay $5 like everyone else — create pending payment
-    db.prepare(`
+    await db.run(`
       INSERT INTO member_payments (id, league_id, user_id, amount, status)
       VALUES (?, ?, ?, 5.00, 'pending')
-    `).run(uuidv4(), id, req.user.id);
+    `, uuidv4(), id, req.user.id);
 
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', id);
     res.status(201).json({ league, requiresPayment: true });
   } catch (err) {
     console.error(err);
@@ -89,7 +89,7 @@ router.post('/', authMiddleware, (req, res) => {
 });
 
 // POST /api/leagues/join — join by invite code
-router.post('/join', authMiddleware, (req, res) => {
+router.post('/join', authMiddleware, async (req, res) => {
   try {
     const { invite_code, team_name, venmo_handle = '', zelle_handle = '' } = req.body;
     if (!invite_code || !team_name) {
@@ -100,12 +100,12 @@ router.post('/join', authMiddleware, (req, res) => {
     }
     if (!isClean(team_name)) return res.status(400).json({ error: NAME_BLOCKED_MSG });
 
-    const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(req.user.id);
+    const userExists = await db.get('SELECT id FROM users WHERE id = ?', req.user.id);
     if (!userExists) {
       return res.status(401).json({ error: 'Session expired — please log in again.' });
     }
 
-    const league = db.prepare('SELECT * FROM leagues WHERE invite_code = ?').get(invite_code.toUpperCase());
+    const league = await db.get('SELECT * FROM leagues WHERE invite_code = ?', invite_code.toUpperCase());
     if (!league) return res.status(404).json({ error: 'Invalid invite code' });
 
     // League must be open — pending_payment status is no longer used, but
@@ -117,56 +117,56 @@ router.post('/join', authMiddleware, (req, res) => {
       return res.status(403).json({ error: 'League has already started' });
     }
 
-    const memberCount = db.prepare('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?').get(league.id);
+    const memberCount = await db.get('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?', league.id);
     if (memberCount.cnt >= league.max_teams) {
       return res.status(403).json({ error: 'League is full' });
     }
 
-    const alreadyMember = db.prepare('SELECT id FROM league_members WHERE league_id = ? AND user_id = ?').get(league.id, req.user.id);
+    const alreadyMember = await db.get('SELECT id FROM league_members WHERE league_id = ? AND user_id = ?', league.id, req.user.id);
     if (alreadyMember) {
       return res.status(409).json({ error: 'You are already in this league' });
     }
 
     // Insert league member row
-    db.prepare(`
+    await db.run(`
       INSERT INTO league_members (id, league_id, user_id, team_name, venmo_handle, zelle_handle)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(uuidv4(), league.id, req.user.id, team_name, venmo_handle.trim(), zelle_handle.trim());
+    `, uuidv4(), league.id, req.user.id, team_name, venmo_handle.trim(), zelle_handle.trim());
 
     // Free access code — skip payment entirely
     if (invite_code.toUpperCase() === FREE_ACCESS_CODE) {
-      db.prepare(`
+      await db.run(`
         INSERT OR IGNORE INTO member_payments (id, league_id, user_id, amount, status)
         VALUES (?, ?, ?, 0, 'free')
-      `).run(uuidv4(), league.id, req.user.id);
-      const members = db.prepare('SELECT * FROM league_members WHERE league_id = ?').all(league.id);
+      `, uuidv4(), league.id, req.user.id);
+      const members = await db.all('SELECT * FROM league_members WHERE league_id = ?', league.id);
       return res.json({ league, members, requiresPayment: false });
     }
 
     // Stripe disabled — bypass payment, mark as free so user has full access
     const stripeEnabled = process.env.STRIPE_ENABLED === 'true';
     if (!stripeEnabled) {
-      const existing = db.prepare('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?').get(league.id, req.user.id);
+      const existing = await db.get('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?', league.id, req.user.id);
       if (!existing) {
-        db.prepare(`
+        await db.run(`
           INSERT INTO member_payments (id, league_id, user_id, amount, status)
           VALUES (?, ?, ?, 5.00, 'free')
-        `).run(uuidv4(), league.id, req.user.id);
+        `, uuidv4(), league.id, req.user.id);
       }
-      const members = db.prepare('SELECT * FROM league_members WHERE league_id = ?').all(league.id);
+      const members = await db.all('SELECT * FROM league_members WHERE league_id = ?', league.id);
       return res.json({ league, members, requiresPayment: false });
     }
 
     // Create a $5 pending payment record
-    const existing = db.prepare('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?').get(league.id, req.user.id);
+    const existing = await db.get('SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?', league.id, req.user.id);
     if (!existing) {
-      db.prepare(`
+      await db.run(`
         INSERT INTO member_payments (id, league_id, user_id, amount, status)
         VALUES (?, ?, ?, 5.00, 'pending')
-      `).run(uuidv4(), league.id, req.user.id);
+      `, uuidv4(), league.id, req.user.id);
     }
 
-    const members = db.prepare('SELECT * FROM league_members WHERE league_id = ?').all(league.id);
+    const members = await db.all('SELECT * FROM league_members WHERE league_id = ?', league.id);
 
     res.json({ league, members, requiresPayment: true });
   } catch (err) {
@@ -176,16 +176,16 @@ router.post('/join', authMiddleware, (req, res) => {
 });
 
 // GET /api/leagues — get all leagues for current user
-router.get('/', authMiddleware, (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    const leagues = db.prepare(`
+    const leagues = await db.all(`
       SELECT l.*, lm.team_name, lm.total_points, lm.draft_order,
         (SELECT COUNT(*) FROM league_members WHERE league_id = l.id) as member_count
       FROM leagues l
       JOIN league_members lm ON l.id = lm.league_id
       WHERE lm.user_id = ?
       ORDER BY l.created_at DESC
-    `).all(req.user.id);
+    `, req.user.id);
     res.json({ leagues });
   } catch (err) {
     console.error(err);
@@ -194,15 +194,15 @@ router.get('/', authMiddleware, (req, res) => {
 });
 
 // GET /api/leagues/preview/:inviteCode — public league info for join page
-router.get('/preview/:inviteCode', authMiddleware, (req, res) => {
+router.get('/preview/:inviteCode', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare(`
+    const league = await db.get(`
       SELECT id, name, max_teams, status, buy_in_amount, payment_instructions,
              payout_first, payout_second, payout_third, payout_bonus
       FROM leagues WHERE invite_code = ?
-    `).get(req.params.inviteCode.toUpperCase());
+    `, req.params.inviteCode.toUpperCase());
     if (!league) return res.status(404).json({ error: 'Invalid invite code' });
-    const { cnt: member_count } = db.prepare('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?').get(league.id);
+    const { cnt: member_count } = await db.get('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?', league.id);
     res.json({ league: { ...league, member_count } });
   } catch (err) {
     console.error(err);
@@ -211,12 +211,12 @@ router.get('/preview/:inviteCode', authMiddleware, (req, res) => {
 });
 
 // GET /api/leagues/:id — get league details
-router.get('/:id', authMiddleware, (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    const members = db.prepare(`
+    const members = await db.all(`
       SELECT lm.*, u.username, u.email,
         COALESCE(NULLIF(lm.venmo_handle, ''), u.venmo_handle, '') AS venmo_handle,
         lm.zelle_handle
@@ -224,9 +224,9 @@ router.get('/:id', authMiddleware, (req, res) => {
       JOIN users u ON lm.user_id = u.id
       WHERE lm.league_id = ?
       ORDER BY COALESCE(lm.draft_order, 999), lm.joined_at
-    `).all(req.params.id);
+    `, req.params.id);
 
-    const settings = db.prepare('SELECT * FROM scoring_settings WHERE league_id = ?').get(req.params.id);
+    const settings = await db.get('SELECT * FROM scoring_settings WHERE league_id = ?', req.params.id);
 
     res.json({ league, members, settings, isCommissioner: league.commissioner_id === req.user.id });
   } catch (err) {
@@ -236,9 +236,9 @@ router.get('/:id', authMiddleware, (req, res) => {
 });
 
 // PATCH /api/leagues/:id/settings — commissioner edits league settings (lobby only)
-router.patch('/:id/settings', authMiddleware, (req, res) => {
+router.patch('/:id/settings', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) {
       return res.status(403).json({ error: 'Only the commissioner can edit settings' });
@@ -265,7 +265,7 @@ router.patch('/:id/settings', authMiddleware, (req, res) => {
       if (isNaN(maxT) || maxT < 2 || maxT > 20) {
         return res.status(400).json({ error: 'Max teams must be between 2 and 20' });
       }
-      const { cnt } = db.prepare('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?').get(req.params.id);
+      const { cnt } = await db.get('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?', req.params.id);
       if (maxT < cnt) {
         return res.status(400).json({ error: `Can't set max teams below current member count (${cnt})` });
       }
@@ -275,7 +275,7 @@ router.patch('/:id/settings', authMiddleware, (req, res) => {
       return res.status(400).json({ error: 'autodraft_mode must be best_available or smart_draft' });
     }
 
-    db.prepare(`
+    await db.run(`
       UPDATE leagues SET
         draft_start_time = COALESCE(?, draft_start_time),
         pick_time_limit  = COALESCE(?, pick_time_limit),
@@ -283,7 +283,7 @@ router.patch('/:id/settings', authMiddleware, (req, res) => {
         total_rounds     = COALESCE(?, total_rounds),
         autodraft_mode   = COALESCE(?, autodraft_mode)
       WHERE id = ?
-    `).run(
+    `,
       draft_start_time !== undefined ? (draft_start_time || null) : undefined,
       pick_time_limit  !== undefined ? timer         : undefined,
       max_teams        !== undefined ? maxT          : undefined,
@@ -292,7 +292,7 @@ router.patch('/:id/settings', authMiddleware, (req, res) => {
       req.params.id,
     );
 
-    const updated = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const updated = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
 
     // Broadcast system message to anyone currently in the draft room socket
     const io = req.app.get('io');
@@ -311,11 +311,11 @@ router.patch('/:id/settings', authMiddleware, (req, res) => {
 });
 
 // GET /api/leagues/:id/live-games — live game data with league players
-router.get('/:id/live-games', authMiddleware, (req, res) => {
+router.get('/:id/live-games', authMiddleware, async (req, res) => {
   try {
     const leagueId = req.params.id;
 
-    const liveGames = db.prepare('SELECT * FROM games WHERE is_live = 1').all();
+    const liveGames = await db.all('SELECT * FROM games WHERE is_live = 1');
 
     if (liveGames.length === 0) {
       return res.json({ liveGames: [], hasLeaguePlayers: false });
@@ -323,7 +323,7 @@ router.get('/:id/live-games', authMiddleware, (req, res) => {
 
     // Match drafted players to live games via player_id → player_stats → games.
     // This avoids team-name string matching (e.g. "NC State Wolfpack" vs "NC State").
-    const draftedInLiveGames = db.prepare(`
+    const draftedInLiveGames = await db.all(`
       SELECT
         dp.player_id, dp.user_id,
         p.name AS player_name, p.team, p.jersey_number,
@@ -338,7 +338,7 @@ router.get('/:id/live-games', authMiddleware, (req, res) => {
       JOIN player_stats ps ON ps.player_id = dp.player_id
       JOIN games g ON g.id = ps.game_id AND g.is_live = 1
       WHERE dp.league_id = ?
-    `).all(leagueId);
+    `, leagueId);
 
     console.log(`[live-games] league=${leagueId} liveGames=${liveGames.length} draftedInLive=${draftedInLiveGames.length}`);
 
@@ -374,15 +374,15 @@ router.get('/:id/live-games', authMiddleware, (req, res) => {
 });
 
 // GET /api/leagues/:id/members
-router.get('/:id/members', authMiddleware, (req, res) => {
+router.get('/:id/members', authMiddleware, async (req, res) => {
   try {
-    const members = db.prepare(`
+    const members = await db.all(`
       SELECT lm.*, u.username
       FROM league_members lm
       JOIN users u ON lm.user_id = u.id
       WHERE lm.league_id = ?
       ORDER BY COALESCE(lm.draft_order, 999), lm.joined_at
-    `).all(req.params.id);
+    `, req.params.id);
     res.json({ members });
   } catch (err) {
     console.error(err);

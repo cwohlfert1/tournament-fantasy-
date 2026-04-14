@@ -6,7 +6,7 @@
  * or the commissioner has set the league autodraft default to 'smart_draft'.
  */
 
-const db = require('./db');
+const db = require('./db/index');
 
 // ETP calculation — mirrors client-side calcETP in DraftRoom.jsx
 const ETP_GAMES = {
@@ -44,14 +44,14 @@ const GUARD_POSITIONS = new Set(['G', 'PG', 'SG']);
  * @param {Array}  availablePlayers — full player rows already NOT in draft_picks
  * @returns {Object|null} best player object, or null if none available
  */
-function selectSmartDraftPlayer(leagueId, userId, availablePlayers) {
+async function selectSmartDraftPlayer(leagueId, userId, availablePlayers) {
   // Load this user's current picks
-  const myPicks = db.prepare(`
+  const myPicks = await db.all(`
     SELECT p.team, p.region, p.seed, p.position
     FROM draft_picks dp
     JOIN players p ON dp.player_id = p.id
     WHERE dp.league_id = ? AND dp.user_id = ?
-  `).all(leagueId, userId);
+  `, leagueId, userId);
 
   const round = myPicks.length + 1; // next pick number for this user
 

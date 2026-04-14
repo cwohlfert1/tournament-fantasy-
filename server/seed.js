@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const db = require('./db');
+const db = require('./db/index');
 
 const TOURNAMENT_TEAMS = [
   // 1 seeds
@@ -232,22 +232,20 @@ const TOURNAMENT_TEAMS = [
   ]},
 ];
 
-function seedPlayers() {
-  const count = db.prepare('SELECT COUNT(*) as cnt FROM players').get();
+async function seedPlayers() {
+  const count = await db.get('SELECT COUNT(*) as cnt FROM players');
   if (count.cnt > 0) {
     console.log('Players already seeded, skipping...');
     return;
   }
 
-  const insertPlayer = db.prepare(`
-    INSERT INTO players (id, name, team, position, jersey_number, seed, region, season_ppg)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  const insertMany = db.transaction(() => {
+  await db.transaction((tx) => {
     for (const teamData of TOURNAMENT_TEAMS) {
       for (const player of teamData.players) {
-        insertPlayer.run(
+        tx.run(`
+          INSERT INTO players (id, name, team, position, jersey_number, seed, region, season_ppg)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
           uuidv4(),
           player.name,
           teamData.team,
@@ -261,8 +259,7 @@ function seedPlayers() {
     }
   });
 
-  insertMany();
-  const total = db.prepare('SELECT COUNT(*) as cnt FROM players').get();
+  const total = await db.get('SELECT COUNT(*) as cnt FROM players');
   console.log(`Seeded ${total.cnt} players from ${TOURNAMENT_TEAMS.length} teams`);
 }
 

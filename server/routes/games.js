@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
@@ -37,7 +37,7 @@ async function fetchOdds(espnEventId) {
 // Returns all games with scores + user's drafted players per game
 router.get('/schedule', authMiddleware, async (req, res) => {
   try {
-    const games = db.prepare(`
+    const games = await db.all(`
       SELECT g.*,
              t1.seed AS team1_seed,
              t2.seed AS team2_seed
@@ -45,18 +45,18 @@ router.get('/schedule', authMiddleware, async (req, res) => {
       LEFT JOIN (SELECT team, MIN(seed) AS seed FROM players GROUP BY team) t1 ON t1.team = g.team1
       LEFT JOIN (SELECT team, MIN(seed) AS seed FROM players GROUP BY team) t2 ON t2.team = g.team2
       ORDER BY g.game_date ASC, g.tip_off_time ASC, g.id ASC
-    `).all();
+    `);
 
     if (!games.length) return res.json({ games: [], myDraftedPlayerIds: [] });
 
     // All player stats across all games
     const placeholders = games.map(() => '?').join(',');
-    const allStats = db.prepare(`
+    const allStats = await db.all(`
       SELECT ps.game_id, ps.player_id, ps.points, p.name AS player_name, p.team AS player_team
       FROM player_stats ps
       JOIN players p ON ps.player_id = p.id
       WHERE ps.game_id IN (${placeholders})
-    `).all(...games.map(g => g.id));
+    `, ...games.map(g => g.id));
 
     const statsByGame = {};
     for (const s of allStats) {
@@ -65,12 +65,12 @@ router.get('/schedule', authMiddleware, async (req, res) => {
     }
 
     // User's drafted players across ALL their leagues (deduplicated)
-    const myDrafted = db.prepare(`
+    const myDrafted = await db.all(`
       SELECT DISTINCT dp.player_id, p.name AS player_name, p.team AS player_team
       FROM draft_picks dp
       JOIN players p ON dp.player_id = p.id
       WHERE dp.user_id = ?
-    `).all(req.user.id);
+    `, req.user.id);
 
     const myPlayerIdSet = new Set(myDrafted.map(p => p.player_id));
 

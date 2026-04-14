@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 const { buildStandings } = require('../standingsBuilder');
 
@@ -19,12 +19,12 @@ router.post('/chat', authMiddleware, async (req, res) => {
 
     // ── Live context ──────────────────────────────────────────────────────────
 
-    const players = db.prepare(`
+    const players = await db.all(`
       SELECT name, team, seed, region, season_ppg, position, injury_status
       FROM players
       ORDER BY season_ppg DESC
       LIMIT 120
-    `).all();
+    `);
 
     const playersText = players.map(p => {
       const inj = p.injury_status ? ` [${p.injury_status}]` : '';
@@ -34,7 +34,7 @@ router.post('/chat', authMiddleware, async (req, res) => {
     let standingsText = 'No standings data available.';
     if (leagueId) {
       try {
-        const result = buildStandings(leagueId);
+        const result = await buildStandings(leagueId);
         if (result?.standings?.length) {
           standingsText = result.standings.slice(0, 12).map((s, i) =>
             `${i + 1}. ${s.team_name} (${s.username}) — ${s.total_points} pts`
@@ -43,12 +43,12 @@ router.post('/chat', authMiddleware, async (req, res) => {
       } catch (_) {}
     }
 
-    const games = db.prepare(`
+    const games = await db.all(`
       SELECT round_name, team1, team2, team1_score, team2_score, is_completed, winner_team
       FROM games
       ORDER BY game_date ASC
       LIMIT 32
-    `).all();
+    `);
 
     const gamesText = games.length
       ? games.map(g => {

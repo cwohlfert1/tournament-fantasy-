@@ -1,4 +1,4 @@
-const db = require('./db');
+const db = require('./db/index');
 const { v4: uuidv4 } = require('uuid');
 const { addMessage, makeSystemMsg } = require('./chatStore');
 const { selectSmartDraftPlayer } = require('./smartDraft');
@@ -33,23 +33,23 @@ function calcETP(ppg, seed, isFirstFour) {
  * whether the pick was already made. If not, auto-selects a player using
  * Smart Draft (if purchased or enabled by league default) or Best Available.
  */
-function scheduleAutoPick(leagueId, io) {
+async function scheduleAutoPick(leagueId, io) {
   if (timers[leagueId]) {
     clearTimeout(timers[leagueId]);
     delete timers[leagueId];
   }
 
-  const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+  const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
   if (!league || league.status !== 'drafting') return;
 
   const expectedPick = league.current_pick;
 
   // Check if current picker is a bot — if so, pick quickly
-  const members = db.prepare(`
+  const members = await db.all(`
     SELECT lm.*, u.username FROM league_members lm
     JOIN users u ON lm.user_id = u.id
     WHERE lm.league_id = ? ORDER BY lm.draft_order
-  `).all(leagueId);
+  `, leagueId);
   const numTeams = members.length;
   const totalPicks = numTeams * league.total_rounds;
   if (expectedPick > totalPicks) return;
@@ -76,17 +76,17 @@ function clearAutoPick(leagueId) {
   }
 }
 
-function _doAutoPick(leagueId, expectedPick, io) {
+async function _doAutoPick(leagueId, expectedPick, io) {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
     if (!league || league.status !== 'drafting') return;
     if (league.current_pick !== expectedPick) return; // pick already made
 
-    const members = db.prepare(`
+    const members = await db.all(`
       SELECT lm.*, u.username FROM league_members lm
       JOIN users u ON lm.user_id = u.id
       WHERE lm.league_id = ? ORDER BY lm.draft_order
-    `).all(leagueId);
+    `, leagueId);
 
     const numTeams  = members.length;
     const totalPicks = numTeams * league.total_rounds;
@@ -100,11 +100,11 @@ function _doAutoPick(leagueId, expectedPick, io) {
     if (!currentPicker) return;
 
     // ── Fetch all available players ──────────────────────────────────────────
-    const allAvailable = db.prepare(`
+    const allAvailable = await db.all(`
       SELECT * FROM players
       WHERE id NOT IN (SELECT player_id FROM draft_picks WHERE league_id = ?)
       ORDER BY season_ppg DESC, name ASC
-    `).all(leagueId);
+    `, leagueId);
 
     let available     = null;
     let usedSmartDraft = false;
@@ -119,9 +119,10 @@ function _doAutoPick(leagueId, expectedPick, io) {
       available = sorted[0] || null;
     } else {
       // ── Smart Draft check ──────────────────────────────────────────────────
-      const hasSmart = db.prepare(
-        "SELECT id FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active' AND enabled != 0"
-      ).get(currentPicker.user_id, leagueId);
+      const hasSmart = await db.get(
+        "SELECT id FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active' AND enabled != 0",
+        currentPicker.user_id, leagueId
+      );
 
       const useSmartDraft = !!(hasSmart || league.autodraft_mode === 'smart_draft');
 
@@ -143,18 +144,18 @@ function _doAutoPick(leagueId, expectedPick, io) {
 
     // ── Insert the pick ──────────────────────────────────────────────────────
     const pickId = uuidv4();
-    db.prepare(`
+    await db.run(`
       INSERT INTO draft_picks (id, league_id, user_id, player_id, pick_number, round)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(pickId, leagueId, currentPicker.user_id, available.id, expectedPick, round);
+    `, pickId, leagueId, currentPicker.user_id, available.id, expectedPick, round);
 
     const nextPick     = expectedPick + 1;
     const draftComplete = nextPick > totalPicks;
 
     if (draftComplete) {
-      db.prepare("UPDATE leagues SET current_pick = ?, status = 'active', draft_status = 'completed' WHERE id = ?").run(nextPick, leagueId);
+      await db.run("UPDATE leagues SET current_pick = ?, status = 'active', draft_status = 'completed' WHERE id = ?", nextPick, leagueId);
     } else {
-      db.prepare('UPDATE leagues SET current_pick = ? WHERE id = ?').run(nextPick, leagueId);
+      await db.run('UPDATE leagues SET current_pick = ? WHERE id = ?', nextPick, leagueId);
     }
 
     // Determine next picker
@@ -195,7 +196,7 @@ function _doAutoPick(leagueId, expectedPick, io) {
 
     if (draftComplete) {
       const { getDraftState } = require('./routes/draft');
-      io.to(`draft_${leagueId}`).emit('draft_completed', getDraftState(leagueId));
+      io.to(`draft_${leagueId}`).emit('draft_completed', await getDraftState(leagueId));
     } else {
       scheduleAutoPick(leagueId, io);
     }

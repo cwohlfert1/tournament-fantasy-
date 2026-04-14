@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../db');
+const db = require('../db/index');
 const superadmin = require('../middleware/superadmin');
 const { performStartDraft } = require('../draftUtils');
 const { pullBracket } = require('../bracketPoller');
@@ -11,9 +11,9 @@ const router = express.Router();
 // ── Leagues ──────────────────────────────────────────────────────────────────
 
 // GET /api/superadmin/leagues — all leagues
-router.get('/leagues', superadmin, (req, res) => {
+router.get('/leagues', superadmin, async (req, res) => {
   try {
-    const leagues = db.prepare(`
+    const leagues = await db.all(`
       SELECT
         l.*,
         u.username AS commissioner_username,
@@ -26,7 +26,7 @@ router.get('/leagues', superadmin, (req, res) => {
       LEFT JOIN member_payments mp ON mp.league_id = l.id
       GROUP BY l.id
       ORDER BY l.created_at DESC
-    `).all();
+    `);
     res.json({ leagues });
   } catch (err) {
     console.error(err);
@@ -35,12 +35,12 @@ router.get('/leagues', superadmin, (req, res) => {
 });
 
 // GET /api/superadmin/leagues/:id — league detail with members + picks
-router.get('/leagues/:id', superadmin, (req, res) => {
+router.get('/leagues/:id', superadmin, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    const members = db.prepare(`
+    const members = await db.all(`
       SELECT lm.*, u.username, u.email,
              mp.status AS payment_status, mp.amount AS payment_amount,
              COUNT(dp.id) AS picks_made
@@ -51,7 +51,7 @@ router.get('/leagues/:id', superadmin, (req, res) => {
       WHERE lm.league_id = ?
       GROUP BY lm.id
       ORDER BY lm.draft_order
-    `).all(req.params.id);
+    `, req.params.id);
 
     res.json({ league, members });
   } catch (err) {
@@ -61,17 +61,17 @@ router.get('/leagues/:id', superadmin, (req, res) => {
 });
 
 // POST /api/superadmin/leagues/:id/start-draft — force start (bypasses commissioner check)
-router.post('/leagues/:id/start-draft', superadmin, (req, res) => {
+router.post('/leagues/:id/start-draft', superadmin, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.status !== 'lobby') return res.status(400).json({ error: `League status is "${league.status}", not lobby` });
 
     // Mark all pending payments paid so the gate passes
-    db.prepare(`
+    await db.run(`
       UPDATE member_payments SET status = 'paid', paid_at = CURRENT_TIMESTAMP
       WHERE league_id = ? AND status != 'paid'
-    `).run(req.params.id);
+    `, req.params.id);
 
     const io = req.app.get('io');
     const result = performStartDraft(req.params.id, io);
@@ -84,9 +84,9 @@ router.post('/leagues/:id/start-draft', superadmin, (req, res) => {
 });
 
 // POST /api/superadmin/leagues/:id/pause-draft — pause by resetting to lobby
-router.post('/leagues/:id/pause-draft', superadmin, (req, res) => {
+router.post('/leagues/:id/pause-draft', superadmin, async (req, res) => {
   try {
-    db.prepare("UPDATE leagues SET status = 'lobby' WHERE id = ?").run(req.params.id);
+    await db.run("UPDATE leagues SET status = 'lobby' WHERE id = ?", req.params.id);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -95,13 +95,13 @@ router.post('/leagues/:id/pause-draft', superadmin, (req, res) => {
 });
 
 // PUT /api/superadmin/leagues/:id — edit league settings
-router.put('/leagues/:id', superadmin, (req, res) => {
+router.put('/leagues/:id', superadmin, async (req, res) => {
   try {
     const { name, max_teams, total_rounds, pick_time_limit, buy_in_amount,
             payout_first, payout_second, payout_third, status,
             payout_pool_override } = req.body;
 
-    db.prepare(`
+    await db.run(`
       UPDATE leagues SET
         name                 = COALESCE(?, name),
         max_teams            = COALESCE(?, max_teams),
@@ -114,12 +114,12 @@ router.put('/leagues/:id', superadmin, (req, res) => {
         status               = COALESCE(?, status),
         payout_pool_override = ?
       WHERE id = ?
-    `).run(name, max_teams, total_rounds, pick_time_limit, buy_in_amount,
-           payout_first, payout_second, payout_third, status,
-           payout_pool_override != null ? parseFloat(payout_pool_override) || null : null,
-           req.params.id);
+    `, name, max_teams, total_rounds, pick_time_limit, buy_in_amount,
+       payout_first, payout_second, payout_third, status,
+       payout_pool_override != null ? parseFloat(payout_pool_override) || null : null,
+       req.params.id);
 
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
     res.json({ league });
   } catch (err) {
     console.error(err);
@@ -128,20 +128,20 @@ router.put('/leagues/:id', superadmin, (req, res) => {
 });
 
 // DELETE /api/superadmin/leagues/:id — delete league and all related data
-router.delete('/leagues/:id', superadmin, (req, res) => {
+router.delete('/leagues/:id', superadmin, async (req, res) => {
   try {
-    const league = db.prepare('SELECT id FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT id FROM leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    db.transaction(() => {
-      db.prepare('DELETE FROM draft_picks WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM member_payments WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM smart_draft_upgrades WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM scoring_settings WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM league_members WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM payouts WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM leagues WHERE id = ?').run(req.params.id);
-    })();
+    await db.transaction(async (tx) => {
+      await tx.run('DELETE FROM draft_picks WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM member_payments WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM smart_draft_upgrades WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM scoring_settings WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM league_members WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM payouts WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM leagues WHERE id = ?', req.params.id);
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -153,9 +153,9 @@ router.delete('/leagues/:id', superadmin, (req, res) => {
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 // GET /api/superadmin/users — all users
-router.get('/users', superadmin, (req, res) => {
+router.get('/users', superadmin, async (req, res) => {
   try {
-    const users = db.prepare(`
+    const users = await db.all(`
       SELECT
         u.id, u.email, u.username, u.role, u.created_at,
         u.stripe_account_status,
@@ -164,7 +164,7 @@ router.get('/users', superadmin, (req, res) => {
       LEFT JOIN league_members lm ON lm.user_id = u.id
       GROUP BY u.id
       ORDER BY u.created_at DESC
-    `).all();
+    `);
     res.json({ users });
   } catch (err) {
     console.error(err);
@@ -173,11 +173,11 @@ router.get('/users', superadmin, (req, res) => {
 });
 
 // PUT /api/superadmin/users/:id/ban — toggle ban (sets role to 'banned' or back to 'user')
-router.put('/users/:id/ban', superadmin, (req, res) => {
+router.put('/users/:id/ban', superadmin, async (req, res) => {
   try {
     const { banned } = req.body;
     const newRole = banned ? 'banned' : 'user';
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, req.params.id);
+    await db.run('UPDATE users SET role = ? WHERE id = ?', newRole, req.params.id);
     res.json({ success: true, role: newRole });
   } catch (err) {
     console.error(err);
@@ -194,7 +194,7 @@ router.put('/users/:id/reset-password', superadmin, async (req, res) => {
     }
     // Cost 10 (not 12) — Railway CPU is throttled and cost 12 can take 5+ seconds
     const hash = await bcrypt.hash(password, 10);
-    const result = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.params.id);
+    const result = await db.run('UPDATE users SET password_hash = ? WHERE id = ?', hash, req.params.id);
     if (result.changes === 0) return res.status(404).json({ error: 'User not found' });
     console.log(`[superadmin] password reset for user ${req.params.id}`);
     res.json({ success: true });
@@ -205,29 +205,29 @@ router.put('/users/:id/reset-password', superadmin, async (req, res) => {
 });
 
 // DELETE /api/superadmin/users/:id — hard-delete a user and all their records
-router.delete('/users/:id', superadmin, (req, res) => {
+router.delete('/users/:id', superadmin, async (req, res) => {
   try {
-    const target = db.prepare('SELECT id, role FROM users WHERE id = ?').get(req.params.id);
+    const target = await db.get('SELECT id, role FROM users WHERE id = ?', req.params.id);
     if (!target) return res.status(404).json({ error: 'User not found' });
     if (target.role === 'admin' || target.role === 'superadmin') {
       return res.status(403).json({ error: 'Cannot delete admin accounts' });
     }
 
     // Delete in FK-safe order (children before parent), wrapped in a transaction
-    db.transaction(() => {
-      db.prepare('DELETE FROM wall_replies         WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM wall_reactions       WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM wall_posts           WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM league_chat_messages WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM smart_draft_upgrades WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM smart_draft_credits  WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM payouts              WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM member_payments      WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM referrals            WHERE referrer_id = ? OR referred_id = ?').run(target.id, target.id);
-      db.prepare('DELETE FROM draft_picks          WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM league_members       WHERE user_id = ?').run(target.id);
-      db.prepare('DELETE FROM users                WHERE id = ?').run(target.id);
-    })();
+    await db.transaction(async (tx) => {
+      await tx.run('DELETE FROM wall_replies         WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM wall_reactions       WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM wall_posts           WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM league_chat_messages WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM smart_draft_upgrades WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM smart_draft_credits  WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM payouts              WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM member_payments      WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM referrals            WHERE referrer_id = ? OR referred_id = ?', target.id, target.id);
+      await tx.run('DELETE FROM draft_picks          WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM league_members       WHERE user_id = ?', target.id);
+      await tx.run('DELETE FROM users                WHERE id = ?', target.id);
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -239,11 +239,11 @@ router.delete('/users/:id', superadmin, (req, res) => {
 // ── Players ───────────────────────────────────────────────────────────────────
 
 // GET /api/superadmin/players — all players
-router.get('/players', superadmin, (req, res) => {
+router.get('/players', superadmin, async (req, res) => {
   try {
-    const players = db.prepare(`
+    const players = await db.all(`
       SELECT * FROM players ORDER BY seed, region, name
-    `).all();
+    `);
     res.json({ players });
   } catch (err) {
     console.error(err);
@@ -252,16 +252,16 @@ router.get('/players', superadmin, (req, res) => {
 });
 
 // POST /api/superadmin/players — add a player
-router.post('/players', superadmin, (req, res) => {
+router.post('/players', superadmin, async (req, res) => {
   try {
     const { name, team, position, seed, region, season_ppg } = req.body;
     if (!name || !team) return res.status(400).json({ error: 'name and team are required' });
     const id = uuidv4();
-    db.prepare(`
+    await db.run(`
       INSERT INTO players (id, name, team, position, seed, region, season_ppg)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, name, team, position || null, seed || null, region || null, season_ppg || 0);
-    const player = db.prepare('SELECT * FROM players WHERE id = ?').get(id);
+    `, id, name, team, position || null, seed || null, region || null, season_ppg || 0);
+    const player = await db.get('SELECT * FROM players WHERE id = ?', id);
     res.status(201).json({ player });
   } catch (err) {
     console.error(err);
@@ -270,10 +270,10 @@ router.post('/players', superadmin, (req, res) => {
 });
 
 // PUT /api/superadmin/players/:id — edit a player
-router.put('/players/:id', superadmin, (req, res) => {
+router.put('/players/:id', superadmin, async (req, res) => {
   try {
     const { name, team, position, seed, region, season_ppg, is_eliminated } = req.body;
-    db.prepare(`
+    await db.run(`
       UPDATE players SET
         name         = COALESCE(?, name),
         team         = COALESCE(?, team),
@@ -283,8 +283,8 @@ router.put('/players/:id', superadmin, (req, res) => {
         season_ppg   = COALESCE(?, season_ppg),
         is_eliminated = COALESCE(?, is_eliminated)
       WHERE id = ?
-    `).run(name, team, position, seed, region, season_ppg, is_eliminated, req.params.id);
-    const player = db.prepare('SELECT * FROM players WHERE id = ?').get(req.params.id);
+    `, name, team, position, seed, region, season_ppg, is_eliminated, req.params.id);
+    const player = await db.get('SELECT * FROM players WHERE id = ?', req.params.id);
     res.json({ player });
   } catch (err) {
     console.error(err);
@@ -293,11 +293,11 @@ router.put('/players/:id', superadmin, (req, res) => {
 });
 
 // DELETE /api/superadmin/players/:id — remove a player
-router.delete('/players/:id', superadmin, (req, res) => {
+router.delete('/players/:id', superadmin, async (req, res) => {
   try {
-    db.prepare('DELETE FROM draft_picks WHERE player_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM player_stats WHERE player_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
+    await db.run('DELETE FROM draft_picks WHERE player_id = ?', req.params.id);
+    await db.run('DELETE FROM player_stats WHERE player_id = ?', req.params.id);
+    await db.run('DELETE FROM players WHERE id = ?', req.params.id);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -306,13 +306,13 @@ router.delete('/players/:id', superadmin, (req, res) => {
 });
 
 // PUT /api/superadmin/players/:id/injury — update injury status
-router.put('/players/:id/injury', superadmin, (req, res) => {
+router.put('/players/:id/injury', superadmin, async (req, res) => {
   try {
     const { status = '', headline = '' } = req.body;
     const flagged = status !== '' ? 1 : 0;
-    db.prepare(`
+    await db.run(`
       UPDATE players SET injury_flagged = ?, injury_status = ?, injury_headline = ? WHERE id = ?
-    `).run(flagged, status.toUpperCase(), headline, req.params.id);
+    `, flagged, status.toUpperCase(), headline, req.params.id);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -347,18 +347,18 @@ router.post('/pull-schedule', superadmin, async (req, res) => {
 // ── Financials ────────────────────────────────────────────────────────────────
 
 // GET /api/superadmin/financials — payment overview
-router.get('/financials', superadmin, (req, res) => {
+router.get('/financials', superadmin, async (req, res) => {
   try {
-    const totals = db.prepare(`
+    const totals = await db.get(`
       SELECT
         COUNT(*)                                                   AS total_payments,
         COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS total_revenue,
         COUNT(CASE WHEN status = 'paid' THEN 1 END)               AS paid_count,
         COUNT(CASE WHEN status = 'pending' THEN 1 END)            AS pending_count
       FROM member_payments
-    `).get();
+    `);
 
-    const byEntryFee = db.prepare(`
+    const byEntryFee = await db.all(`
       SELECT
         l.buy_in_amount                                               AS entry_fee,
         COUNT(DISTINCT l.id)                                          AS league_count,
@@ -368,9 +368,9 @@ router.get('/financials', superadmin, (req, res) => {
       LEFT JOIN member_payments mp ON mp.league_id = l.id
       GROUP BY l.buy_in_amount
       ORDER BY revenue DESC
-    `).all();
+    `);
 
-    const recentPayments = db.prepare(`
+    const recentPayments = await db.all(`
       SELECT mp.*, u.username, u.email, l.name AS league_name
       FROM member_payments mp
       JOIN users u ON mp.user_id = u.id
@@ -378,7 +378,7 @@ router.get('/financials', superadmin, (req, res) => {
       WHERE mp.status = 'paid'
       ORDER BY mp.paid_at DESC
       LIMIT 50
-    `).all();
+    `);
 
     res.json({ totals, byEntryFee, recentPayments });
   } catch (err) {
@@ -398,28 +398,28 @@ router.post('/setup-test-league', superadmin, async (req, res) => {
     const commissionerId = req.user.id;
 
     // ── 1. Wipe all existing leagues and related rows ──────────────────────
-    const allLeagueIds = db.prepare('SELECT id FROM leagues').all().map(r => r.id);
-    db.transaction(() => {
+    const allLeagueIds = (await db.all('SELECT id FROM leagues')).map(r => r.id);
+    await db.transaction(async (tx) => {
       for (const id of allLeagueIds) {
-        db.prepare('DELETE FROM wall_replies WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)').run(id);
-        db.prepare('DELETE FROM wall_reactions WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)').run(id);
-        db.prepare('DELETE FROM wall_posts WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM league_chat_messages WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM draft_picks WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM smart_draft_upgrades WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM member_payments WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM scoring_settings WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM league_members WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM payouts WHERE league_id = ?').run(id);
-        db.prepare('DELETE FROM leagues WHERE id = ?').run(id);
+        await tx.run('DELETE FROM wall_replies WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)', id);
+        await tx.run('DELETE FROM wall_reactions WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)', id);
+        await tx.run('DELETE FROM wall_posts WHERE league_id = ?', id);
+        await tx.run('DELETE FROM league_chat_messages WHERE league_id = ?', id);
+        await tx.run('DELETE FROM draft_picks WHERE league_id = ?', id);
+        await tx.run('DELETE FROM smart_draft_upgrades WHERE league_id = ?', id);
+        await tx.run('DELETE FROM member_payments WHERE league_id = ?', id);
+        await tx.run('DELETE FROM scoring_settings WHERE league_id = ?', id);
+        await tx.run('DELETE FROM league_members WHERE league_id = ?', id);
+        await tx.run('DELETE FROM payouts WHERE league_id = ?', id);
+        await tx.run('DELETE FROM leagues WHERE id = ?', id);
       }
-    })();
+    });
 
     // ── 2. Create the league ───────────────────────────────────────────────
     const leagueId   = uuidv4();
     const inviteCode = 'TESTDRAFT26';
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO leagues (id, name, commissioner_id, invite_code, status,
         max_teams, total_rounds, pick_time_limit, draft_status,
         current_pick, auto_start_on_full, draft_order_randomized,
@@ -428,10 +428,10 @@ router.post('/setup-test-league', superadmin, async (req, res) => {
         10, 10, 60, 'pending',
         1, 0, 0,
         5.00, 0, 'unpaid')
-    `).run(leagueId, commissionerId, inviteCode);
+    `, leagueId, commissionerId, inviteCode);
 
-    db.prepare('INSERT INTO scoring_settings (id, league_id, pts_per_point) VALUES (?, ?, 1.0)')
-      .run(uuidv4(), leagueId);
+    await db.run('INSERT INTO scoring_settings (id, league_id, pts_per_point) VALUES (?, ?, 1.0)',
+      uuidv4(), leagueId);
 
     // ── 3. Ensure 9 bot users exist ────────────────────────────────────────
     const passwordHash = await bcrypt.hash('testpass123', 6);
@@ -439,37 +439,37 @@ router.post('/setup-test-league', superadmin, async (req, res) => {
     for (let i = 1; i <= 9; i++) {
       const username = 'testuser' + String(i).padStart(2, '0');
       const email    = `${username}@test.local`;
-      let u = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      let u = await db.get('SELECT * FROM users WHERE username = ?', username);
       if (!u) {
         const uid = uuidv4();
-        db.prepare('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)')
-          .run(uid, email, username, passwordHash);
-        u = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+        await db.run('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)',
+          uid, email, username, passwordHash);
+        u = await db.get('SELECT * FROM users WHERE id = ?', uid);
       }
       botUsers.push(u);
     }
 
     // ── 4. Add commissioner + bots, all payments paid ──────────────────────
-    const commUser = db.prepare('SELECT username FROM users WHERE id = ?').get(commissionerId);
-    db.transaction(() => {
-      db.prepare(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`)
-        .run(uuidv4(), leagueId, commissionerId, `${commUser?.username || 'Commissioner'}'s Team`);
-      db.prepare(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)`)
-        .run(uuidv4(), leagueId, commissionerId);
+    const commUser = await db.get('SELECT username FROM users WHERE id = ?', commissionerId);
+    await db.transaction(async (tx) => {
+      await tx.run(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`,
+        uuidv4(), leagueId, commissionerId, `${commUser?.username || 'Commissioner'}'s Team`);
+      await tx.run(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)`,
+        uuidv4(), leagueId, commissionerId);
 
       for (const u of botUsers) {
-        db.prepare(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`)
-          .run(uuidv4(), leagueId, u.id, `Team ${u.username}`);
-        db.prepare(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)`)
-          .run(uuidv4(), leagueId, u.id);
+        await tx.run(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`,
+          uuidv4(), leagueId, u.id, `Team ${u.username}`);
+        await tx.run(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)`,
+          uuidv4(), leagueId, u.id);
       }
-    })();
+    });
 
-    const members = db.prepare(`
+    const members = await db.all(`
       SELECT lm.team_name, u.username
       FROM league_members lm JOIN users u ON lm.user_id = u.id
       WHERE lm.league_id = ? ORDER BY lm.joined_at
-    `).all(leagueId);
+    `, leagueId);
 
     console.log(`[superadmin] setup-test-league: created ${leagueId} with ${members.length} members`);
     res.json({
@@ -489,16 +489,16 @@ router.post('/setup-test-league', superadmin, async (req, res) => {
 // ── Sandbox / Dev Tools ───────────────────────────────────────────────────────
 
 // GET /api/superadmin/sandboxes — list all sandbox leagues
-router.get('/sandboxes', superadmin, (req, res) => {
+router.get('/sandboxes', superadmin, async (req, res) => {
   try {
-    const sandboxes = db.prepare(`
+    const sandboxes = await db.all(`
       SELECT l.*, COUNT(DISTINCT lm.id) AS member_count
       FROM leagues l
       LEFT JOIN league_members lm ON lm.league_id = l.id
       WHERE l.is_sandbox = 1
       GROUP BY l.id
       ORDER BY l.created_at DESC
-    `).all();
+    `);
     res.json({ sandboxes });
   } catch (err) {
     console.error(err);
@@ -510,7 +510,7 @@ router.get('/sandboxes', superadmin, (req, res) => {
 router.post('/create-sandbox', superadmin, async (req, res) => {
   try {
     // 1. Run migration to add is_sandbox column if it doesn't exist
-    try { db.prepare('ALTER TABLE leagues ADD COLUMN is_sandbox INTEGER DEFAULT 0').run(); } catch {}
+    try { await db.run('ALTER TABLE leagues ADD COLUMN is_sandbox INTEGER DEFAULT 0'); } catch {}
 
     const BOT_NAMES = [
       { username: 'bot_alpha',   teamName: 'Bot Alpha'   },
@@ -528,7 +528,7 @@ router.post('/create-sandbox', superadmin, async (req, res) => {
     const leagueName = 'Test Draft Sandbox ' + Date.now();
     const inviteCode = 'SANDBOX' + Date.now().toString().slice(-6);
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO leagues (id, name, commissioner_id, invite_code, status,
         is_sandbox, max_teams, total_rounds, pick_time_limit, draft_status,
         current_pick, auto_start_on_full, draft_order_randomized,
@@ -537,44 +537,44 @@ router.post('/create-sandbox', superadmin, async (req, res) => {
         1, 9, 12, 30, 'pending',
         1, 0, 0,
         0, 0, 'unpaid')
-    `).run(leagueId, leagueName, req.user.id, inviteCode);
+    `, leagueId, leagueName, req.user.id, inviteCode);
 
     // 3. Insert scoring_settings row
-    db.prepare('INSERT INTO scoring_settings (id, league_id, pts_per_point) VALUES (?, ?, 1.0)')
-      .run(uuidv4(), leagueId);
+    await db.run('INSERT INTO scoring_settings (id, league_id, pts_per_point) VALUES (?, ?, 1.0)',
+      uuidv4(), leagueId);
 
     // 4. Ensure 8 bot users exist (upsert by username)
     const botUsers = [];
     for (const bot of BOT_NAMES) {
-      let u = db.prepare('SELECT * FROM users WHERE username = ?').get(bot.username);
+      let u = await db.get('SELECT * FROM users WHERE username = ?', bot.username);
       if (!u) {
         const uid = uuidv4();
         const passwordHash = await bcrypt.hash('botpass', 4);
-        db.prepare('INSERT INTO users (id, email, username, password_hash, role) VALUES (?, ?, ?, ?, ?)')
-          .run(uid, `${bot.username}@sandbox.local`, bot.username, passwordHash, 'bot');
-        u = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+        await db.run('INSERT INTO users (id, email, username, password_hash, role) VALUES (?, ?, ?, ?, ?)',
+          uid, `${bot.username}@sandbox.local`, bot.username, passwordHash, 'bot');
+        u = await db.get('SELECT * FROM users WHERE id = ?', uid);
       }
       botUsers.push(u);
     }
 
     // 5. Add commissioner + all 8 bots as league members (in a transaction)
-    const commUser = db.prepare('SELECT username FROM users WHERE id = ?').get(req.user.id);
-    db.transaction(() => {
+    const commUser = await db.get('SELECT username FROM users WHERE id = ?', req.user.id);
+    await db.transaction(async (tx) => {
       // Commissioner
-      db.prepare(`INSERT INTO league_members (id, league_id, user_id, team_name, draft_order) VALUES (?, ?, ?, ?, NULL)`)
-        .run(uuidv4(), leagueId, req.user.id, `${commUser?.username || 'Commissioner'}'s Team`);
-      db.prepare(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 0, 'paid', CURRENT_TIMESTAMP)`)
-        .run(uuidv4(), leagueId, req.user.id);
+      await tx.run(`INSERT INTO league_members (id, league_id, user_id, team_name, draft_order) VALUES (?, ?, ?, ?, NULL)`,
+        uuidv4(), leagueId, req.user.id, `${commUser?.username || 'Commissioner'}'s Team`);
+      await tx.run(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 0, 'paid', CURRENT_TIMESTAMP)`,
+        uuidv4(), leagueId, req.user.id);
 
       // Bots
       for (let i = 0; i < botUsers.length; i++) {
         const u = botUsers[i];
-        db.prepare(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`)
-          .run(uuidv4(), leagueId, u.id, BOT_NAMES[i].teamName);
-        db.prepare(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 0, 'paid', CURRENT_TIMESTAMP)`)
-          .run(uuidv4(), leagueId, u.id);
+        await tx.run(`INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)`,
+          uuidv4(), leagueId, u.id, BOT_NAMES[i].teamName);
+        await tx.run(`INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at) VALUES (?, ?, ?, 0, 'paid', CURRENT_TIMESTAMP)`,
+          uuidv4(), leagueId, u.id);
       }
-    })();
+    });
 
     // 6. Start the draft
     const io = req.app.get('io');
@@ -592,25 +592,25 @@ router.post('/create-sandbox', superadmin, async (req, res) => {
 });
 
 // DELETE /api/superadmin/sandbox/:id — delete a sandbox league and all its data
-router.delete('/sandbox/:id', superadmin, (req, res) => {
+router.delete('/sandbox/:id', superadmin, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.id);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', req.params.id);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.is_sandbox !== 1) return res.status(403).json({ error: 'Not a sandbox league' });
 
-    db.transaction(() => {
-      db.prepare('DELETE FROM wall_replies WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)').run(req.params.id);
-      db.prepare('DELETE FROM wall_reactions WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)').run(req.params.id);
-      db.prepare('DELETE FROM wall_posts WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM league_chat_messages WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM draft_picks WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM smart_draft_upgrades WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM member_payments WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM scoring_settings WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM league_members WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM payouts WHERE league_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM leagues WHERE id = ?').run(req.params.id);
-    })();
+    await db.transaction(async (tx) => {
+      await tx.run('DELETE FROM wall_replies WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)', req.params.id);
+      await tx.run('DELETE FROM wall_reactions WHERE post_id IN (SELECT id FROM wall_posts WHERE league_id = ?)', req.params.id);
+      await tx.run('DELETE FROM wall_posts WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM league_chat_messages WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM draft_picks WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM smart_draft_upgrades WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM member_payments WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM scoring_settings WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM league_members WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM payouts WHERE league_id = ?', req.params.id);
+      await tx.run('DELETE FROM leagues WHERE id = ?', req.params.id);
+    });
 
     res.json({ success: true });
   } catch (err) {
@@ -647,7 +647,7 @@ router.post('/reingest-stats', superadmin, async (req, res) => {
 
     if (espn_event_id) {
       // Single-game synchronous reingest with full per-player response
-      const game = db.prepare('SELECT * FROM games WHERE espn_event_id = ?').get(String(espn_event_id));
+      const game = await db.get('SELECT * FROM games WHERE espn_event_id = ?', String(espn_event_id));
       if (!game) return res.status(404).json({ error: `No game found with espn_event_id ${espn_event_id}` });
 
       const SUMMARY_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=';
@@ -676,16 +676,16 @@ router.post('/reingest-stats', superadmin, async (req, res) => {
           if (!displayName) continue;
 
           let dbPlayer = espnAthleteId
-            ? db.prepare("SELECT id, name, team, espn_athlete_id, espn_team_id FROM players WHERE espn_athlete_id = ? LIMIT 1").get(espnAthleteId)
+            ? await db.get("SELECT id, name, team, espn_athlete_id, espn_team_id FROM players WHERE espn_athlete_id = ? LIMIT 1", espnAthleteId)
             : null;
           let matchMethod = dbPlayer ? 'athlete_id' : null;
 
           if (!dbPlayer) {
             const norm = displayName.toLowerCase().trim();
-            dbPlayer = db.prepare('SELECT id, name, team, espn_athlete_id, espn_team_id FROM players WHERE LOWER(name) = ?').get(norm);
+            dbPlayer = await db.get('SELECT id, name, team, espn_athlete_id, espn_team_id FROM players WHERE LOWER(name) = ?', norm);
             if (!dbPlayer) {
               const last = norm.split(' ').pop();
-              const rows = db.prepare("SELECT id, name, team, espn_athlete_id, espn_team_id FROM players WHERE LOWER(name) LIKE ?").all(`%${last}`);
+              const rows = await db.all("SELECT id, name, team, espn_athlete_id, espn_team_id FROM players WHERE LOWER(name) LIKE ?", `%${last}`);
               if (rows.length === 1) dbPlayer = rows[0];
             }
             if (dbPlayer) {
@@ -705,12 +705,12 @@ router.post('/reingest-stats', superadmin, async (req, res) => {
           }
 
           // Insert/update stat row
-          const statsBefore = db.prepare('SELECT points FROM player_stats WHERE game_id = ? AND player_id = ?').get(game.id, dbPlayer.id);
-          db.prepare(`
+          const statsBefore = await db.get('SELECT points FROM player_stats WHERE game_id = ? AND player_id = ?', game.id, dbPlayer.id);
+          await db.run(`
             INSERT INTO player_stats (id, game_id, player_id, points, round, opponent, played_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(game_id, player_id) DO UPDATE SET points = excluded.points
-          `).run(uuidv4(), game.id, dbPlayer.id, pts, '', '', new Date().toISOString());
+          `, uuidv4(), game.id, dbPlayer.id, pts, '', '', new Date().toISOString());
 
           players.push({ espn_name: displayName, espn_athlete_id: espnAthleteId, pts, espn_team: groupTeamName, match: matchMethod, db_player: dbPlayer.name, db_team: dbPlayer.team, pts_before: statsBefore?.points ?? null });
         }
@@ -733,23 +733,23 @@ router.post('/reingest-stats', superadmin, async (req, res) => {
 // Returns every drafted player for the matching team_name with:
 //   espn_athlete_id, total_points, game_log, is_eliminated
 // Makes it easy to spot which players have no stats and why.
-router.get('/roster-diag', superadmin, (req, res) => {
+router.get('/roster-diag', superadmin, async (req, res) => {
   try {
     const teamName = (req.query.team || '').trim();
     if (!teamName) return res.status(400).json({ error: 'team query param required' });
 
     // Find the league member
-    const member = db.prepare(`
+    const member = await db.get(`
       SELECT lm.league_id, lm.user_id, lm.team_name, u.username
       FROM league_members lm
       JOIN users u ON u.id = lm.user_id
       WHERE LOWER(lm.team_name) LIKE LOWER(?)
       LIMIT 1
-    `).get(`%${teamName}%`);
+    `, `%${teamName}%`);
 
     if (!member) return res.status(404).json({ error: `No team matching "${teamName}"` });
 
-    const picks = db.prepare(`
+    const picks = await db.all(`
       SELECT dp.player_id, dp.pick_number,
              p.name, p.team, p.espn_team_id, p.espn_athlete_id,
              p.season_ppg, p.seed, p.is_eliminated
@@ -757,21 +757,22 @@ router.get('/roster-diag', superadmin, (req, res) => {
       JOIN players p ON p.id = dp.player_id
       WHERE dp.league_id = ? AND dp.user_id = ?
       ORDER BY dp.pick_number
-    `).all(member.league_id, member.user_id);
+    `, member.league_id, member.user_id);
 
-    const result = picks.map(p => {
-      const statRows = db.prepare(`
+    const result = [];
+    for (const p of picks) {
+      const statRows = await db.all(`
         SELECT ps.points, ps.round, ps.opponent, g.game_date, g.team1, g.team2,
                g.is_completed, g.is_live, g.espn_event_id
         FROM player_stats ps
         JOIN games g ON g.id = ps.game_id
         WHERE ps.player_id = ?
         ORDER BY g.game_date
-      `).all(p.player_id);
+      `, p.player_id);
 
       const totalPts = statRows.reduce((s, r) => s + r.points, 0);
 
-      return {
+      result.push({
         pick:            p.pick_number,
         name:            p.name,
         team:            p.team,
@@ -783,8 +784,8 @@ router.get('/roster-diag', superadmin, (req, res) => {
         total_pts:       totalPts,
         games_with_stats: statRows.length,
         game_log:        statRows,
-      };
-    });
+      });
+    }
 
     res.json({ member, picks: result });
   } catch (err) {
@@ -795,28 +796,28 @@ router.get('/roster-diag', superadmin, (req, res) => {
 // ── Golf pool member recovery ─────────────────────────────────────────────────
 // POST /api/superadmin/recover-golf-members/:leagueId
 // Diagnoses missing golf_league_members and restores them from pool_picks.
-router.post('/recover-golf-members/:leagueId', superadmin, (req, res) => {
+router.post('/recover-golf-members/:leagueId', superadmin, async (req, res) => {
   try {
     const leagueId = req.params.leagueId;
 
-    const league = db.prepare('SELECT * FROM golf_leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'Golf league not found' });
 
     // Who currently has picks?
-    const pickUsers = db.prepare(`
+    const pickUsers = await db.all(`
       SELECT DISTINCT pp.user_id, u.username, u.email, u.role
       FROM pool_picks pp
       JOIN users u ON u.id = pp.user_id
       WHERE pp.league_id = ?
-    `).all(leagueId);
+    `, leagueId);
 
     // Who is currently a member?
-    const currentMembers = db.prepare(`
+    const currentMembers = await db.all(`
       SELECT glm.user_id, u.username, u.email, glm.team_name, glm.joined_at
       FROM golf_league_members glm
       JOIN users u ON u.id = glm.user_id
       WHERE glm.golf_league_id = ?
-    `).all(leagueId);
+    `, leagueId);
     const currentMemberIds = new Set(currentMembers.map(m => m.user_id));
 
     // Gap = pick users not in current members
@@ -824,11 +825,11 @@ router.post('/recover-golf-members/:leagueId', superadmin, (req, res) => {
 
     // Also search for banned users by name hints
     const nameHints = ['max', 'cady', 'drew', 'bartlett', 'jon', 'wohlfert'];
-    const bannedByName = db.prepare(`
+    const bannedByName = (await db.all(`
       SELECT id AS user_id, username, email, role
       FROM users
       WHERE (${nameHints.map(() => "lower(username) LIKE ?").join(' OR ')})
-    `).all(...nameHints.map(n => `%${n}%`))
+    `, ...nameHints.map(n => `%${n}%`)))
       .filter(u => !currentMemberIds.has(u.user_id));
 
     // Merge, dedupe
@@ -836,33 +837,32 @@ router.post('/recover-golf-members/:leagueId', superadmin, (req, res) => {
     for (const u of [...missing, ...bannedByName]) toRestoreMap.set(u.user_id, u);
 
     const restored = [];
-    const doRestore = db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const [userId, u] of toRestoreMap) {
         if (u.role === 'banned') {
-          db.prepare("UPDATE users SET role = 'user' WHERE id = ?").run(userId);
+          await tx.run("UPDATE users SET role = 'user' WHERE id = ?", userId);
         }
-        const already = db.prepare(
-          'SELECT id FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?'
-        ).get(leagueId, userId);
+        const already = await tx.get(
+          'SELECT id FROM golf_league_members WHERE golf_league_id = ? AND user_id = ?',
+          leagueId, userId);
         if (!already) {
           const { v4: uuidv4 } = require('uuid');
-          db.prepare(`
+          await tx.run(`
             INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, joined_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-          `).run(uuidv4(), leagueId, userId, u.username);
+          `, uuidv4(), leagueId, userId, u.username);
         }
         restored.push({ user_id: userId, username: u.username, email: u.email, was_banned: u.role === 'banned', source: missing.find(m => m.user_id === userId) ? 'picks_orphan' : 'name_match' });
       }
     });
-    doRestore();
 
-    const allMembersAfter = db.prepare(`
+    const allMembersAfter = await db.all(`
       SELECT glm.user_id, glm.team_name, glm.joined_at, u.username, u.email
       FROM golf_league_members glm
       JOIN users u ON u.id = glm.user_id
       WHERE glm.golf_league_id = ?
       ORDER BY glm.joined_at
-    `).all(leagueId);
+    `, leagueId);
 
     console.log(`[recovery] league ${leagueId}: restored ${restored.length}, total members now ${allMembersAfter.length}`);
     res.json({

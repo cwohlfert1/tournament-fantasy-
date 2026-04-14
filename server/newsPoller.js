@@ -1,7 +1,7 @@
 const https = require('https');
 const http = require('http');
 const { v4: uuidv4 } = require('uuid');
-const db = require('./db');
+const db = require('./db/index');
 
 const FEEDS = [
   // ── Basketball: Injuries ───────────────────────────────────────────────────
@@ -86,16 +86,6 @@ function parseItems(xml) {
   return items;
 }
 
-const upsert = db.prepare(`
-  INSERT INTO news_articles (id, title, url, source, published_at, feed_tag)
-  VALUES (?, ?, ?, ?, ?, ?)
-  ON CONFLICT(url) DO UPDATE SET
-    title = excluded.title,
-    source = excluded.source,
-    published_at = excluded.published_at,
-    fetched_at = CURRENT_TIMESTAMP
-`);
-
 async function pollNews() {
   try {
     console.log('[News] Polling strategy news feeds...');
@@ -106,7 +96,15 @@ async function pollNews() {
         const xml = await fetchRaw(feed.url);
         const items = parseItems(xml);
         for (const item of items) {
-          upsert.run(uuidv4(), item.title, item.url, item.source, item.pubDate, feed.tag);
+          await db.run(`
+            INSERT INTO news_articles (id, title, url, source, published_at, feed_tag)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(url) DO UPDATE SET
+              title = excluded.title,
+              source = excluded.source,
+              published_at = excluded.published_at,
+              fetched_at = CURRENT_TIMESTAMP
+          `, uuidv4(), item.title, item.url, item.source, item.pubDate, feed.tag);
           total++;
         }
       } catch (err) {
@@ -116,24 +114,25 @@ async function pollNews() {
 
     // Prune injury articles older than 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const injuryArticles = db.prepare("SELECT id, published_at FROM news_articles WHERE feed_tag = 'injuries'").all();
+    const injuryArticles = await db.all("SELECT id, published_at FROM news_articles WHERE feed_tag = 'injuries'");
     const staleInjuryIds = injuryArticles
       .filter(a => { const d = new Date(a.published_at); return !isNaN(d) && d < thirtyDaysAgo; })
       .map(a => a.id);
     if (staleInjuryIds.length > 0) {
       const ph = staleInjuryIds.map(() => '?').join(',');
-      db.prepare(`DELETE FROM news_articles WHERE id IN (${ph})`).run(...staleInjuryIds);
+      await db.run(`DELETE FROM news_articles WHERE id IN (${ph})`, ...staleInjuryIds);
       console.log(`[News] Pruned ${staleInjuryIds.length} stale injury article(s) older than 30 days.`);
     }
 
     // Prune oldest articles beyond MAX_ARTICLES
-    const count = db.prepare('SELECT COUNT(*) as n FROM news_articles').get().n;
+    const countRow = await db.get('SELECT COUNT(*) as n FROM news_articles');
+    const count = countRow.n;
     if (count > MAX_ARTICLES) {
-      db.prepare(`
+      await db.run(`
         DELETE FROM news_articles WHERE id IN (
           SELECT id FROM news_articles ORDER BY fetched_at ASC LIMIT ?
         )
-      `).run(count - MAX_ARTICLES);
+      `, count - MAX_ARTICLES);
     }
 
     console.log(`[News] Done — ${total} article(s) processed, ${Math.min(count, MAX_ARTICLES)} total cached.`);

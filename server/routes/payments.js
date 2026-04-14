@@ -2,7 +2,7 @@
 
 const express  = require('express');
 const crypto   = require('crypto');
-const db       = require('../db');
+const db       = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
@@ -109,12 +109,13 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
     const { leagueId, includeSmartDraft, promoCode } = req.body;
     if (!leagueId) return res.status(400).json({ error: 'leagueId is required' });
 
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    const payment = db.prepare(
-      'SELECT * FROM member_payments WHERE league_id = ? AND user_id = ?'
-    ).get(leagueId, req.user.id);
+    const payment = await db.get(
+      'SELECT * FROM member_payments WHERE league_id = ? AND user_id = ?',
+      leagueId, req.user.id
+    );
 
     if (!payment) {
       return res.status(404).json({ error: 'No pending payment found. Join the league first.' });
@@ -140,11 +141,11 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
 
     // ── Entry fee fully waived by promo ──────────────────────────────────────
     if (entryFeeAmount === 0) {
-      db.prepare(`
+      await db.run(`
         UPDATE member_payments
         SET status = 'paid', paid_at = CURRENT_TIMESTAMP, amount = 0, stripe_session_id = 'promo_waived'
         WHERE league_id = ? AND user_id = ?
-      `).run(leagueId, req.user.id);
+      `, leagueId, req.user.id);
       console.log(`[checkout] entry fee waived for user=${req.user.id} league=${leagueId}`);
 
       if (!includeSmartDraft) {
@@ -160,11 +161,11 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
         redirectUrl: `${clientUrl}/league/${leagueId}?payment=success`,
       });
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO smart_draft_upgrades (id, user_id, league_id, stripe_session_id, status)
         VALUES (?, ?, ?, ?, 'pending')
         ON CONFLICT(user_id, league_id) DO UPDATE SET stripe_session_id = excluded.stripe_session_id, status = 'pending'
-      `).run(uuidv4(), req.user.id, leagueId, squareOrderId);
+      `, uuidv4(), req.user.id, leagueId, squareOrderId);
 
       return res.json({ url });
     }
@@ -197,16 +198,17 @@ router.post('/entry-checkout', authMiddleware, async (req, res) => {
     console.log(`[checkout] Square link created — smart_draft=${!!includeSmartDraft}`);
 
     const totalAmount = entryFeeAmount + (includeSmartDraft ? SMART_DRAFT_FEE : 0);
-    db.prepare(
-      'UPDATE member_payments SET stripe_session_id = ?, amount = ? WHERE league_id = ? AND user_id = ?'
-    ).run(squareOrderId, totalAmount, leagueId, req.user.id);
+    await db.run(
+      'UPDATE member_payments SET stripe_session_id = ?, amount = ? WHERE league_id = ? AND user_id = ?',
+      squareOrderId, totalAmount, leagueId, req.user.id
+    );
 
     if (includeSmartDraft) {
-      db.prepare(`
+      await db.run(`
         INSERT INTO smart_draft_upgrades (id, user_id, league_id, stripe_session_id, status)
         VALUES (?, ?, ?, ?, 'pending')
         ON CONFLICT(user_id, league_id) DO UPDATE SET stripe_session_id = excluded.stripe_session_id, status = 'pending'
-      `).run(uuidv4(), req.user.id, leagueId, squareOrderId);
+      `, uuidv4(), req.user.id, leagueId, squareOrderId);
     }
 
     res.json({ url });
@@ -224,12 +226,13 @@ router.post('/smart-draft-checkout', authMiddleware, async (req, res) => {
     const { leagueId } = req.body;
     if (!leagueId) return res.status(400).json({ error: 'leagueId is required' });
 
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    const existing = db.prepare(
-      "SELECT * FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'"
-    ).get(req.user.id, leagueId);
+    const existing = await db.get(
+      "SELECT * FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'",
+      req.user.id, leagueId
+    );
     if (existing) return res.status(409).json({ error: 'Smart Draft already active for this league' });
 
     const { v4: uuidv4 } = require('uuid');
@@ -243,11 +246,11 @@ router.post('/smart-draft-checkout', authMiddleware, async (req, res) => {
       redirectUrl: `${clientUrl}/league/${leagueId}?smartdraft=success`,
     });
 
-    db.prepare(`
+    await db.run(`
       INSERT INTO smart_draft_upgrades (id, user_id, league_id, stripe_session_id, status)
       VALUES (?, ?, ?, ?, 'pending')
       ON CONFLICT(user_id, league_id) DO UPDATE SET stripe_session_id = excluded.stripe_session_id, status = 'pending'
-    `).run(uuidv4(), req.user.id, leagueId, squareOrderId);
+    `, uuidv4(), req.user.id, leagueId, squareOrderId);
 
     res.json({ url });
   } catch (err) {
@@ -259,16 +262,19 @@ router.post('/smart-draft-checkout', authMiddleware, async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/payments/smart-draft/:leagueId/status
 // ---------------------------------------------------------------------------
-router.get('/smart-draft/:leagueId/status', authMiddleware, (req, res) => {
+router.get('/smart-draft/:leagueId/status', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const myRecord = db.prepare(
-      "SELECT status, enabled FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ?"
-    ).get(req.user.id, leagueId);
+    const myRecord = await db.get(
+      "SELECT status, enabled FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ?",
+      req.user.id, leagueId
+    );
 
-    const activeUsers = db.prepare(
-      "SELECT user_id FROM smart_draft_upgrades WHERE league_id = ? AND status = 'active' AND enabled != 0"
-    ).all(leagueId).map(r => r.user_id);
+    const activeRows = await db.all(
+      "SELECT user_id FROM smart_draft_upgrades WHERE league_id = ? AND status = 'active' AND enabled != 0",
+      leagueId
+    );
+    const activeUsers = activeRows.map(r => r.user_id);
 
     const purchased = myRecord?.status === 'active';
     const enabled   = purchased && myRecord?.enabled !== 0;
@@ -283,15 +289,16 @@ router.get('/smart-draft/:leagueId/status', authMiddleware, (req, res) => {
 // ---------------------------------------------------------------------------
 // PATCH /api/payments/smart-draft/:leagueId/toggle
 // ---------------------------------------------------------------------------
-router.patch('/smart-draft/:leagueId/toggle', authMiddleware, (req, res) => {
+router.patch('/smart-draft/:leagueId/toggle', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const record = db.prepare(
-      "SELECT id, enabled FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'"
-    ).get(req.user.id, leagueId);
+    const record = await db.get(
+      "SELECT id, enabled FROM smart_draft_upgrades WHERE user_id = ? AND league_id = ? AND status = 'active'",
+      req.user.id, leagueId
+    );
     if (!record) return res.status(404).json({ error: 'Smart Draft not purchased' });
     const newEnabled = record.enabled === 0 ? 1 : 0;
-    db.prepare("UPDATE smart_draft_upgrades SET enabled = ? WHERE id = ?").run(newEnabled, record.id);
+    await db.run("UPDATE smart_draft_upgrades SET enabled = ? WHERE id = ?", newEnabled, record.id);
     res.json({ enabled: newEnabled === 1 });
   } catch (err) {
     console.error('smart-draft toggle error:', err);
@@ -321,16 +328,16 @@ router.post('/smart-draft-standalone', async (req, res) => {
     });
 
     // Pre-create pending credit row keyed by our orderId
-    db.prepare(`
+    await db.run(`
       INSERT OR IGNORE INTO smart_draft_credits (id, stripe_session_id, status)
       VALUES (?, ?, 'pending')
-    `).run(uuidv4(), squareOrderId);
+    `, uuidv4(), squareOrderId);
 
     // Also index by our referenceId in case webhook arrives before claim
-    db.prepare(`
+    await db.run(`
       INSERT OR IGNORE INTO smart_draft_credits (id, stripe_session_id, status)
       VALUES (?, ?, 'pending')
-    `).run(uuidv4(), orderId);
+    `, uuidv4(), orderId);
 
     res.json({ url });
   } catch (err) {
@@ -351,9 +358,10 @@ router.post('/claim-credit', authMiddleware, async (req, res) => {
     if (!session_id) return res.status(400).json({ error: 'session_id is required' });
 
     // Look up by our referenceId first, then by Square orderId
-    let credit = db.prepare(
-      "SELECT * FROM smart_draft_credits WHERE stripe_session_id = ?"
-    ).get(session_id);
+    let credit = await db.get(
+      "SELECT * FROM smart_draft_credits WHERE stripe_session_id = ?",
+      session_id
+    );
 
     if (!credit) {
       return res.status(404).json({ error: 'Credit not found. Payment may still be processing.' });
@@ -363,14 +371,14 @@ router.post('/claim-credit', authMiddleware, async (req, res) => {
     }
 
     const { v4: uuidv4 } = require('uuid');
-    db.prepare(`
+    await db.run(`
       INSERT INTO smart_draft_credits (id, stripe_session_id, user_id, status, purchased_at)
       VALUES (?, ?, ?, 'paid', CURRENT_TIMESTAMP)
       ON CONFLICT(stripe_session_id) DO UPDATE
         SET user_id      = COALESCE(user_id, excluded.user_id),
             status       = 'paid',
             purchased_at = COALESCE(purchased_at, CURRENT_TIMESTAMP)
-    `).run(uuidv4(), session_id, req.user.id);
+    `, uuidv4(), session_id, req.user.id);
 
     console.log(`[smart-draft-credit] claimed by user=${req.user.id} session=${session_id}`);
     res.json({ success: true });
@@ -383,12 +391,12 @@ router.post('/claim-credit', authMiddleware, async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/payments/smart-draft-credits
 // ---------------------------------------------------------------------------
-router.get('/smart-draft-credits', authMiddleware, (req, res) => {
+router.get('/smart-draft-credits', authMiddleware, async (req, res) => {
   try {
-    const credits = db.prepare(`
+    const credits = await db.get(`
       SELECT COUNT(*) as count FROM smart_draft_credits
       WHERE user_id = ? AND status = 'paid'
-    `).get(req.user.id);
+    `, req.user.id);
     res.json({ credits: credits.count });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -456,25 +464,25 @@ router.post('/webhook', async (req, res) => {
       if (metadata.type === 'smart_draft_credit') {
         const { v4: uuidv4 } = require('uuid');
         // Mark paid by Square orderId and referenceId
-        const markPaid = db.prepare(`
+        const markPaidSQL = `
           INSERT INTO smart_draft_credits (id, stripe_session_id, status, purchased_at)
           VALUES (?, ?, 'paid', CURRENT_TIMESTAMP)
           ON CONFLICT(stripe_session_id) DO UPDATE
             SET status = 'paid', purchased_at = COALESCE(purchased_at, CURRENT_TIMESTAMP)
-        `);
-        markPaid.run(uuidv4(), payment.order_id);
+        `;
+        await db.run(markPaidSQL, uuidv4(), payment.order_id);
         if (order.referenceId && order.referenceId !== payment.order_id) {
-          markPaid.run(uuidv4(), order.referenceId);
+          await db.run(markPaidSQL, uuidv4(), order.referenceId);
         }
         console.log(`[square-webhook] Smart Draft credit paid: order=${payment.order_id}`);
 
       // ── Smart Draft purchase ─────────────────────────────────────────────
       } else if (metadata.type === 'smart_draft') {
-        db.prepare(`
+        await db.run(`
           UPDATE smart_draft_upgrades
           SET status = 'active', purchased_at = CURRENT_TIMESTAMP
           WHERE stripe_session_id = ?
-        `).run(payment.order_id);
+        `, payment.order_id);
         console.log(`[square-webhook] Smart Draft activated: league=${metadata.league_id} user=${metadata.user_id}`);
 
       // ── Golf payment (season pass / pool entry / comm pro) ───────────────
@@ -487,41 +495,44 @@ router.post('/webhook', async (req, res) => {
 
       // ── League entry fee ─────────────────────────────────────────────────
       } else if (metadata.type === 'entry_fee') {
-        const memberPayment = db.prepare(
-          'SELECT * FROM member_payments WHERE stripe_session_id = ?'
-        ).get(payment.order_id);
+        const memberPayment = await db.get(
+          'SELECT * FROM member_payments WHERE stripe_session_id = ?',
+          payment.order_id
+        );
 
         if (memberPayment) {
-          db.prepare(`
+          await db.run(`
             UPDATE member_payments
             SET status = 'paid', paid_at = CURRENT_TIMESTAMP, stripe_payment_intent_id = ?
             WHERE stripe_session_id = ?
-          `).run(payment.id, payment.order_id);
+          `, payment.id, payment.order_id);
 
           console.log(`[square-webhook] League access paid: league=${memberPayment.league_id} user=${memberPayment.user_id}`);
 
           if (metadata.includes_smart_draft === '1') {
-            db.prepare(`
+            await db.run(`
               UPDATE smart_draft_upgrades
               SET status = 'active', purchased_at = CURRENT_TIMESTAMP
               WHERE stripe_session_id = ?
-            `).run(payment.order_id);
+            `, payment.order_id);
             console.log(`[square-webhook] Smart Draft activated (bundled): league=${memberPayment.league_id}`);
           }
 
           // Auto-start draft if applicable
           try {
             const { performStartDraft } = require('../draftUtils');
-            const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(memberPayment.league_id);
+            const league = await db.get('SELECT * FROM leagues WHERE id = ?', memberPayment.league_id);
             if (league && league.status === 'lobby' && league.auto_start_on_full) {
-              const memberCount = db.prepare(
-                'SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?'
-              ).get(memberPayment.league_id);
-              const paidCount = db.prepare(
-                "SELECT COUNT(*) as cnt FROM member_payments WHERE league_id = ? AND status = 'paid'"
-              ).get(memberPayment.league_id);
+              const memberCount = await db.get(
+                'SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?',
+                memberPayment.league_id
+              );
+              const paidCount = await db.get(
+                "SELECT COUNT(*) as cnt FROM member_payments WHERE league_id = ? AND status = 'paid'",
+                memberPayment.league_id
+              );
               if (memberCount.cnt >= 2 && paidCount.cnt >= memberCount.cnt) {
-                const result = performStartDraft(memberPayment.league_id, null);
+                const result = await performStartDraft(memberPayment.league_id, null);
                 if (result.success) {
                   console.log(`[square-webhook] Auto-started draft for league ${memberPayment.league_id}`);
                 }
@@ -545,20 +556,20 @@ router.post('/webhook', async (req, res) => {
 // ---------------------------------------------------------------------------
 // GET /api/payments/league/:leagueId/status
 // ---------------------------------------------------------------------------
-router.get('/league/:leagueId/status', authMiddleware, (req, res) => {
+router.get('/league/:leagueId/status', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
 
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
     if (!league) return res.status(404).json({ error: 'League not found' });
 
-    const payments = db.prepare(`
+    const payments = await db.all(`
       SELECT mp.user_id, u.username, mp.status, mp.amount, mp.paid_at
       FROM member_payments mp
       JOIN users u ON mp.user_id = u.id
       WHERE mp.league_id = ?
       ORDER BY mp.paid_at DESC, u.username ASC
-    `).all(leagueId);
+    `, leagueId);
 
     const paidCount = payments.filter(p => p.status === 'paid').length;
 

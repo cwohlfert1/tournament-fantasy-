@@ -16,7 +16,7 @@
 
 const https = require('https');
 const { v4: uuidv4 } = require('uuid');
-const db = require('./db');
+const db = require('./db/index');
 
 // ── Tournament dates (First Four + First Round) ───────────────────────────────
 const BRACKET_DATES = ['20260318', '20260319', '20260320', '20260321'];
@@ -146,36 +146,30 @@ async function fetchPPG(athleteId) {
 // If they are new: INSERT with a fresh UUID.
 // This means draft_picks.player_id foreign keys are never broken across refreshes.
 
-const findByAthleteId = db.prepare(
-  'SELECT id FROM players WHERE espn_athlete_id = ? LIMIT 1'
-);
-const insertPlayer = db.prepare(`
-  INSERT INTO players
-    (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id, espn_athlete_id, is_first_four)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-const updatePlayer = db.prepare(`
-  UPDATE players
-  SET name=?, team=?, position=?, jersey_number=?, seed=?, region=?,
-      season_ppg=?, espn_team_id=?, is_first_four=?
-  WHERE espn_athlete_id=?
-`);
-
-function upsertPlayers(players) {
+async function upsertPlayers(players) {
   let upserted = 0;
-  db.transaction(() => {
+  await db.transaction((tx) => {
     for (const p of players) {
       const athleteId = p.athleteId || '';
-      const existing  = athleteId ? findByAthleteId.get(athleteId) : null;
+      const existing  = athleteId ? tx.get('SELECT id FROM players WHERE espn_athlete_id = ? LIMIT 1', athleteId) : null;
       if (existing) {
-        updatePlayer.run(
+        tx.run(`
+          UPDATE players
+          SET name=?, team=?, position=?, jersey_number=?, seed=?, region=?,
+              season_ppg=?, espn_team_id=?, is_first_four=?
+          WHERE espn_athlete_id=?
+        `,
           p.name, p.team, p.position, p.jersey,
           p.seed, p.region, p.ppg, p.teamId,
           p.isFirstFour ? 1 : 0,
           athleteId
         );
       } else {
-        insertPlayer.run(
+        tx.run(`
+          INSERT INTO players
+            (id, name, team, position, jersey_number, seed, region, season_ppg, espn_team_id, espn_athlete_id, is_first_four)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
           uuidv4(), p.name, p.team, p.position, p.jersey,
           p.seed, p.region, p.ppg, p.teamId,
           athleteId, p.isFirstFour ? 1 : 0
@@ -183,7 +177,7 @@ function upsertPlayers(players) {
       }
       upserted++;
     }
-  })();
+  });
   return upserted;
 }
 
@@ -215,7 +209,8 @@ async function pullBracket() {
   // 2. NOTE: we do NOT clear any tables here.
   //    Players are upserted by espn_athlete_id (see upsertPlayers).
   //    draft_picks is NEVER touched — it contains user data.
-  const picksBefore = db.prepare('SELECT COUNT(*) as cnt FROM draft_picks').get().cnt;
+  const picksBeforeRow = await db.get('SELECT COUNT(*) as cnt FROM draft_picks');
+  const picksBefore = picksBeforeRow.cnt;
   console.log(`[bracket] Players reference table refresh starting (draft_picks preserved: ${picksBefore} picks)`);
 
   let totalUpserted = 0, teamsProcessed = 0;
@@ -251,7 +246,7 @@ async function pullBracket() {
     }
 
     top8.forEach(p => p.athleteId && seenAthleteIds.add(p.athleteId));
-    const upserted = upsertPlayers(top8);
+    const upserted = await upsertPlayers(top8);
     totalUpserted += upserted;
     teamsProcessed++;
 
@@ -263,19 +258,22 @@ async function pullBracket() {
   //    Players with picks are kept even if ESPN no longer lists them.
   if (seenAthleteIds.size > 0) {
     const placeholders = [...seenAthleteIds].map(() => '?').join(',');
-    const removed = db.prepare(`
+    const removed = await db.run(`
       DELETE FROM players
       WHERE espn_athlete_id NOT IN (${placeholders})
         AND id NOT IN (SELECT DISTINCT player_id FROM draft_picks)
-    `).run(...seenAthleteIds);
+    `, ...seenAthleteIds);
     if (removed.changes > 0) {
       console.log(`[bracket] Removed ${removed.changes} stale player(s) not in current bracket (none had draft picks)`);
     }
   }
 
-  const picksAfter  = db.prepare('SELECT COUNT(*) as cnt FROM draft_picks').get().cnt;
-  const finalCount  = db.prepare('SELECT COUNT(*) as c FROM players').get().c;
-  const finalTeams  = db.prepare('SELECT COUNT(DISTINCT team) as c FROM players').get().c;
+  const picksAfterRow  = await db.get('SELECT COUNT(*) as cnt FROM draft_picks');
+  const picksAfter = picksAfterRow.cnt;
+  const finalCountRow  = await db.get('SELECT COUNT(*) as c FROM players');
+  const finalCount = finalCountRow.c;
+  const finalTeamsRow  = await db.get('SELECT COUNT(DISTINCT team) as c FROM players');
+  const finalTeams = finalTeamsRow.c;
   const elapsed     = ((Date.now() - startTime) / 1000).toFixed(1);
 
   // Guard: draft_picks must never change during a bracket pull

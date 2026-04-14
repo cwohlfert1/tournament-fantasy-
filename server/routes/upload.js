@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
@@ -35,7 +35,7 @@ const upload = multer({
 // POST /api/upload/avatar
 // Body: multipart/form-data with fields: avatar (file), leagueId (text)
 router.post('/avatar', authMiddleware, (req, res) => {
-  upload.single('avatar')(req, res, (err) => {
+  upload.single('avatar')(req, res, async (err) => {
     if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'File too large. Maximum size is 2MB.' });
     }
@@ -48,9 +48,10 @@ router.post('/avatar', authMiddleware, (req, res) => {
       if (!leagueId) return res.status(400).json({ error: 'leagueId is required' });
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-      const member = db.prepare(
-        'SELECT * FROM league_members WHERE league_id = ? AND user_id = ?'
-      ).get(leagueId, req.user.id);
+      const member = await db.get(
+        'SELECT * FROM league_members WHERE league_id = ? AND user_id = ?',
+        leagueId, req.user.id
+      );
 
       if (!member) {
         fs.unlinkSync(req.file.path);
@@ -66,8 +67,8 @@ router.post('/avatar', authMiddleware, (req, res) => {
       }
 
       const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-      db.prepare('UPDATE league_members SET avatar_url = ? WHERE league_id = ? AND user_id = ?')
-        .run(avatarUrl, leagueId, req.user.id);
+      await db.run('UPDATE league_members SET avatar_url = ? WHERE league_id = ? AND user_id = ?',
+        avatarUrl, leagueId, req.user.id);
 
       res.json({ avatarUrl });
     } catch (err) {
@@ -79,22 +80,23 @@ router.post('/avatar', authMiddleware, (req, res) => {
 });
 
 // DELETE /api/upload/avatar
-router.delete('/avatar', authMiddleware, (req, res) => {
+router.delete('/avatar', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.body;
     if (!leagueId) return res.status(400).json({ error: 'leagueId is required' });
 
-    const member = db.prepare(
-      'SELECT * FROM league_members WHERE league_id = ? AND user_id = ?'
-    ).get(leagueId, req.user.id);
+    const member = await db.get(
+      'SELECT * FROM league_members WHERE league_id = ? AND user_id = ?',
+      leagueId, req.user.id
+    );
 
     if (!member) return res.status(403).json({ error: 'Not a member' });
 
     if (member.avatar_url) {
       const filePath = path.join(__dirname, '../../', member.avatar_url.replace(/^\//, ''));
       if (fs.existsSync(filePath)) try { fs.unlinkSync(filePath); } catch {}
-      db.prepare('UPDATE league_members SET avatar_url = NULL WHERE league_id = ? AND user_id = ?')
-        .run(leagueId, req.user.id);
+      await db.run('UPDATE league_members SET avatar_url = NULL WHERE league_id = ? AND user_id = ?',
+        leagueId, req.user.id);
     }
 
     res.json({ success: true });

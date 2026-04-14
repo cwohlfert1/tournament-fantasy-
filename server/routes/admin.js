@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../db');
+const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 const { performStartDraft } = require('../draftUtils');
 const { pullBracket } = require('../bracketPoller');
@@ -10,8 +10,8 @@ const { getDraftState } = require('./draft');
 
 const router = express.Router();
 
-function requireCommissioner(req, res, leagueId) {
-  const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+async function requireCommissioner(req, res, leagueId) {
+  const league = await db.get('SELECT * FROM leagues WHERE id = ?', [leagueId]);
   if (!league) {
     res.status(404).json({ error: 'League not found' });
     return null;
@@ -24,7 +24,7 @@ function requireCommissioner(req, res, leagueId) {
 }
 
 // POST /api/admin/games — create game
-router.post('/games', authMiddleware, (req, res) => {
+router.post('/games', authMiddleware, async (req, res) => {
   try {
     const { game_date, round_name, team1, team2 } = req.body;
     if (!game_date || !round_name || !team1 || !team2) {
@@ -32,11 +32,11 @@ router.post('/games', authMiddleware, (req, res) => {
     }
 
     const id = uuidv4();
-    db.prepare(`
+    await db.run(`
       INSERT INTO games (id, game_date, round_name, team1, team2) VALUES (?, ?, ?, ?, ?)
-    `).run(id, game_date, round_name, team1, team2);
+    `, [id, game_date, round_name, team1, team2]);
 
-    const game = db.prepare('SELECT * FROM games WHERE id = ?').get(id);
+    const game = await db.get('SELECT * FROM games WHERE id = ?', [id]);
     res.status(201).json({ game });
   } catch (err) {
     console.error(err);
@@ -45,12 +45,12 @@ router.post('/games', authMiddleware, (req, res) => {
 });
 
 // POST /api/admin/games/:gameId/stats — enter player stats
-router.post('/games/:gameId/stats', authMiddleware, (req, res) => {
+router.post('/games/:gameId/stats', authMiddleware, async (req, res) => {
   try {
     const { stats, winner_team, team1_score, team2_score } = req.body;
     // stats: [{player_id, points}]
 
-    const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
+    const game = await db.get('SELECT * FROM games WHERE id = ?', [req.params.gameId]);
     if (!game) return res.status(404).json({ error: 'Game not found' });
 
     // Derive round code from game.round_name so chips display correctly
@@ -67,29 +67,25 @@ router.post('/games/:gameId/stats', authMiddleware, (req, res) => {
     }
     const roundCode = roundNameToCode(game.round_name);
 
-    const insertOrReplace = db.prepare(`
-      INSERT INTO player_stats (id, game_id, player_id, points, round)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(game_id, player_id) DO UPDATE SET points = excluded.points, round = COALESCE(NULLIF(player_stats.round,''), excluded.round)
-    `);
-
-    const insertMany = db.transaction(() => {
+    await db.transaction(async (tx) => {
       for (const s of stats) {
-        insertOrReplace.run(uuidv4(), req.params.gameId, s.player_id, s.points || 0, roundCode);
+        await tx.run(`
+          INSERT INTO player_stats (id, game_id, player_id, points, round)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(game_id, player_id) DO UPDATE SET points = excluded.points, round = COALESCE(NULLIF(player_stats.round,''), excluded.round)
+        `, [uuidv4(), req.params.gameId, s.player_id, s.points || 0, roundCode]);
       }
     });
 
-    insertMany();
-
     // Mark game completed and set winner
     if (winner_team) {
-      db.prepare(`
+      await db.run(`
         UPDATE games SET is_completed = 1, winner_team = ?, team1_score = ?, team2_score = ? WHERE id = ?
-      `).run(winner_team, team1_score || 0, team2_score || 0, req.params.gameId);
+      `, [winner_team, team1_score || 0, team2_score || 0, req.params.gameId]);
 
       // Mark losing team's players as eliminated
       const losingTeam = winner_team === game.team1 ? game.team2 : game.team1;
-      db.prepare('UPDATE players SET is_eliminated = 1 WHERE team = ?').run(losingTeam);
+      await db.run('UPDATE players SET is_eliminated = 1 WHERE team = ?', [losingTeam]);
     }
 
     res.json({ success: true });
@@ -100,9 +96,9 @@ router.post('/games/:gameId/stats', authMiddleware, (req, res) => {
 });
 
 // GET /api/admin/games — list all games
-router.get('/games', authMiddleware, (req, res) => {
+router.get('/games', authMiddleware, async (req, res) => {
   try {
-    const games = db.prepare('SELECT * FROM games ORDER BY game_date DESC').all();
+    const games = await db.all('SELECT * FROM games ORDER BY game_date DESC');
     res.json({ games });
   } catch (err) {
     console.error(err);
@@ -110,15 +106,15 @@ router.get('/games', authMiddleware, (req, res) => {
   }
 });
 
-router.post('/leagues/:leagueId/start-draft', authMiddleware, (req, res) => {
+router.post('/leagues/:leagueId/start-draft', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', [leagueId]);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) {
       return res.status(403).json({ error: 'Only the commissioner can do this' });
     }
-    const result = performStartDraft(leagueId, req.app.get('io'));
+    const result = await performStartDraft(leagueId, req.app.get('io'));
     if (!result.success) return res.status(400).json({ error: result.error });
     res.json({ league: result.league, members: result.members });
   } catch (err) {
@@ -128,20 +124,20 @@ router.post('/leagues/:leagueId/start-draft', authMiddleware, (req, res) => {
 });
 
 // PUT /api/admin/leagues/:leagueId/settings
-router.put('/leagues/:leagueId/settings', authMiddleware, (req, res) => {
+router.put('/leagues/:leagueId/settings', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const league = requireCommissioner(req, res, leagueId);
+    const league = await requireCommissioner(req, res, leagueId);
     if (!league) return;
 
     const { pts_per_point } = req.body;
 
-    db.prepare(`
+    await db.run(`
       UPDATE scoring_settings SET pts_per_point = COALESCE(?, pts_per_point)
       WHERE league_id = ?
-    `).run(pts_per_point, leagueId);
+    `, [pts_per_point, leagueId]);
 
-    const settings = db.prepare('SELECT * FROM scoring_settings WHERE league_id = ?').get(leagueId);
+    const settings = await db.get('SELECT * FROM scoring_settings WHERE league_id = ?', [leagueId]);
     res.json({ settings });
   } catch (err) {
     console.error(err);
@@ -150,15 +146,15 @@ router.put('/leagues/:leagueId/settings', authMiddleware, (req, res) => {
 });
 
 // GET /api/admin/teams — list all tournament teams
-router.get('/teams', authMiddleware, (req, res) => {
+router.get('/teams', authMiddleware, async (req, res) => {
   try {
-    const teams = db.prepare(`
+    const teams = await db.all(`
       SELECT team, seed, region, MIN(is_eliminated) as is_eliminated,
         COUNT(*) as player_count
       FROM players
       GROUP BY team, seed, region
       ORDER BY seed, region
-    `).all();
+    `);
     res.json({ teams });
   } catch (err) {
     console.error(err);
@@ -168,7 +164,7 @@ router.get('/teams', authMiddleware, (req, res) => {
 
 // PUT /api/admin/players/injury — manually set or clear a player's injury designation
 // Body: { playerName, team (optional), status ('OUT'|'DOUBTFUL'|'QUESTIONABLE'|''), headline }
-router.put('/players/injury', authMiddleware, (req, res) => {
+router.put('/players/injury', authMiddleware, async (req, res) => {
   try {
     const { playerName, team, status = '', headline = '' } = req.body;
     if (!playerName) return res.status(400).json({ error: 'playerName is required' });
@@ -179,20 +175,21 @@ router.put('/players/injury', authMiddleware, (req, res) => {
       query += ' AND LOWER(team) LIKE ?';
       params.push(`%${team.toLowerCase()}%`);
     }
-    const matches = db.prepare(query).all(...params);
+    const matches = await db.all(query, params);
     if (!matches.length) return res.status(404).json({ error: `No player found matching "${playerName}"${team ? ` on "${team}"` : ''}` });
 
     const isFlagged = status !== '' ? 1 : 0;
     const injuryHeadline = headline || (status === 'OUT' ? 'OUT — Not expected to play in the tournament' : '');
 
-    const stmt = db.prepare(`
-      UPDATE players
-      SET injury_flagged = ?, injury_status = ?, injury_headline = ?
-      WHERE id = ?
-    `);
-    db.transaction(() => {
-      for (const p of matches) stmt.run(isFlagged, status.toUpperCase(), injuryHeadline, p.id);
-    })();
+    await db.transaction(async (tx) => {
+      for (const p of matches) {
+        await tx.run(`
+          UPDATE players
+          SET injury_flagged = ?, injury_status = ?, injury_headline = ?
+          WHERE id = ?
+        `, [isFlagged, status.toUpperCase(), injuryHeadline, p.id]);
+      }
+    });
 
     res.json({ success: true, updated: matches.map(p => `${p.name} (${p.team})`) });
   } catch (err) {
@@ -202,10 +199,10 @@ router.put('/players/injury', authMiddleware, (req, res) => {
 });
 
 // PUT /api/admin/teams/:teamName/eliminate
-router.put('/teams/eliminate', authMiddleware, (req, res) => {
+router.put('/teams/eliminate', authMiddleware, async (req, res) => {
   try {
     const { team_name, is_eliminated } = req.body;
-    db.prepare('UPDATE players SET is_eliminated = ? WHERE team = ?').run(is_eliminated ? 1 : 0, team_name);
+    await db.run('UPDATE players SET is_eliminated = ? WHERE team = ?', [is_eliminated ? 1 : 0, team_name]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -218,9 +215,9 @@ router.put('/teams/eliminate', authMiddleware, (req, res) => {
 // Commissioner-only — marks all pending payments paid then starts the draft.
 // Useful for test leagues where you don't want to go through Stripe.
 // ---------------------------------------------------------------------------
-router.post('/leagues/:leagueId/force-start', authMiddleware, (req, res) => {
+router.post('/leagues/:leagueId/force-start', authMiddleware, async (req, res) => {
   try {
-    const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(req.params.leagueId);
+    const league = await db.get('SELECT * FROM leagues WHERE id = ?', [req.params.leagueId]);
     if (!league) return res.status(404).json({ error: 'League not found' });
     if (league.commissioner_id !== req.user.id) {
       return res.status(403).json({ error: 'Only the commissioner can force-start the draft' });
@@ -230,13 +227,13 @@ router.post('/leagues/:leagueId/force-start', authMiddleware, (req, res) => {
     }
 
     // Mark all pending payments as paid so performStartDraft passes the gate
-    db.prepare(`
+    await db.run(`
       UPDATE member_payments SET status = 'paid', paid_at = CURRENT_TIMESTAMP
       WHERE league_id = ? AND status != 'paid'
-    `).run(req.params.leagueId);
+    `, [req.params.leagueId]);
 
     const io = req.app.get('io');
-    const result = performStartDraft(req.params.leagueId, io);
+    const result = await performStartDraft(req.params.leagueId, io);
     if (!result.success) return res.status(400).json({ error: result.error });
 
     res.json({ success: true, leagueId: req.params.leagueId });
@@ -259,14 +256,14 @@ router.post('/leagues/:leagueId/populate-test', authMiddleware, async (req, res)
 
   try {
     const { leagueId } = req.params;
-    const league = requireCommissioner(req, res, leagueId);
+    const league = await requireCommissioner(req, res, leagueId);
     if (!league) return;
 
     if (league.status !== 'lobby') {
       return res.status(400).json({ error: 'League must be in lobby status to populate' });
     }
 
-    const memberCount = db.prepare('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?').get(leagueId);
+    const memberCount = await db.get('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?', [leagueId]);
     const slotsAvailable = league.max_teams - memberCount.cnt;
 
     if (slotsAvailable <= 0) {
@@ -280,7 +277,7 @@ router.post('/leagues/:leagueId/populate-test', authMiddleware, async (req, res)
 
     for (let i = 1; i <= 12; i++) {
       // Stop once the league is full
-      const current = db.prepare('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?').get(leagueId);
+      const current = await db.get('SELECT COUNT(*) as cnt FROM league_members WHERE league_id = ?', [leagueId]);
       if (current.cnt >= league.max_teams) break;
 
       const username = `testuser${String(i).padStart(2, '0')}`;
@@ -288,47 +285,49 @@ router.post('/leagues/:leagueId/populate-test', authMiddleware, async (req, res)
       const teamName = `Test Team ${i}`;
 
       // Create user if they don't exist yet
-      let user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      let user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
       if (!user) {
         const userId = uuidv4();
-        db.prepare('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)')
-          .run(userId, email, username, password_hash);
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+        await db.run('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)',
+          [userId, email, username, password_hash]);
+        user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
       }
 
       // Skip if already in this league
-      const alreadyMember = db.prepare(
-        'SELECT id FROM league_members WHERE league_id = ? AND user_id = ?'
-      ).get(leagueId, user.id);
+      const alreadyMember = await db.get(
+        'SELECT id FROM league_members WHERE league_id = ? AND user_id = ?',
+        [leagueId, user.id]
+      );
       if (alreadyMember) continue;
 
       // Join league
-      db.prepare('INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)')
-        .run(uuidv4(), leagueId, user.id, teamName);
+      await db.run('INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)',
+        [uuidv4(), leagueId, user.id, teamName]);
 
       // Mark payment as paid (bypass Stripe for test users)
-      const existingPayment = db.prepare(
-        'SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?'
-      ).get(leagueId, user.id);
+      const existingPayment = await db.get(
+        'SELECT id FROM member_payments WHERE league_id = ? AND user_id = ?',
+        [leagueId, user.id]
+      );
 
       if (existingPayment) {
-        db.prepare("UPDATE member_payments SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?")
-          .run(existingPayment.id);
+        await db.run("UPDATE member_payments SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?",
+          [existingPayment.id]);
       } else {
-        db.prepare(`
+        await db.run(`
           INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at)
           VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)
-        `).run(uuidv4(), leagueId, user.id);
+        `, [uuidv4(), leagueId, user.id]);
       }
 
       added.push({ username, team_name: teamName });
     }
 
     // Also mark the commissioner's own payment as paid so the draft gate clears
-    db.prepare(`
+    await db.run(`
       UPDATE member_payments SET status = 'paid', paid_at = CURRENT_TIMESTAMP
       WHERE league_id = ? AND user_id = ? AND status = 'pending'
-    `).run(leagueId, req.user.id);
+    `, [leagueId, req.user.id]);
 
     res.json({
       added,
@@ -343,24 +342,24 @@ router.post('/leagues/:leagueId/populate-test', authMiddleware, async (req, res)
 // PUT /api/admin/games/:gameId/result
 // Record game result (score + winner) without requiring per-player stats.
 // Auto-eliminates the losing team.
-router.put('/games/:gameId/result', authMiddleware, (req, res) => {
+router.put('/games/:gameId/result', authMiddleware, async (req, res) => {
   try {
     const { winner_team, team1_score, team2_score } = req.body;
-    const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
+    const game = await db.get('SELECT * FROM games WHERE id = ?', [req.params.gameId]);
     if (!game) return res.status(404).json({ error: 'Game not found' });
     if (!winner_team) return res.status(400).json({ error: 'winner_team is required' });
     if (winner_team !== game.team1 && winner_team !== game.team2) {
       return res.status(400).json({ error: 'winner_team must be one of the two teams in this game' });
     }
 
-    db.prepare(`
+    await db.run(`
       UPDATE games SET is_completed = 1, winner_team = ?, team1_score = ?, team2_score = ? WHERE id = ?
-    `).run(winner_team, parseInt(team1_score) || 0, parseInt(team2_score) || 0, req.params.gameId);
+    `, [winner_team, parseInt(team1_score) || 0, parseInt(team2_score) || 0, req.params.gameId]);
 
     const losingTeam = winner_team === game.team1 ? game.team2 : game.team1;
-    db.prepare('UPDATE players SET is_eliminated = 1 WHERE team = ?').run(losingTeam);
+    await db.run('UPDATE players SET is_eliminated = 1 WHERE team = ?', [losingTeam]);
 
-    const updatedGame = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
+    const updatedGame = await db.get('SELECT * FROM games WHERE id = ?', [req.params.gameId]);
     res.json({ game: updatedGame, eliminated: losingTeam });
   } catch (err) {
     console.error(err);
@@ -372,16 +371,16 @@ router.put('/games/:gameId/result', authMiddleware, (req, res) => {
 // Generate Round of 64 games from the seeded teams in the players table.
 // Seeds are paired: 1v16, 2v15, 3v14, 4v13, 5v12, 6v11, 7v10, 8v9 per region.
 // Skips games that already exist (safe to run multiple times).
-router.post('/schedule/generate', authMiddleware, (req, res) => {
+router.post('/schedule/generate', authMiddleware, async (req, res) => {
   try {
     // Must be called by a commissioner of any league (basic auth check)
-    const teams = db.prepare(`
+    const teams = await db.all(`
       SELECT team, seed, region
       FROM players
       WHERE is_eliminated = 0 OR is_eliminated = 0
       GROUP BY team, seed, region
       ORDER BY region, seed
-    `).all();
+    `);
 
     if (!teams.length) {
       return res.status(400).json({ error: 'No teams found in the database. Seed player data first.' });
@@ -415,9 +414,10 @@ router.post('/schedule/generate', authMiddleware, (req, res) => {
         if (!team1 || !team2) continue;
 
         // Idempotent — skip if this matchup already exists
-        const existing = db.prepare(
-          "SELECT id FROM games WHERE round_name = 'First Round' AND ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))"
-        ).get(team1, team2, team2, team1);
+        const existing = await db.get(
+          "SELECT id FROM games WHERE round_name = 'First Round' AND ((team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?))",
+          [team1, team2, team2, team1]
+        );
 
         if (existing) {
           skipped.push(`${team1} vs ${team2}`);
@@ -425,10 +425,10 @@ router.post('/schedule/generate', authMiddleware, (req, res) => {
         }
 
         const id = uuidv4();
-        db.prepare(`
+        await db.run(`
           INSERT INTO games (id, game_date, round_name, team1, team2)
           VALUES (?, ?, 'First Round', ?, ?)
-        `).run(id, date, team1, team2);
+        `, [id, date, team1, team2]);
 
         created.push({
           team1, team2,
@@ -466,23 +466,23 @@ router.post('/create-test-league', authMiddleware, async (req, res) => {
     const invite_code = Math.random().toString(36).substring(2, 10).toUpperCase();
 
     // Create the league
-    db.prepare(`
+    await db.run(`
       INSERT INTO leagues (id, name, commissioner_id, invite_code, status, max_teams, total_rounds, pick_time_limit, auto_start_on_full)
       VALUES (?, ?, ?, ?, 'lobby', 12, 10, 60, 0)
-    `).run(leagueId, leagueName, req.user.id, invite_code);
+    `, [leagueId, leagueName, req.user.id, invite_code]);
 
-    db.prepare('INSERT INTO scoring_settings (id, league_id) VALUES (?, ?)').run(uuidv4(), leagueId);
+    await db.run('INSERT INTO scoring_settings (id, league_id) VALUES (?, ?)', [uuidv4(), leagueId]);
 
     // Add commissioner as member
-    db.prepare('INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)').run(
+    await db.run('INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)', [
       uuidv4(), leagueId, req.user.id, `${req.user.username}'s Team`
-    );
+    ]);
 
     // Mark commissioner payment as paid
-    db.prepare(`
+    await db.run(`
       INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at)
       VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)
-    `).run(uuidv4(), leagueId, req.user.id);
+    `, [uuidv4(), leagueId, req.user.id]);
 
     // Hash test password once
     const password_hash = await bcrypt.hash('testpass123', 6);
@@ -493,30 +493,30 @@ router.post('/create-test-league', authMiddleware, async (req, res) => {
       const email = `${username}@test.local`;
       const teamName = `Test Team ${i}`;
 
-      let user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      let user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
       if (!user) {
         const userId = uuidv4();
-        db.prepare('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)')
-          .run(userId, email, username, password_hash);
-        user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+        await db.run('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)',
+          [userId, email, username, password_hash]);
+        user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
       }
 
-      const alreadyMember = db.prepare('SELECT id FROM league_members WHERE league_id = ? AND user_id = ?').get(leagueId, user.id);
+      const alreadyMember = await db.get('SELECT id FROM league_members WHERE league_id = ? AND user_id = ?', [leagueId, user.id]);
       if (alreadyMember) continue;
 
-      db.prepare('INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)')
-        .run(uuidv4(), leagueId, user.id, teamName);
+      await db.run('INSERT INTO league_members (id, league_id, user_id, team_name) VALUES (?, ?, ?, ?)',
+        [uuidv4(), leagueId, user.id, teamName]);
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO member_payments (id, league_id, user_id, amount, status, paid_at)
         VALUES (?, ?, ?, 5.00, 'paid', CURRENT_TIMESTAMP)
-      `).run(uuidv4(), leagueId, user.id);
+      `, [uuidv4(), leagueId, user.id]);
 
       added.push(username);
     }
 
     // Start the draft (assigns random draft order, sets status = 'drafting')
-    const result = performStartDraft(leagueId, null); // pass null so no socket emit yet
+    const result = await performStartDraft(leagueId, null); // pass null so no socket emit yet
     if (!result.success) {
       return res.status(400).json({ error: `League created but draft failed to start: ${result.error}`, leagueId });
     }
@@ -525,11 +525,11 @@ router.post('/create-test-league', authMiddleware, async (req, res) => {
     clearAutoPick(leagueId);
 
     // Immediately fill every pick for all 12 bot managers (snake draft order)
-    const draftMembers = db.prepare(`
+    const draftMembers = await db.all(`
       SELECT lm.*, u.username FROM league_members lm
       JOIN users u ON lm.user_id = u.id
       WHERE lm.league_id = ? ORDER BY lm.draft_order
-    `).all(leagueId);
+    `, [leagueId]);
 
     const numTeams = draftMembers.length;
     const totalPicks = numTeams * result.league.total_rounds;
@@ -541,27 +541,27 @@ router.post('/create-test-league', authMiddleware, async (req, res) => {
       const picker = draftMembers.find(m => m.draft_order === draftPos);
       if (!picker) continue;
 
-      const available = db.prepare(`
+      const available = await db.get(`
         SELECT * FROM players
         WHERE id NOT IN (SELECT player_id FROM draft_picks WHERE league_id = ?)
         ORDER BY season_ppg DESC, name ASC
         LIMIT 1
-      `).get(leagueId);
+      `, [leagueId]);
       if (!available) break;
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO draft_picks (id, league_id, user_id, player_id, pick_number, round)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(uuidv4(), leagueId, picker.user_id, available.id, pickNum, round);
+      `, [uuidv4(), leagueId, picker.user_id, available.id, pickNum, round]);
     }
 
-    db.prepare("UPDATE leagues SET current_pick = ?, status = 'active' WHERE id = ?")
-      .run(totalPicks + 1, leagueId);
+    await db.run("UPDATE leagues SET current_pick = ?, status = 'active' WHERE id = ?",
+      [totalPicks + 1, leagueId]);
 
     // Notify any connected sockets that the draft is complete
     const io = req.app.get('io');
     if (io) {
-      const finalState = getDraftState(leagueId);
+      const finalState = await getDraftState(leagueId);
       io.to(`draft_${leagueId}`).emit('draft_completed', finalState);
     }
 
@@ -579,10 +579,10 @@ router.post('/create-test-league', authMiddleware, async (req, res) => {
 
 // POST /api/admin/leagues/:leagueId/randomize-order
 // Commissioner-only, one-and-done. Shuffles draft order, locks it, and broadcasts.
-router.post('/leagues/:leagueId/randomize-order', authMiddleware, (req, res) => {
+router.post('/leagues/:leagueId/randomize-order', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const league = requireCommissioner(req, res, leagueId);
+    const league = await requireCommissioner(req, res, leagueId);
     if (!league) return;
 
     if (league.draft_order_randomized) {
@@ -592,28 +592,29 @@ router.post('/leagues/:leagueId/randomize-order', authMiddleware, (req, res) => 
       return res.status(400).json({ error: 'Can only randomize draft order while league is in lobby' });
     }
 
-    const members = db.prepare(
-      'SELECT id, user_id FROM league_members WHERE league_id = ? ORDER BY RANDOM()'
-    ).all(leagueId);
+    const members = await db.all(
+      'SELECT id, user_id FROM league_members WHERE league_id = ? ORDER BY RANDOM()',
+      [leagueId]
+    );
 
-    db.transaction(() => {
-      members.forEach((m, idx) => {
-        db.prepare('UPDATE league_members SET draft_order = ? WHERE id = ?').run(idx + 1, m.id);
-      });
-      db.prepare('UPDATE leagues SET draft_order_randomized = 1 WHERE id = ?').run(leagueId);
-    })();
+    await db.transaction(async (tx) => {
+      for (let idx = 0; idx < members.length; idx++) {
+        await tx.run('UPDATE league_members SET draft_order = ? WHERE id = ?', [idx + 1, members[idx].id]);
+      }
+      await tx.run('UPDATE leagues SET draft_order_randomized = 1 WHERE id = ?', [leagueId]);
+    });
 
     // Post system wall message
     const { postSystemMessage } = require('../wallUtils');
     const io = req.app.get('io');
-    postSystemMessage(leagueId, '🎲 The draft order has been randomized by the commissioner!', io);
+    await postSystemMessage(leagueId, '🎲 The draft order has been randomized by the commissioner!', io);
 
     // Emit updated league state to the draft room
-    const updatedMembers = db.prepare(`
+    const updatedMembers = await db.all(`
       SELECT lm.draft_order, lm.team_name, u.username
       FROM league_members lm JOIN users u ON lm.user_id = u.id
       WHERE lm.league_id = ? ORDER BY lm.draft_order
-    `).all(leagueId);
+    `, [leagueId]);
 
     if (io) {
       io.to(`draft_${leagueId}`).emit('draft_order_randomized', { members: updatedMembers });
@@ -669,17 +670,17 @@ function ghostSlug(ownerName) {
   return ownerName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 }
 
-function findOrCreateGhostUser(ownerName) {
+async function findOrCreateGhostUser(ownerName) {
   const slug      = ghostSlug(ownerName);
   const email     = `ghost_${slug}@tourneyrun.internal`;
   const username  = `ghost_${slug}`;
-  let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  let user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
   if (!user) {
     const id   = uuidv4();
     const hash = bcrypt.hashSync(`ghost_no_access_${id}`, 4);
-    db.prepare('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)')
-      .run(id, email, username, hash);
-    user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    await db.run('INSERT INTO users (id, email, username, password_hash) VALUES (?, ?, ?, ?)',
+      [id, email, username, hash]);
+    user = await db.get('SELECT * FROM users WHERE id = ?', [id]);
   }
   return user;
 }
