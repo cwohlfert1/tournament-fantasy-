@@ -671,7 +671,9 @@ export default function CreateGolfLeague() {
       });
 
       if (payRes.data.free || payRes.data.alreadyPaid) {
-        navigate(`/golf/league/${league.id}`);
+        // Land on the commissioner tab with the re-invite prompt highlighted —
+        // commissioners can pull members from a past pool without re-typing emails.
+        navigate(`/golf/league/${league.id}?tab=commissioner&just_created=1`);
       } else {
         // Redirect to Square hosted checkout
         window.location.href = payRes.data.url;

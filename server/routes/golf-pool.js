@@ -1594,6 +1594,164 @@ router.post('/commissioner/:leagueId/entries/blast', authMiddleware, async (req,
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/golf/commissioner/:leagueId/unpaid/remind — send reminder emails.
 // Body: { confirm?: boolean, dry_run?: boolean }
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/golf/commissioner/past-leagues — all pool leagues commissioned by
+// this user (most recent first), with member counts. Used by the
+// "Re-invite Past Members" flow on creation + in the commissioner panel.
+// Pool format only (excludes salary_cap and tourneyrun season-long).
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/commissioner/past-leagues', authMiddleware, async (req, res) => {
+  try {
+    const rows = await db.all(`
+      SELECT gl.id, gl.name, gl.created_at, gl.pool_tournament_id,
+             gt.name AS tournament_name, gt.start_date,
+             (SELECT COUNT(*) FROM golf_league_members WHERE golf_league_id = gl.id) AS member_count
+      FROM golf_leagues gl
+      LEFT JOIN golf_tournaments gt ON gt.id = gl.pool_tournament_id
+      WHERE gl.commissioner_id = ?
+        AND gl.format_type = 'pool'
+      ORDER BY gl.created_at DESC
+    `, req.user.id);
+    res.json({ leagues: rows });
+  } catch (err) {
+    console.error('[commissioner-past-leagues]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/golf/commissioner/:leagueId/reinvite — invite members of a past
+// pool league to this NEW pool league. Body: { source_league_id, confirm? }.
+//
+// Excludes users already in the target league (no double-membership noise).
+// 24h guard via mass_email_log: blocks repeat sends to the same target unless
+// confirm=true. Sends in batches of 10 with a 100ms gap; on Resend 429, pauses
+// 2s and retries the batch once. Logs to mass_email_log on success.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/commissioner/:leagueId/reinvite', authMiddleware, async (req, res) => {
+  try {
+    const target = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!target) return res.status(404).json({ error: 'Target league not found' });
+    if (target.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (target.format_type !== 'pool') return res.status(400).json({ error: 'Pool format only' });
+
+    const sourceId = req.body?.source_league_id;
+    if (!sourceId) return res.status(400).json({ error: 'source_league_id required' });
+    const source = await db.get('SELECT * FROM golf_leagues WHERE id = ?', sourceId);
+    if (!source) return res.status(404).json({ error: 'Source league not found' });
+    if (source.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Source league not yours' });
+    if (source.format_type !== 'pool') return res.status(400).json({ error: 'Source must be a pool league' });
+
+    const confirm = req.body?.confirm === true;
+
+    // 24h guard — prior reinvite_blast for THIS target league
+    if (!confirm) {
+      const prior = await db.get(
+        `SELECT sent_at FROM mass_email_log
+         WHERE email_type = 'reinvite_blast' AND league_id = ?
+           AND sent_at > datetime('now', '-24 hours')
+         ORDER BY sent_at DESC LIMIT 1`,
+        req.params.leagueId
+      );
+      if (prior) {
+        return res.status(409).json({
+          recently_sent: true,
+          last_sent_at: prior.sent_at,
+          message: 'Re-invite emails were sent for this league in the last 24 hours. Confirm to send again.',
+        });
+      }
+    }
+
+    // Source members minus users already in target
+    const sourceMembers = await db.all(`
+      SELECT u.id AS user_id, u.email, u.username, u.full_name
+      FROM golf_league_members glm
+      JOIN users u ON u.id = glm.user_id
+      WHERE glm.golf_league_id = ?
+    `, sourceId);
+    const existing = new Set(
+      (await db.all('SELECT user_id FROM golf_league_members WHERE golf_league_id = ?', req.params.leagueId))
+        .map(r => r.user_id)
+    );
+    // Dedup by user_id and skip those already in target
+    const seen = new Set();
+    const recipients = [];
+    for (const m of sourceMembers) {
+      if (!m.email) continue;
+      if (existing.has(m.user_id)) continue;
+      if (seen.has(m.user_id)) continue;
+      seen.add(m.user_id);
+      recipients.push(m);
+    }
+    if (recipients.length === 0) {
+      return res.json({ ok: true, sent: 0, message: 'No new recipients (all members already in target league)' });
+    }
+
+    const commissioner = await db.get('SELECT username, full_name FROM users WHERE id = ?', req.user.id);
+    const commName = commissioner?.full_name || commissioner?.username || 'A commissioner';
+    const tourn = target.pool_tournament_id
+      ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', target.pool_tournament_id)
+      : null;
+    const clientUrl = process.env.CLIENT_URL || 'https://www.tourneyrun.app';
+    const joinUrl = `${clientUrl}/golf/league/${target.id}`;
+
+    const { sendReinviteEmail } = require('../mailer');
+
+    // Staggered send: batches of 10 with 100ms gap; on 429 retry batch once after 2s
+    const BATCH = 10;
+    let sent = 0, failed = 0;
+    for (let i = 0; i < recipients.length; i += BATCH) {
+      const slice = recipients.slice(i, i + BATCH);
+      const sendOne = async (r) => {
+        const firstName = (r.full_name || r.username || '').split(/\s+/)[0];
+        await sendReinviteEmail(r.email, {
+          firstName,
+          commissionerName: commName,
+          newPoolName: target.name,
+          tournamentName: tourn?.name || '',
+          joinUrl,
+        });
+      };
+      // Try once
+      const settled = await Promise.allSettled(slice.map(sendOne));
+      const rateLimited = settled.some(s => s.status === 'rejected' && /429|rate.?limit/i.test(s.reason?.message || ''));
+      if (rateLimited) {
+        await new Promise(r => setTimeout(r, 2000));
+        const retry = await Promise.allSettled(slice.map(sendOne));
+        for (const r of retry) {
+          if (r.status === 'fulfilled') sent++;
+          else { failed++; console.error('[reinvite] retry failed:', r.reason?.message); }
+        }
+      } else {
+        for (const r of settled) {
+          if (r.status === 'fulfilled') sent++;
+          else { failed++; console.error('[reinvite] send failed:', r.reason?.message); }
+        }
+      }
+      if (i + BATCH < recipients.length) await new Promise(r => setTimeout(r, 100));
+    }
+
+    if (sent > 0) {
+      try {
+        const { v4: uuidv4 } = require('uuid');
+        await db.run(
+          `INSERT INTO mass_email_log (id, sent_by, audience, subject, body_preview, recipient_count, email_type, league_id, tournament_id)
+           VALUES (?, ?, ?, ?, ?, ?, 'reinvite_blast', ?, ?)`,
+          uuidv4(), req.user.id, 'past_league_members',
+          `${commName} invited you to join ${target.name} on TourneyRun`,
+          `Re-invite from "${source.name}" → "${target.name}" (${sent} sent)`,
+          sent, req.params.leagueId, target.pool_tournament_id || null
+        );
+      } catch (err) { console.error('[reinvite] log write failed:', err.message); }
+    }
+
+    res.json({ ok: true, sent, failed, total: recipients.length, source: source.name, skipped_existing: sourceMembers.length - recipients.length });
+  } catch (err) {
+    console.error('[commissioner-reinvite]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Pool-level 24h guard: returns 409 with { recently_sent: true, last_sent_at }
 // unless confirm=true. Logs to mass_email_log on success.
 // ─────────────────────────────────────────────────────────────────────────────

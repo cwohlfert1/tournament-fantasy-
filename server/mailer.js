@@ -603,6 +603,7 @@ module.exports = {
   sendCommUnpaidNotice,
   sendUnpaidReminder,
   sendCommissionerBlast,
+  sendReinviteEmail,
 };
 
 // ── Pay reminder to unpaid member ────────────────────────────────────────────
@@ -733,6 +734,38 @@ ${emailHeader()}
         <p style="font-size:14px;color:#9ca3af;line-height:1.5;margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;">Hi ${_esc(name)},</p>
         <div style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:18px;margin-left:0;">${safeBody}</div>
         <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:0;border-top:1px solid #1f2937;padding-top:12px;">Sent via TourneyRun on behalf of ${_esc(comm)}.</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${safePool}`)}
+`),
+  });
+}
+
+// ── Re-invite from past pool league ──────────────────────────────────────────
+async function sendReinviteEmail(toEmail, { firstName, commissionerName, newPoolName, tournamentName, joinUrl }) {
+  const name = firstName || 'there';
+  const comm = commissionerName || 'A commissioner';
+  const safeName  = _esc(name);
+  const safeComm  = _esc(comm);
+  const safePool  = _esc(newPoolName || '');
+  const safeTourn = _esc(tournamentName || '');
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `${comm} invited you to join ${newPoolName} on TourneyRun`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(34,197,94,0.12);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#4ade80;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">You're Invited</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:22px;font-weight:700;color:#ffffff;">Hi ${safeName},</h1>
+        <p style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;">
+          <strong style="color:#ffffff;">${safeComm}</strong> is running a new golf pool — <strong style="color:#ffffff;">${safePool}</strong>${safeTourn ? ` for <strong style="color:#ffffff;">${safeTourn}</strong>` : ''} — and wants you in.
+        </p>
+        <p style="font-size:15px;color:#d1d5db;line-height:1.7;margin-top:0;margin-right:0;margin-bottom:18px;margin-left:0;">
+          Click below to join and make your picks before the tournament starts.
+        </p>
+        ${ctaButton(joinUrl, 'Join Pool &rarr;')}
+        <p style="font-size:15px;color:#9ca3af;line-height:1.7;margin-top:18px;margin-right:0;margin-bottom:6px;margin-left:0;">Good luck!</p>
+        <p style="font-size:13px;color:#6b7280;margin-top:0;margin-bottom:0;">&mdash; The TourneyRun Team</p>
       </td></tr>
 ${emailFooter(`tourneyrun.app &middot; ${safePool}`)}
 `),

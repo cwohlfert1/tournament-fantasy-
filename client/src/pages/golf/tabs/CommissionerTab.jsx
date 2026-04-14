@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
 import GolfPaymentModal from '../../../components/golf/GolfPaymentModal';
+import ReinviteFromPastLeague from '../../../components/golf/ReinviteFromPastLeague';
 import { POOL_TIERS } from '../../../utils/poolPricing';
 import { parseSheetRows } from '../../../utils/importHelpers';
 
@@ -392,6 +394,9 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [picksPerTeam, setPicksPerTeam] = useState(String(league?.picks_per_team ?? 8));
   const [dropCount, setDropCount] = useState(String(league?.pool_drop_count ?? 2));
   const [maxEntries, setMaxEntries] = useState(String(league?.pool_max_entries ?? 1));
+  // Highlight the re-invite prompt when the user just landed from create flow
+  const [searchParams] = useSearchParams();
+  const justCreated = searchParams.get('just_created') === '1';
   // Missed-cut rule: locked once tournament goes active.
   const [missedCutRule, setMissedCutRule] = useState(league?.missed_cut_rule || 'fixed');
   const [missedCutPenalty, setMissedCutPenalty] = useState(String(league?.missed_cut_penalty ?? 8));
@@ -905,6 +910,27 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ─── Re-invite Past Members ─── */}
+      {/* Always visible — commissioners can pull members from a prior pool. */}
+      {/* When ?just_created=1 is in the URL (post-create flow), wrap with a   */}
+      {/* highlight so the prompt draws the eye. Self-fetches past leagues on  */}
+      {/* mount; renders nothing if commissioner has no other pools.           */}
+      {league && (
+        <div style={justCreated ? {
+          background: 'linear-gradient(180deg, rgba(34,197,94,0.06), transparent)',
+          border: '1px solid rgba(34,197,94,0.25)',
+          borderRadius: 14,
+          padding: 4,
+        } : undefined}>
+          {justCreated && (
+            <div style={{ padding: '6px 12px 0', color: '#4ade80', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              New pool created — invite past members?
+            </div>
+          )}
+          <ReinviteFromPastLeague targetLeagueId={leagueId} targetLeagueName={league.name} />
         </div>
       )}
 
