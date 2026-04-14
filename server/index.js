@@ -24,7 +24,8 @@ const { v4: uuidv4 } = require('uuid');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-const db = require('./db');
+const sqliteDb = require('./db');
+const db = require('./db/index');
 const { seedPlayers } = require('./seed');
 const { getDraftState, getCurrentPicker } = require('./routes/draft');
 const { performStartDraft } = require('./draftUtils');
@@ -181,7 +182,7 @@ io.on('connection', (socket) => {
   });
 
   // Join draft room
-  socket.on('join_draft_room', ({ leagueId, token }) => {
+  socket.on('join_draft_room', async ({ leagueId, token }) => {
     try {
       if (!token) return socket.emit('error', { message: 'No token' });
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -190,7 +191,7 @@ io.on('connection', (socket) => {
       console.log(`User ${decoded.username} joined draft_${leagueId}`);
 
       // Send current state
-      const state = getDraftState(leagueId);
+      const state = await getDraftState(leagueId);
       if (!state) return socket.emit('error', { message: 'League not found' });
       socket.emit('draft_state', state);
     } catch (err) {
@@ -199,10 +200,10 @@ io.on('connection', (socket) => {
   });
 
   // Start draft (commissioner only)
-  socket.on('start_draft', ({ leagueId, token }) => {
+  socket.on('start_draft', async ({ leagueId, token }) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+      const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
       if (!league) return socket.emit('error', { message: 'League not found' });
       if (league.commissioner_id !== decoded.id) {
         return socket.emit('error', { message: 'Only commissioner can start draft' });
@@ -216,22 +217,22 @@ io.on('connection', (socket) => {
   });
 
   // Make a pick
-  socket.on('make_pick', ({ leagueId, playerId, token }) => {
+  socket.on('make_pick', async ({ leagueId, playerId, token }) => {
     try {
       if (!token) return socket.emit('error', { message: 'No token' });
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      const league = db.prepare('SELECT * FROM leagues WHERE id = ?').get(leagueId);
+      const league = await db.get('SELECT * FROM leagues WHERE id = ?', leagueId);
       if (!league) return socket.emit('error', { message: 'League not found' });
       if (league.status !== 'drafting') {
         return socket.emit('error', { message: 'Draft is not active' });
       }
 
-      const members = db.prepare(`
+      const members = await db.all(`
         SELECT lm.*, u.username FROM league_members lm
         JOIN users u ON lm.user_id = u.id
         WHERE lm.league_id = ? ORDER BY lm.draft_order
-      `).all(leagueId);
+      `, leagueId);
 
       const numTeams = members.length;
       const totalPicks = numTeams * league.total_rounds;
@@ -246,27 +247,27 @@ io.on('connection', (socket) => {
         return socket.emit('error', { message: "It is not your turn to pick" });
       }
 
-      const player = db.prepare('SELECT * FROM players WHERE id = ?').get(playerId);
+      const player = await db.get('SELECT * FROM players WHERE id = ?', playerId);
       if (!player) return socket.emit('error', { message: 'Player not found' });
 
-      const alreadyPicked = db.prepare('SELECT id FROM draft_picks WHERE league_id = ? AND player_id = ?').get(leagueId, playerId);
+      const alreadyPicked = await db.get('SELECT id FROM draft_picks WHERE league_id = ? AND player_id = ?', leagueId, playerId);
       if (alreadyPicked) return socket.emit('error', { message: 'Player already drafted' });
 
       const round = Math.ceil(currentPick / numTeams);
       const pickId = uuidv4();
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO draft_picks (id, league_id, user_id, player_id, pick_number, round)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(pickId, leagueId, decoded.id, playerId, currentPick, round);
+      `, pickId, leagueId, decoded.id, playerId, currentPick, round);
 
       const nextPick = currentPick + 1;
       const draftComplete = nextPick > totalPicks;
 
       if (draftComplete) {
-        db.prepare("UPDATE leagues SET current_pick = ?, status = 'active' WHERE id = ?").run(nextPick, leagueId);
+        await db.run("UPDATE leagues SET current_pick = ?, status = 'active' WHERE id = ?", nextPick, leagueId);
       } else {
-        db.prepare('UPDATE leagues SET current_pick = ? WHERE id = ?').run(nextPick, leagueId);
+        await db.run('UPDATE leagues SET current_pick = ? WHERE id = ?', nextPick, leagueId);
       }
 
       const nextPicker = draftComplete ? null : getCurrentPicker(nextPick, numTeams, members);
@@ -306,7 +307,7 @@ io.on('connection', (socket) => {
 
       if (draftComplete) {
         clearAutoPick(leagueId);
-        const finalState = getDraftState(leagueId);
+        const finalState = await getDraftState(leagueId);
         io.to(`draft_${leagueId}`).emit('draft_completed', finalState);
       } else {
         // Restart server-side auto-pick timer for the next picker
@@ -331,15 +332,16 @@ io.on('connection', (socket) => {
   });
 
   // Receive and broadcast a chat message
-  socket.on('chat_send', ({ leagueId, token, text, gifUrl }) => {
+  socket.on('chat_send', async ({ leagueId, token, text, gifUrl }) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const rawText = (text || '').trim().slice(0, 200);
       if (!rawText && !gifUrl) return;
 
-      const member = db.prepare(
-        'SELECT team_name FROM league_members WHERE league_id = ? AND user_id = ?'
-      ).get(leagueId, decoded.id);
+      const member = await db.get(
+        'SELECT team_name FROM league_members WHERE league_id = ? AND user_id = ?',
+        leagueId, decoded.id
+      );
 
       const msg = {
         id: uuidv4(),
@@ -390,31 +392,32 @@ io.on('connection', (socket) => {
     } catch (err) {}
   });
 
-  socket.on('league_chat_join', ({ leagueId, token }) => {
+  socket.on('league_chat_join', async ({ leagueId, token }) => {
     try {
       if (!token) return;
       jwt.verify(token, process.env.JWT_SECRET);
       socket.join(`league_${leagueId}`);
       // Send last 50 persisted messages
-      const history = getChatHistory(leagueId);
+      const history = await getChatHistory(leagueId);
       socket.emit('league_chat_history', history);
     } catch (err) {
       socket.emit('error', { message: 'Auth failed' });
     }
   });
 
-  socket.on('league_chat_send', ({ leagueId, token, text, gifUrl }) => {
+  socket.on('league_chat_send', async ({ leagueId, token, text, gifUrl }) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const rawText = (text || '').trim().slice(0, 500);
       if (!rawText && !gifUrl) return;
 
-      const member = db.prepare(
-        'SELECT team_name, avatar_url FROM league_members WHERE league_id = ? AND user_id = ?'
-      ).get(leagueId, decoded.id);
+      const member = await db.get(
+        'SELECT team_name, avatar_url FROM league_members WHERE league_id = ? AND user_id = ?',
+        leagueId, decoded.id
+      );
       if (!member) return;
 
-      const user = db.prepare('SELECT avatar_url FROM users WHERE id = ?').get(decoded.id);
+      const user = await db.get('SELECT avatar_url FROM users WHERE id = ?', decoded.id);
 
       const { cleanText } = require('./contentFilter');
       const msg = {
@@ -430,10 +433,10 @@ io.on('connection', (socket) => {
         created_at: new Date().toISOString(),
       };
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO league_chat_messages (id, league_id, user_id, team_name, username, avatar_url, text, gif_url, is_system)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `).run(msg.id, leagueId, decoded.id, msg.team_name, msg.username, msg.avatar_url, msg.text, msg.gif_url);
+      `, msg.id, leagueId, decoded.id, msg.team_name, msg.username, msg.avatar_url, msg.text, msg.gif_url);
 
       io.to(`league_${leagueId}`).emit('league_chat_message', msg);
     } catch (err) {
@@ -472,11 +475,11 @@ setTimeout(async () => {
     const result = await pullBracket();
     if (!result.success) {
       console.warn('[startup] ESPN bracket pull failed — falling back to seed.js');
-      seedPlayers();
+      await seedPlayers();
     }
   } catch (err) {
     console.error('[startup] Bracket pull threw:', err.message, '— falling back to seed.js');
-    seedPlayers();
+    await seedPlayers();
   }
 }, 5000);
 
@@ -485,33 +488,34 @@ setInterval(pullBracket, 24 * 60 * 60 * 1000);
 
 // Scheduled draft poller — checks every 30 seconds for leagues whose start time has passed
 const { postSystemMessage: postSystemMsg } = require('./wallUtils');
-setInterval(() => {
+setInterval(async () => {
   try {
     // Auto-randomize draft order 1hr before scheduled start (one-and-done)
-    const toRandomize = db.prepare(`
+    const toRandomize = await db.all(`
       SELECT id FROM leagues
       WHERE status = 'lobby'
         AND draft_order_randomized = 0
         AND draft_start_time IS NOT NULL
         AND draft_start_time <= datetime('now', '+60 minutes')
-    `).all();
+    `);
     for (const { id } of toRandomize) {
       try {
-        const members = db.prepare(
-          'SELECT id FROM league_members WHERE league_id = ? ORDER BY RANDOM()'
-        ).all(id);
-        db.transaction(() => {
-          members.forEach((m, idx) => {
-            db.prepare('UPDATE league_members SET draft_order = ? WHERE id = ?').run(idx + 1, m.id);
-          });
-          db.prepare('UPDATE leagues SET draft_order_randomized = 1 WHERE id = ?').run(id);
-        })();
+        const members = await db.all(
+          'SELECT id FROM league_members WHERE league_id = ? ORDER BY RANDOM()',
+          id
+        );
+        await db.transaction(async (tx) => {
+          for (let idx = 0; idx < members.length; idx++) {
+            await tx.run('UPDATE league_members SET draft_order = ? WHERE id = ?', idx + 1, members[idx].id);
+          }
+          await tx.run('UPDATE leagues SET draft_order_randomized = 1 WHERE id = ?', id);
+        });
         postSystemMsg(id, '🎲 Draft order has been automatically randomized — 1 hour until draft time!', io);
-        const updatedMembers = db.prepare(`
+        const updatedMembers = await db.all(`
           SELECT lm.draft_order, lm.team_name, u.username
           FROM league_members lm JOIN users u ON lm.user_id = u.id
           WHERE lm.league_id = ? ORDER BY lm.draft_order
-        `).all(id);
+        `, id);
         io.to(`draft_${id}`).emit('draft_order_randomized', { members: updatedMembers });
         io.to(`league_${id}`).emit('draft_order_randomized', { members: updatedMembers });
         console.log(`[scheduled] Draft order auto-randomized for league ${id}`);
@@ -521,12 +525,12 @@ setInterval(() => {
     }
 
     // Auto-start drafts whose scheduled time has arrived
-    const due = db.prepare(`
+    const due = await db.all(`
       SELECT id FROM leagues
       WHERE status = 'lobby'
         AND draft_start_time IS NOT NULL
         AND draft_start_time <= datetime('now')
-    `).all();
+    `);
     for (const { id } of due) {
       const result = performStartDraft(id, io);
       if (result.success) {
@@ -537,7 +541,7 @@ setInterval(() => {
         if (result.error.includes('haven\'t paid')) {
           // Leave it — will retry next interval
         } else {
-          db.prepare('UPDATE leagues SET draft_start_time = NULL WHERE id = ?').run(id);
+          await db.run('UPDATE leagues SET draft_start_time = NULL WHERE id = ?', id);
         }
       }
     }
@@ -563,7 +567,7 @@ scheduleDataGolfSync();
 // Self-heal: correct any tournament marked 'completed' while still within its date window
 // (guards against sync bugs that prematurely complete a live tournament)
 try {
-  const healed = db.prepare(`
+  const healed = sqliteDb.prepare(`
     UPDATE golf_tournaments SET status = 'active'
     WHERE status = 'completed'
       AND date('now') BETWEEN date(start_date, '-1 day') AND date(end_date, '+1 day')
@@ -588,13 +592,13 @@ try {
 //    stat-matching never fired. This block fixes all three fields at startup.
 try {
   // 1. Mark eliminated (NC State lost in First Round 2026)
-  const elimFix = db.prepare(
+  const elimFix = sqliteDb.prepare(
     "UPDATE players SET is_eliminated = 1 WHERE team = 'NC State' AND is_eliminated != 1"
   ).run();
   console.log(`[cleanup] NC State: ${elimFix.changes} player(s) marked eliminated`);
 
   // 2. Set correct ESPN team ID
-  const teamIdFix = db.prepare(
+  const teamIdFix = sqliteDb.prepare(
     "UPDATE players SET espn_team_id = '152' WHERE team = 'NC State' AND (espn_team_id IS NULL OR espn_team_id = '')"
   ).run();
   console.log(`[cleanup] NC State: ${teamIdFix.changes} player(s) espn_team_id → 152`);
@@ -606,7 +610,7 @@ try {
     { name: 'Ven-Allen Lubin',  id: '4684799' },
     { name: 'Darrion Williams', id: '4937074' },
   ];
-  const athleteStmt = db.prepare(
+  const athleteStmt = sqliteDb.prepare(
     "UPDATE players SET espn_athlete_id = ? WHERE team = 'NC State' AND LOWER(name) = LOWER(?) AND (espn_athlete_id IS NULL OR espn_athlete_id = '')"
   );
   for (const { name, id } of NC_STATE_ATHLETES) {
@@ -621,7 +625,7 @@ try {
 //    Keep the row with a valid espn_athlete_id; re-point any draft_picks / player_stats
 //    that reference the orphaned row, then delete the orphan.
 try {
-  const dupes = db.prepare(`
+  const dupes = sqliteDb.prepare(`
     SELECT name, COUNT(*) as cnt
     FROM players
     GROUP BY LOWER(name)
@@ -631,10 +635,10 @@ try {
   if (dupes.length > 0) {
     console.log(`[dedup] found ${dupes.length} duplicate player name(s):`, dupes.map(d => d.name));
 
-    const deduped = db.transaction(() => {
+    const deduped = sqliteDb.transaction(() => {
       let deleted = 0;
       for (const { name } of dupes) {
-        const rows = db.prepare(
+        const rows = sqliteDb.prepare(
           "SELECT * FROM players WHERE LOWER(name) = LOWER(?) ORDER BY (espn_athlete_id IS NULL OR espn_athlete_id = '') ASC"
         ).all(name);
         // rows[0] = has espn_athlete_id (good), rows[1+] = orphans
@@ -642,17 +646,17 @@ try {
         const orphans = rows.slice(1);
         for (const orphan of orphans) {
           // Re-point draft_picks
-          const dpFix = db.prepare(
+          const dpFix = sqliteDb.prepare(
             'UPDATE draft_picks SET player_id = ? WHERE player_id = ?'
           ).run(keeper.id, orphan.id);
           // Re-point player_stats rows that don't conflict with a keeper row for the same game
-          const psFix = db.prepare(
+          const psFix = sqliteDb.prepare(
             'UPDATE player_stats SET player_id = ? WHERE player_id = ? AND game_id NOT IN (SELECT game_id FROM player_stats WHERE player_id = ?)'
           ).run(keeper.id, orphan.id, keeper.id);
           // Delete any remaining orphan player_stats (duped game rows)
-          db.prepare('DELETE FROM player_stats WHERE player_id = ?').run(orphan.id);
+          sqliteDb.prepare('DELETE FROM player_stats WHERE player_id = ?').run(orphan.id);
           // Delete orphan player
-          db.prepare('DELETE FROM players WHERE id = ?').run(orphan.id);
+          sqliteDb.prepare('DELETE FROM players WHERE id = ?').run(orphan.id);
           console.log(`[dedup] merged "${orphan.name}" (${orphan.id}) → keeper (${keeper.id}) | dp=${dpFix.changes} ps=${psFix.changes}`);
           deleted++;
         }
