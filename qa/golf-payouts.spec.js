@@ -31,7 +31,7 @@ const PLAYER_PASSWORD = process.env.TOURNEYRUN_PLAYER_PASSWORD;
 
 async function login(page, email = EMAIL, password = PASSWORD) {
   await page.goto(`${BASE}/`);
-  return page.evaluate(async ({ base, email, password }) => {
+  const result = await page.evaluate(async ({ base, email, password }) => {
     const res = await fetch(`${base}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,8 +41,9 @@ async function login(page, email = EMAIL, password = PASSWORD) {
     const data = await res.json();
     const tok = data.token || data.access_token;
     localStorage.setItem('token', tok);
-    return tok;
+    return { tok, userId: data.user?.id };
   }, { base: BASE, email, password });
+  return result;
 }
 
 async function apiGet(page, path) {
@@ -66,11 +67,11 @@ async function apiPatch(page, path, body) {
 }
 
 /** Find a pool league commissioned by the current user; returns {id, buy_in, snapshot}. */
-async function findCommissionerPool(page) {
+async function findCommissionerPool(page, userId) {
   const { data } = await apiGet(page, '/api/golf/leagues');
   const leagues = data.leagues || data || [];
-  const pool = leagues.find(l => l.format_type === 'pool' && l.is_commissioner);
-  if (!pool) throw new Error('Test account must commission at least one pool league');
+  const pool = leagues.find(l => l.format_type === 'pool' && l.commissioner_id === userId);
+  if (!pool) throw new Error(`Test account (${userId}) must commission at least one pool league — found ${leagues.length} league(s), pool count ${leagues.filter(l => l.format_type === 'pool').length}`);
   const detail = await apiGet(page, `/api/golf/leagues/${pool.id}`);
   return {
     id: pool.id,
@@ -98,8 +99,8 @@ async function restore(page, leagueId, snapshot) {
 // 1 — Commissioner save
 // ═════════════════════════════════════════════════════════════════════════════
 test('TC-PAY-01 Commissioner save — splits + fee persist', async ({ page }) => {
-  await login(page);
-  const { id, snapshot } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id, snapshot } = await findCommissionerPool(page, userId);
   try {
     const save = await apiPatch(page, `/api/golf/leagues/${id}/settings`, {
       payout_splits: [{ place: 1, pct: 60 }, { place: 2, pct: 30 }, { place: 3, pct: 10 }],
@@ -124,8 +125,8 @@ test('TC-PAY-01 Commissioner save — splits + fee persist', async ({ page }) =>
 test('TC-PAY-02 Non-commissioner GET /leagues/:id omits admin_fee_type/value', async ({ page, browser }) => {
   test.skip(!PLAYER_EMAIL, 'TOURNEYRUN_PLAYER_EMAIL not set — skipping player-view test');
 
-  await login(page);
-  const { id, snapshot } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id, snapshot } = await findCommissionerPool(page, userId);
   try {
     // Commissioner sets a fee
     await apiPatch(page, `/api/golf/leagues/${id}/settings`, {
@@ -160,8 +161,8 @@ test('TC-PAY-02 Non-commissioner GET /leagues/:id omits admin_fee_type/value', a
 // 3 — Split validation
 // ═════════════════════════════════════════════════════════════════════════════
 test('TC-PAY-03 Payout splits must sum to 100', async ({ page }) => {
-  await login(page);
-  const { id } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id } = await findCommissionerPool(page, userId);
   const resp = await apiPatch(page, `/api/golf/leagues/${id}/settings`, {
     payout_splits: [{ place: 1, pct: 60 }, { place: 2, pct: 30 }, { place: 3, pct: 5 }], // sums to 95
   });
@@ -173,8 +174,8 @@ test('TC-PAY-03 Payout splits must sum to 100', async ({ page }) => {
 // 4 — Flat $ fee calc
 // ═════════════════════════════════════════════════════════════════════════════
 test('TC-PAY-04 Flat $ admin fee reduces net_pool by the dollar amount', async ({ page }) => {
-  await login(page);
-  const { id, buy_in, snapshot } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id, buy_in, snapshot } = await findCommissionerPool(page, userId);
   test.skip(buy_in <= 0, 'test league has no buy-in — cannot verify fee math');
   try {
     const flatFee = 25;
@@ -194,8 +195,8 @@ test('TC-PAY-04 Flat $ admin fee reduces net_pool by the dollar amount', async (
 // 5 — Percent fee calc
 // ═════════════════════════════════════════════════════════════════════════════
 test('TC-PAY-05 Percent admin fee reduces net_pool by the percentage', async ({ page }) => {
-  await login(page);
-  const { id, buy_in, snapshot } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id, buy_in, snapshot } = await findCommissionerPool(page, userId);
   test.skip(buy_in <= 0, 'test league has no buy-in — cannot verify fee math');
   try {
     const pct = 10;
@@ -215,8 +216,8 @@ test('TC-PAY-05 Percent admin fee reduces net_pool by the percentage', async ({ 
 // 6 — Both fee types switchable
 // ═════════════════════════════════════════════════════════════════════════════
 test('TC-PAY-06 Fee type is switchable without data loss', async ({ page }) => {
-  await login(page);
-  const { id, snapshot } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id, snapshot } = await findCommissionerPool(page, userId);
   try {
     // Save percent
     await apiPatch(page, `/api/golf/leagues/${id}/settings`, {
@@ -249,8 +250,8 @@ test('TC-PAY-06 Fee type is switchable without data loss', async ({ page }) => {
 // 7 — Legacy 3-place leagues still render (migration correctness)
 // ═════════════════════════════════════════════════════════════════════════════
 test('TC-PAY-07 /pools/:id/payouts returns per-place amounts for a migrated league', async ({ page }) => {
-  await login(page);
-  const { id, snapshot } = await findCommissionerPool(page);
+  const { userId } = await login(page);
+  const { id, snapshot } = await findCommissionerPool(page, userId);
   try {
     // Force a known 3-place split (mirrors what the legacy migration produces)
     await apiPatch(page, `/api/golf/leagues/${id}/settings`, {
