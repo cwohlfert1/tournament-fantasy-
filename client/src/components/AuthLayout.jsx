@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { isValidElement } from 'react';
 
 const STYLES = `
 @keyframes authGlow {
@@ -8,25 +9,70 @@ const STYLES = `
 `;
 
 // ── Icon input ────────────────────────────────────────────────────────────────
+// `icon` accepts either:
+//   - a lucide React element (preferred): icon={<Mail size={16} />}
+//   - a string emoji (legacy, still supported): icon="📧"
+// `label` optional — renders above the input for the new 21st-style layout.
+// `labelRight` optional — right-side slot beside the label (e.g. "Forgot?" link).
 
-export function IconInput({ icon, type = 'text', placeholder, value, onChange, required, autoComplete, rightSlot }) {
+export function IconInput({
+  icon,
+  type = 'text',
+  placeholder,
+  value,
+  onChange,
+  required,
+  autoComplete,
+  rightSlot,
+  label,
+  labelRight,
+  id,
+}) {
+  const isEmoji = typeof icon === 'string';
+  const hasIcon = !!icon;
   return (
-    <div className="relative group">
-      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base select-none pointer-events-none">
-        {icon}
-      </span>
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        required={required}
-        autoComplete={autoComplete}
-        className="input pl-10 pr-10 w-full transition-all focus:border-green-500/60 focus:shadow-[0_0_0_3px_rgba(0,232,122,0.10)]"
-      />
-      {rightSlot && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightSlot}</div>
+    <div className="w-full">
+      {(label || labelRight) && (
+        <div className="flex items-center justify-between mb-1.5">
+          {label && (
+            <label htmlFor={id} className="text-xs font-medium text-gray-300 leading-none">
+              {label}
+            </label>
+          )}
+          {labelRight}
+        </div>
       )}
+      <div className="relative group">
+        {hasIcon && (
+          <span
+            className={
+              'absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none select-none ' +
+              (isEmoji ? 'text-base' : 'text-gray-500')
+            }
+          >
+            {isEmoji ? icon : (isValidElement(icon) ? icon : null)}
+          </span>
+        )}
+        <input
+          id={id}
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          required={required}
+          autoComplete={autoComplete}
+          className={
+            'w-full h-10 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-100 placeholder-gray-500 text-sm ' +
+            'transition-all outline-none ' +
+            'focus:border-green-500/60 focus:shadow-[0_0_0_3px_rgba(0,232,122,0.10)] ' +
+            (hasIcon ? 'pl-9 ' : 'pl-3 ') +
+            (rightSlot ? 'pr-10' : 'pr-3')
+          }
+        />
+        {rightSlot && (
+          <div className="absolute right-1 top-1/2 -translate-y-1/2">{rightSlot}</div>
+        )}
+      </div>
     </div>
   );
 }
