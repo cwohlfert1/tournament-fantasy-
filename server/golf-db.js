@@ -2993,16 +2993,26 @@ runOnce('dedup-golf-players-by-comma-format', () => {
 // Then rename survivor to "First Last" format so the UI reads naturally.
 // Runs idempotently — safe to re-run.
 // ─────────────────────────────────────────────────────────────────────────────
-runOnce('dedup-golf-players-name-swap-v4', () => {
+runOnce('dedup-golf-players-name-swap-v5', () => {
+  // Tables with FK → golf_players(id). v4 missed several (golf_rosters, etc.),
+  // causing FOREIGN KEY constraint failures on DELETE. v5 covers all.
+  const FK_TABLES = [
+    'pool_tier_players', 'golf_tournament_fields', 'pool_picks', 'golf_scores',
+    'golf_rosters', 'golf_weekly_lineups', 'golf_draft_picks',
+    'golf_faab_bids', 'golf_auction_bids', 'golf_core_players',
+  ];
   try {
     // Build pairs: (comma_id, firstlast_id) where both exist for same person
     const commaRows = db.prepare(`SELECT id, name FROM golf_players WHERE name LIKE '%, %'`).all();
     let merged = 0, renamed = 0, droppedRefs = 0;
     const refCount = (id) => {
-      const t = (table) => db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE player_id = ?`).get(id).c;
-      // Bias toward having espn_player_id anchored (much harder to rebuild than pool_picks).
+      let total = 0;
+      for (const tbl of FK_TABLES) {
+        try { total += db.prepare(`SELECT COUNT(*) AS c FROM ${tbl} WHERE player_id = ?`).get(id).c; } catch (_) {}
+      }
+      // Bias toward having espn_player_id anchored (much harder to rebuild).
       const hasAnchor = db.prepare(`SELECT 1 FROM golf_tournament_fields WHERE player_id = ? AND espn_player_id IS NOT NULL LIMIT 1`).get(id) ? 1000 : 0;
-      return hasAnchor + t('pool_tier_players') + t('golf_tournament_fields') + t('pool_picks') + t('golf_scores');
+      return hasAnchor + total;
     };
 
     db.transaction(() => {
@@ -3018,7 +3028,7 @@ runOnce('dedup-golf-players-name-swap-v4', () => {
           const rc2 = refCount(other.id);
           const keepId = rc1 >= rc2 ? row.id : other.id;
           const dropId = keepId === row.id ? other.id : row.id;
-          for (const tbl of ['pool_tier_players', 'golf_tournament_fields', 'pool_picks', 'golf_scores']) {
+          for (const tbl of FK_TABLES) {
             try {
               db.prepare(`UPDATE OR IGNORE ${tbl} SET player_id = ? WHERE player_id = ?`).run(keepId, dropId);
               const left = db.prepare(`DELETE FROM ${tbl} WHERE player_id = ?`).run(dropId);
