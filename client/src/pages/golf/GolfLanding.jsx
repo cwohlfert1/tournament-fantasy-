@@ -152,6 +152,165 @@ function getNextMajor(today = _today()) {
   return TOUR_SCHEDULE.find(t => t.type === 'major' && new Date(t.start + 'T00:00:00') > today) || null;
 }
 
+// ── Majors & Signature events carousel ───────────────────────────────────────
+// Infinite horizontal scroll showing only the "big deal" tournaments.
+// Gradient cards (no images), status-aware (LIVE/NEXT/UPCOMING/COMPLETED),
+// click → /golf/join or tournament detail. Pure CSS animation (no framer-motion).
+function MajorsTourStrip() {
+  const today  = _today();
+  const nextUp = getNextUpEvent(today);
+  const items  = TOUR_SCHEDULE
+    .filter(t => t.type === 'major' || t.type === 'signature')
+    .map(t => ({ ...t, status: getEventStatus(t, today, nextUp?.name) }));
+  if (items.length === 0) return null;
+
+  const CARD_W = 300; // px
+  const GAP    = 18;
+  const loopPx = items.length * (CARD_W + GAP);
+  const dur    = Math.max(28, items.length * 3.2); // ~3s per card, min 28s
+
+  const statusMeta = {
+    live:      { label: 'LIVE',      color: '#22c55e', bg: 'rgba(34,197,94,0.15)',  border: 'rgba(34,197,94,0.45)' },
+    next:      { label: 'THIS WEEK', color: '#4ade80', bg: 'rgba(34,197,94,0.10)',  border: 'rgba(34,197,94,0.30)' },
+    upcoming:  { label: 'UPCOMING',  color: '#9ca3af', bg: 'rgba(156,163,175,0.08)', border: 'rgba(156,163,175,0.20)' },
+    completed: { label: 'COMPLETED', color: '#6b7280', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.18)' },
+  };
+
+  const typeGradient = (type, status) => {
+    const muted = status === 'completed';
+    if (type === 'major') {
+      return muted
+        ? 'linear-gradient(135deg, #0e1a11 0%, #0a120c 100%)'
+        : 'linear-gradient(135deg, #0d3d1e 0%, #062411 60%, #041609 100%)';
+    }
+    // signature
+    return muted
+      ? 'linear-gradient(135deg, #0b140d 0%, #080e09 100%)'
+      : 'linear-gradient(135deg, #14532d 0%, #0a2516 60%, #051309 100%)';
+  };
+
+  const formatRange = (s, e) => {
+    const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${fmt(s)} – ${fmt(e).split(' ').pop()}`;
+  };
+
+  return (
+    <section
+      aria-label="2026 PGA majors and signature events"
+      style={{ position: 'relative', padding: '56px 0 40px', overflow: 'hidden', background: 'linear-gradient(180deg, #030604 0%, #050a06 100%)' }}
+    >
+      <style>{`
+        @keyframes majorsScroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-${loopPx}px); }
+        }
+        .majors-track { animation: majorsScroll ${dur}s linear infinite; }
+        .majors-track:hover { animation-play-state: paused; }
+        @keyframes majorsLivePulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+          50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0.00); }
+        }
+        .majors-live-dot { animation: majorsLivePulse 1.6s ease-out infinite; }
+        .majors-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+        .majors-card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(34,197,94,0.25) !important; }
+      `}</style>
+
+      {/* Section label */}
+      <div style={{ maxWidth: 1200, margin: '0 auto 28px', padding: '0 24px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div style={{ color: '#22c55e', fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 6 }}>
+            2026 Season
+          </div>
+          <h2 style={{ color: '#fff', fontSize: 'clamp(22px, 3vw, 32px)', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
+            Majors & Signature Events
+          </h2>
+        </div>
+        <div className="hidden md:block" style={{ color: '#6b7280', fontSize: 13, fontWeight: 500 }}>
+          Hover to pause · click to join
+        </div>
+      </div>
+
+      {/* Edge fades */}
+      <div aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 120, background: 'linear-gradient(90deg, #030604 0%, rgba(3,6,4,0) 100%)', zIndex: 2, pointerEvents: 'none' }} />
+      <div aria-hidden="true" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 120, background: 'linear-gradient(270deg, #030604 0%, rgba(3,6,4,0) 100%)', zIndex: 2, pointerEvents: 'none' }} />
+
+      {/* Scroll track */}
+      <div style={{ overflow: 'hidden' }}>
+        <div
+          className="majors-track"
+          style={{ display: 'flex', gap: GAP, paddingLeft: 24, width: 'max-content' }}
+        >
+          {[...items, ...items].map((t, i) => {
+            const m = statusMeta[t.status];
+            const ringAccent = t.type === 'major' ? '#22c55e' : '#4ade80';
+            return (
+              <Link
+                key={`${t.name}-${i}`}
+                to={t.status === 'completed' ? '/golf/dashboard' : '/golf/join'}
+                className="majors-card"
+                style={{
+                  flexShrink: 0,
+                  width: CARD_W,
+                  height: 200,
+                  borderRadius: 16,
+                  padding: '20px 22px',
+                  background: typeGradient(t.type, t.status),
+                  border: `1px solid ${t.status === 'live' ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.06)'}`,
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 18px rgba(0,0,0,0.35)',
+                  opacity: t.status === 'completed' ? 0.55 : 1,
+                }}
+              >
+                {/* Top accent bar for majors */}
+                {t.type === 'major' && t.status !== 'completed' && (
+                  <div aria-hidden="true" style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                    background: `linear-gradient(90deg, transparent, ${ringAccent}, transparent)`,
+                    borderTopLeftRadius: 16, borderTopRightRadius: 16,
+                  }} />
+                )}
+
+                {/* Top row: type pill + status badge */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+                    color: t.type === 'major' ? '#FFD700' : '#4ade80',
+                  }}>
+                    {t.type === 'major' ? 'Major' : 'Signature'}
+                  </span>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '3px 8px', borderRadius: 999,
+                    background: m.bg, border: `0.5px solid ${m.border}`,
+                    fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: m.color,
+                  }}>
+                    {t.status === 'live' && <span className="majors-live-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />}
+                    {m.label}
+                  </span>
+                </div>
+
+                {/* Tournament name */}
+                <div>
+                  <h3 style={{ margin: 0, color: '#fff', fontSize: 20, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
+                    {t.name}
+                  </h3>
+                  <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                    {formatRange(t.start, t.end)}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Date formatter ────────────────────────────────────────────────────────────
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -414,6 +573,11 @@ export default function GolfLanding() {
           </button>
         </div>
       </div>
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* Majors & Signature events — infinite scroll strip                    */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      <MajorsTourStrip />
 
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* Dynamic tour schedule — auto-updates from TOUR_SCHEDULE              */}

@@ -62,6 +62,7 @@ const HUB_CSS = `
   .hub-btn-hover:hover { transform: scale(1.03); }
   .hub-link-hover { transition: color 0.15s; }
   .hub-link-hover:hover { color: #fff !important; }
+  .hub-nav-link:hover .hub-nav-underline { transform: scaleX(1) !important; }
   .hub-step-card {
     transition: border-color 0.2s, background 0.2s;
   }
@@ -387,29 +388,49 @@ export default function HubLanding() {
             </span>
           </Link>
 
-          {/* Center nav — pill container, desktop only */}
-          <div className="hidden md:flex" style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '0.5px solid rgba(255,255,255,0.1)',
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}>
+          {/* Center nav — hover-underline, desktop only */}
+          <div className="hidden md:flex items-center" style={{ gap: 32 }}>
             {[
-              { to: '/golf', label: 'Golf' },
-              { to: '/basketball', label: 'Basketball' },
-              { to: '/golf/faq', label: 'FAQ' },
-            ].map(({ to, label }, i, arr) => (
-              <Link key={to} to={to}
+              { to: '/golf',       label: 'Golf',       accent: '#22c55e' },
+              { to: '/basketball', label: 'Basketball', accent: '#ff8c00' },
+              { to: '/golf/faq',   label: 'FAQ',        accent: '#ffffff' },
+            ].map(({ to, label, accent }) => (
+              <Link
+                key={to}
+                to={to}
+                className="hub-nav-link"
                 style={{
-                  padding: '8px 18px', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500,
-                  textDecoration: 'none', display: 'block',
-                  borderRight: i < arr.length - 1 ? '0.5px solid rgba(255,255,255,0.1)' : 'none',
-                  transition: 'color 0.15s, background 0.15s',
+                  position: 'relative',
+                  padding: '6px 2px',
+                  color: 'rgba(255,255,255,0.75)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  letterSpacing: '-0.005em',
+                  textDecoration: 'none',
+                  transition: 'color 0.18s ease',
+                  '--accent': accent,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
               >
                 {label}
+                <span
+                  aria-hidden="true"
+                  className="hub-nav-underline"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: -2,
+                    height: 2,
+                    background: accent,
+                    borderRadius: 2,
+                    transform: 'scaleX(0)',
+                    transformOrigin: 'left center',
+                    transition: 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)',
+                    boxShadow: `0 0 10px ${accent}55`,
+                  }}
+                />
               </Link>
             ))}
           </div>
