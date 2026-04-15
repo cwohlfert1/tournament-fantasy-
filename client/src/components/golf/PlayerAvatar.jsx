@@ -19,6 +19,8 @@ import { tierAccent, tierTint } from '../../utils/golfTierColors';
 export default function PlayerAvatar({ name, tier, espnPlayerId, size = 36 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const accent = tierAccent(tier);
+  // eslint-disable-next-line no-console
+  console.log('[PlayerAvatar]', { name, espnPlayerId, tier, imgFailed });
   const initials = (name || '?')
     .replace(/^.+,\s*/, '')         // "Scheffler, Scottie" → "Scottie"
     .split(/\s+/)
