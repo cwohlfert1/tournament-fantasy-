@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDocTitle } from '../hooks/useDocTitle';
 import api from '../api';
 import MastersPromoBanner from '../components/golf/MastersPromoBanner';
+import { getLiveEvent, getNextUpEvent, daysUntil } from '../utils/pgaSchedule';
 
 // ── CSS Animations ────────────────────────────────────────────────────────────
 
@@ -93,6 +94,85 @@ const HUB_CSS = `
     }
   }
 `;
+
+// ── Dynamic "live tour" eyebrow chip ─────────────────────────────────────────
+// Reads 2026 PGA schedule: shows LIVE badge while a tournament is in progress,
+// countdown chip when the next event is within 14 days, hidden otherwise.
+// Rolls automatically as the season moves forward — no manual updates.
+function LiveTourEyebrow() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    // Re-evaluate every 15 min so a live→completed transition is picked up
+    // without a page reload.
+    const id = setInterval(() => setTick(t => t + 1), 15 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  void tick; // silence unused warning; state change is the trigger
+
+  const live = getLiveEvent();
+  const next = getNextUpEvent();
+
+  // Live: pulsing green chip linking to the leaderboard
+  if (live) {
+    return (
+      <div className="hub-a1" style={{ marginBottom: 30 }}>
+        <Link
+          to="/golf/leaderboard"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)',
+            color: '#4ade80', borderRadius: 100, padding: '7px 16px',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            textDecoration: 'none', transition: 'background 0.2s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.2)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(34,197,94,0.12)'}
+        >
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', background: '#22c55e',
+            boxShadow: '0 0 0 0 rgba(34,197,94,0.6)',
+            animation: 'hub-live-pulse 1.6s ease-out infinite',
+          }} />
+          <span style={{ color: '#22c55e', fontWeight: 800 }}>LIVE</span>
+          <span style={{ color: '#86efac' }}>{live.name} — Leaderboard →</span>
+        </Link>
+        <style>{`
+          @keyframes hub-live-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+            50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Upcoming within 14 days: amber countdown
+  if (next) {
+    const d = daysUntil(next.start);
+    if (d <= 14) {
+      const timeStr = d === 0 ? 'Tees off today' : d === 1 ? 'Tees off tomorrow' : `in ${d} days`;
+      return (
+        <div className="hub-a1" style={{ marginBottom: 30 }}>
+          <Link to="/golf/join" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)',
+            color: '#fbbf24', borderRadius: 100, padding: '7px 18px',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            textDecoration: 'none', transition: 'background 0.2s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.18)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
+          >
+            ⚡ {next.name.replace(/^The /, '')} {timeStr} — Get Your Pool In →
+          </Link>
+        </div>
+      );
+    }
+  }
+
+  // Nothing live or imminent — render nothing
+  return null;
+}
 
 // ── Favicon ───────────────────────────────────────────────────────────────────
 
@@ -501,21 +581,9 @@ export default function HubLanding() {
 
             {/* ── LEFT: Text ── */}
             <div>
-              {/* Eyebrow */}
-              <div className="hub-a1" style={{ marginBottom: 30 }}>
-                <Link to="/golf" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)',
-                  color: '#fbbf24', borderRadius: 100, padding: '7px 18px',
-                  fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none',
-                  transition: 'background 0.2s',
-                }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.18)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
-                >
-                  ⚡ Masters in 19 days — Get Your Pool In →
-                </Link>
-              </div>
+              {/* Eyebrow — dynamic PGA status (live / upcoming / hidden) */}
+              <LiveTourEyebrow />
+
 
               {/* Headline */}
               <h1 className="hub-a2" style={{ margin: '0 0 24px', lineHeight: 0.93, letterSpacing: '-0.035em', fontWeight: 900 }}>
