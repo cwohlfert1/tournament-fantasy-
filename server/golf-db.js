@@ -2980,6 +2980,86 @@ runOnce('dedup-golf-players-by-comma-format', () => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// dedup-golf-players-by-name-swap-v4
+//
+// The v3 dedup-comma-format migration picked "First Last" as canonical, but
+// existing gtf rows (with anchored espn_player_id) were on the "Last, First"
+// row, AND pool_picks were on the "First Last" row. Repointing in either
+// direction loses data on one side.
+//
+// v4 strategy: for each duplicate PAIR, merge whichever row has fewer refs
+// (or no espn_player_id) INTO whichever has more refs (or has espn_player_id).
+// Then rename survivor to "First Last" format so the UI reads naturally.
+// Runs idempotently — safe to re-run.
+// ─────────────────────────────────────────────────────────────────────────────
+runOnce('dedup-golf-players-name-swap-v4', () => {
+  try {
+    // Build pairs: (comma_id, firstlast_id) where both exist for same person
+    const commaRows = db.prepare(`SELECT id, name FROM golf_players WHERE name LIKE '%, %'`).all();
+    let merged = 0, renamed = 0, droppedRefs = 0;
+    const refCount = (id) => {
+      const t = (table) => db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE player_id = ?`).get(id).c;
+      // Bias toward having espn_player_id anchored (much harder to rebuild than pool_picks).
+      const hasAnchor = db.prepare(`SELECT 1 FROM golf_tournament_fields WHERE player_id = ? AND espn_player_id IS NOT NULL LIMIT 1`).get(id) ? 1000 : 0;
+      return hasAnchor + t('pool_tier_players') + t('golf_tournament_fields') + t('pool_picks') + t('golf_scores');
+    };
+
+    db.transaction(() => {
+      for (const row of commaRows) {
+        const m = row.name.match(/^([^,]+?),\s*(.+)$/);
+        if (!m) continue;
+        if (/^(jr|sr|ii|iii|iv)\.?$/i.test(m[2].trim())) continue;
+        const firstLast = m[2].trim() + ' ' + m[1].trim();
+        const other = db.prepare('SELECT id FROM golf_players WHERE LOWER(name) = LOWER(?) AND id != ?').get(firstLast, row.id);
+
+        if (other) {
+          const rc1 = refCount(row.id);
+          const rc2 = refCount(other.id);
+          const keepId = rc1 >= rc2 ? row.id : other.id;
+          const dropId = keepId === row.id ? other.id : row.id;
+          for (const tbl of ['pool_tier_players', 'golf_tournament_fields', 'pool_picks', 'golf_scores']) {
+            try {
+              db.prepare(`UPDATE OR IGNORE ${tbl} SET player_id = ? WHERE player_id = ?`).run(keepId, dropId);
+              const left = db.prepare(`DELETE FROM ${tbl} WHERE player_id = ?`).run(dropId);
+              droppedRefs += left.changes;
+            } catch (_) {}
+          }
+          db.prepare('DELETE FROM golf_players WHERE id = ?').run(dropId);
+          merged++;
+          // Normalize survivor's name to "First Last" form
+          try { db.prepare('UPDATE golf_players SET name = ? WHERE id = ? AND name LIKE ?').run(firstLast, keepId, '%, %'); } catch (_) {}
+        } else {
+          // Solo comma row → rename in place
+          try {
+            db.prepare('UPDATE golf_players SET name = ? WHERE id = ?').run(firstLast, row.id);
+            renamed++;
+          } catch (_) {}
+        }
+      }
+    })();
+
+    // Also normalize any lingering pool_picks.player_name comma-format values
+    // so display reads naturally (client's flipName handles old rows too).
+    const ppFix = db.prepare(`
+      UPDATE pool_picks
+      SET player_name = (SELECT name FROM golf_players WHERE id = pool_picks.player_id)
+      WHERE player_name LIKE '%, %'
+        AND EXISTS (SELECT 1 FROM golf_players WHERE id = pool_picks.player_id AND name NOT LIKE '%, %')
+    `).run();
+    const ptpFix = db.prepare(`
+      UPDATE pool_tier_players
+      SET player_name = (SELECT name FROM golf_players WHERE id = pool_tier_players.player_id)
+      WHERE player_name LIKE '%, %'
+        AND EXISTS (SELECT 1 FROM golf_players WHERE id = pool_tier_players.player_id AND name NOT LIKE '%, %')
+    `).run();
+
+    console.log(`[migration] dedup-v4: merged ${merged}, renamed ${renamed}, dropped ${droppedRefs} refs; normalized ${ppFix.changes} pool_picks + ${ptpFix.changes} ptp names`);
+  } catch (e) {
+    console.error('[migration] dedup-v4 error:', e.message);
+  }
+});
+
 // ── Missed-cut rule (per-league) + no-cut flag (per-tournament) ──────────────
 // missed_cut_rule values:
 //   'fixed'           — assign par + missed_cut_penalty (default 8) per missed round

@@ -644,6 +644,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, async (req, res) => {
         pp.id, pp.tier_number, pp.player_id, pp.player_name, pp.salary_used,
         pp.is_dropped, pp.tiebreaker_score,
         ptp.odds_display, ptp.world_ranking,
+        gtf.espn_player_id,
         COALESCE(pp.country, gp.country) AS country,
         COALESCE(pp.is_withdrawn, ptp.is_withdrawn, 0) AS is_withdrawn,
         gs.round1, gs.round2, gs.round3, gs.round4,
@@ -653,6 +654,7 @@ router.get('/leagues/:id/my-roster', authMiddleware, async (req, res) => {
         AND ptp.tournament_id = pp.tournament_id
         AND ptp.player_id = pp.player_id
       LEFT JOIN golf_players gp ON gp.id = pp.player_id
+      LEFT JOIN golf_tournament_fields gtf ON gtf.tournament_id = pp.tournament_id AND gtf.player_id = pp.player_id
       LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = pp.tournament_id
       WHERE pp.league_id = ? AND pp.tournament_id = ? AND pp.user_id = ?
         AND COALESCE(pp.entry_number, 1) = ?

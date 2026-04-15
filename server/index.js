@@ -584,6 +584,12 @@ try {
 setTimeout(() => {
   golfStatus.runStatusHeal({ skipNetwork: false })
     .catch(e => console.error('[status-heal] boot async heal error:', e.message));
+  // One-shot boot backfill of ESPN player IDs for ALL tournaments (past & future).
+  // Without this, historical pool rosters/standings show initials instead of
+  // headshots. Idempotent — each subsequent boot is a no-op (nothing to update).
+  golfStatus.applyEspnPlayerIdAnchoring({ backfillAll: true })
+    .then(r => console.log(`[status-heal] boot backfill: anchored ${r.length} tournament(s)`))
+    .catch(e => console.error('[status-heal] boot backfill error:', e.message));
 }, 30 * 1000);
 golfStatus.scheduleDailyHeal();
 

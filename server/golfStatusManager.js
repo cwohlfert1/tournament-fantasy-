@@ -219,13 +219,23 @@ async function mapMissingDataGolfEventIds() {
 // score sync can use the cached ESPN ID instead of doing fresh name-matching
 // every poll — reduces failure surface (diacritics, suffix variants) and is
 // cheaper. Idempotent: only updates rows where espn_player_id IS NULL.
-async function applyEspnPlayerIdAnchoring() {
+async function applyEspnPlayerIdAnchoring({ backfillAll = false } = {}) {
+  // Default mode: only anchor upcoming/active tournaments near start (T-1 to T+2).
+  // backfillAll mode: anchor ANY tournament with espn_event_id + missing IDs.
+  // Used once on boot to populate historical pools so roster/standings can show
+  // player headshots for past events (Masters, Houston Open, etc.).
+  const whereDate = backfillAll
+    ? ''
+    : `AND date(t.start_date) BETWEEN date('now', '-1 day') AND date('now', '+2 days')`;
+  const whereStatus = backfillAll
+    ? `AND t.status IN ('scheduled', 'active', 'completed')`
+    : `AND t.status IN ('scheduled', 'active')`;
   const candidates = db.prepare(`
     SELECT t.id, t.name, t.espn_event_id
     FROM golf_tournaments t
-    WHERE t.status IN ('scheduled', 'active')
-      AND t.espn_event_id IS NOT NULL
-      AND date(t.start_date) BETWEEN date('now', '-1 day') AND date('now', '+2 days')
+    WHERE t.espn_event_id IS NOT NULL
+      ${whereStatus}
+      ${whereDate}
       AND EXISTS (
         SELECT 1 FROM golf_tournament_fields f
         WHERE f.tournament_id = t.id AND f.espn_player_id IS NULL
