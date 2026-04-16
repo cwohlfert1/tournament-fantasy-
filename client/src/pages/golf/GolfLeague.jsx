@@ -182,6 +182,7 @@ export default function GolfLeague() {
   }
 
   const isComm = league.commissioner_id === user?.id;
+  const isPool = league.format_type === 'pool' || league.format_type === 'salary_cap';
 
   // Hide Overview tab once picks are submitted and tournament has started.
   // picksStatus loads async — stays false until resolved (no flash risk).
