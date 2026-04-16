@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { Flag, Trophy } from 'lucide-react';
 import api from '../../../api';
 import PlayerAvatar from '../../../components/golf/PlayerAvatar';
+import GolferStack from '../../../components/golf/GolferStack';
 import { tierAccent } from '../../../utils/golfTierColors';
 import { isStrokeBased, computeRanks, scoreColor } from './golfScoringUtils';
 
@@ -95,7 +96,7 @@ const LeaderboardRow = memo(function LeaderboardRow({
   s, rankInfo, expandContent, canExpand,
   currentUserId, expanded, setExpanded, rowRefs,
   hasPrize, prizeTotal, payoutSplits, isTotalStrokes, hasScores,
-  winningScore,
+  winningScore, showStack = false,
 }) {
   const isMe   = s.user_id === currentUserId;
   const rowKey = `${s.user_id}_${s.entry_number || 1}`;
@@ -133,7 +134,12 @@ const LeaderboardRow = memo(function LeaderboardRow({
               <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: '#1f2937', border: '1px solid #374151', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.05em', flexShrink: 0 }}>BOT</span>
             )}
           </div>
-          <div style={{ color: '#4b5563', fontSize: 11, marginTop: 1 }}>{s.username}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+            <div style={{ color: '#4b5563', fontSize: 11, flexShrink: 0 }}>{s.username}</div>
+            {showStack && s.picks?.length > 0 && (
+              <GolferStack picks={s.picks} max={3} size={20} />
+            )}
+          </div>
         </div>
         {hasPrize && (
           <div style={{ textAlign: 'right', minWidth: 44, flexShrink: 0 }}>
@@ -480,18 +486,22 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
             <div style={{ width: 12, flexShrink: 0 }} />
           </div>
 
-          {standings.map((s, i) => (
-            <LeaderboardRow
-              key={`${s.user_id}_${s.entry_number || 1}`}
-              s={s} i={i}
-              rankInfo={ranks[i]}
-              canExpand={!!s.submitted && (s.picks?.length > 0) && (picksRevealed || s.user_id === currentUserId)}
-              expandContent={s.picks?.length > 0 && (picksRevealed || s.user_id === currentUserId) ? <PoolExpandContent picks={s.picks} dropsLocked={dropsApplied} /> : null}
-              currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
-              hasPrize={hasPrize} prizeTotal={prizeTotal} payoutSplits={payoutSplits}
-              isTotalStrokes={isTotalStrokes} hasScores={hasScores} winningScore={winningScore}
-            />
-          ))}
+          {standings.map((s, i) => {
+            const picksShown = s.picks?.length > 0 && (picksRevealed || s.user_id === currentUserId);
+            return (
+              <LeaderboardRow
+                key={`${s.user_id}_${s.entry_number || 1}`}
+                s={s} i={i}
+                rankInfo={ranks[i]}
+                canExpand={!!s.submitted && picksShown}
+                expandContent={picksShown ? <PoolExpandContent picks={s.picks} dropsLocked={dropsApplied} /> : null}
+                currentUserId={currentUserId} expanded={expanded} setExpanded={setExpanded} rowRefs={rowRefs}
+                hasPrize={hasPrize} prizeTotal={prizeTotal} payoutSplits={payoutSplits}
+                isTotalStrokes={isTotalStrokes} hasScores={hasScores} winningScore={winningScore}
+                showStack={picksShown}
+              />
+            );
+          })}
         </div>
 
         {!hasPrize && (
