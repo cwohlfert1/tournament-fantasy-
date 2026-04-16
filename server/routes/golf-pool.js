@@ -124,12 +124,25 @@ function calculatePlayerSalaryFromOdds(americanOdds, weeklySalaryCap = 50000, fa
   return Math.max(Math.round(4500 * scale / 100) * 100, scaled);
 }
 
-// Assign salaries to all pool_tier_players rows for a given salary_cap league.
+// Assign salaries to all pool_tier_players using market-implied pricing.
+//
+// Each player's salary = their share of the total implied probability pool,
+// scaled to (cap × roster_size). This mirrors DraftKings/FanDuel pricing:
+//   implied_prob = 1 / odds_decimal
+//   salary = (implied_prob / sum_of_all_probs) × (cap × roster_size)
+//
+// Produces a wide, realistic spread: Scheffler at 4:1 costs ~3× a 100:1
+// longshot. The field's total salary equals exactly cap × roster_size,
+// so the budget is genuinely constraining.
+//
+// Floor $3,000 / ceiling $15,000 (at $50k cap) prevent degenerate extremes.
+// All values rounded to nearest $100 for clean display.
 async function assignSalaryCapSalaries(leagueId) {
   try {
     const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', leagueId);
     if (!league || league.format_type !== 'salary_cap') return { updated: 0 };
     const cap = league.weekly_salary_cap || 50000;
+    const rosterSize = league.starters_per_week || league.roster_size || 6;
     const tid = league.pool_tournament_id;
     if (!tid) return { updated: 0 };
 
@@ -137,20 +150,33 @@ async function assignSalaryCapSalaries(leagueId) {
       'SELECT ptp.id, ptp.player_id, ptp.odds_decimal, gp.world_ranking FROM pool_tier_players ptp LEFT JOIN golf_players gp ON gp.id = ptp.player_id WHERE ptp.league_id = ? AND ptp.tournament_id = ?',
       leagueId, tid
     );
+    if (players.length === 0) return { updated: 0 };
+
+    const scale = cap / 50000;
+    const FLOOR   = Math.round(3000 * scale / 100) * 100;
+    const CEILING = Math.round(15000 * scale / 100) * 100;
+
+    // Implied probability for each player. Fall back to ranking if no odds.
+    const probs = players.map(p => {
+      const dec = p.odds_decimal && p.odds_decimal > 1 ? p.odds_decimal : null;
+      if (dec) return 1 / dec;
+      const r = p.world_ranking || 500;
+      return 1 / (r * 2.5);
+    });
+    const totalProb = probs.reduce((s, p) => s + p, 0);
+    if (totalProb === 0) return { updated: 0 };
+
+    // Total salary pool = cap × roster_size (what a full roster should cost)
+    const totalPool = cap * rosterSize;
 
     const updSql = 'UPDATE pool_tier_players SET salary = ? WHERE id = ?';
     let updated = 0;
     await db.transaction(async (tx) => {
-      for (const row of players) {
-        // Convert decimal odds to American for the salary function
-        let american = null;
-        if (row.odds_decimal && row.odds_decimal > 1) {
-          american = row.odds_decimal >= 2
-            ? Math.round((row.odds_decimal - 1) * 100)
-            : Math.round(-100 / (row.odds_decimal - 1));
-        }
-        const salary = calculatePlayerSalaryFromOdds(american, cap, { world_ranking: row.world_ranking });
-        await tx.run(updSql, salary, row.id);
+      for (let i = 0; i < players.length; i++) {
+        const rawSalary = (probs[i] / totalProb) * totalPool;
+        const rounded = Math.round(rawSalary / 100) * 100;
+        const clamped = Math.max(FLOOR, Math.min(CEILING, rounded));
+        await tx.run(updSql, clamped, players[i].id);
         updated++;
       }
     });
