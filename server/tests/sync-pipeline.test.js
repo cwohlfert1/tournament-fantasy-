@@ -50,6 +50,25 @@ beforeAll(() => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE golf_leagues (
+      id TEXT PRIMARY KEY, name TEXT, pool_tournament_id TEXT,
+      missed_cut_rule TEXT DEFAULT 'fixed', missed_cut_penalty INTEGER DEFAULT 8,
+      format_type TEXT DEFAULT 'pool', status TEXT DEFAULT 'active',
+      scoring_style TEXT DEFAULT 'fantasy_points'
+    );
+    CREATE TABLE golf_tournament_fields (
+      id TEXT PRIMARY KEY, tournament_id TEXT, player_id TEXT,
+      player_name TEXT, espn_player_id TEXT, world_ranking INTEGER,
+      odds_display TEXT, odds_decimal REAL,
+      UNIQUE(tournament_id, player_id)
+    );
+    CREATE TABLE golf_league_members (
+      id TEXT PRIMARY KEY, golf_league_id TEXT, user_id TEXT, team_name TEXT
+    );
+    CREATE TABLE pool_picks (
+      id TEXT PRIMARY KEY, league_id TEXT, tournament_id TEXT, user_id TEXT,
+      player_id TEXT, player_name TEXT, tier_number INTEGER
+    );
   `);
 });
 afterAll(() => { if (mockMemDb) mockMemDb.close(); });
