@@ -4,6 +4,16 @@ import { useDocTitle } from '../../hooks/useDocTitle';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../api';
 import { ArrowRight, Plus, MessageCircle, CheckCircle, XCircle, Trophy, DollarSign, Star, Flag, BarChart2, Clipboard, Mail, FileText } from 'lucide-react';
+import {
+  TOUR_SCHEDULE,
+  _today,
+  getEventStatus,
+  getCurrentOrNextEvent,
+  getLiveEvent,
+  getNextUpEvent,
+  getUpcomingEvents,
+  getNextMajor,
+} from '../../utils/pgaSchedule';
 
 const STYLES = ``;
 
@@ -95,62 +105,9 @@ const TESTIMONIALS = [
   },
 ];
 
-// ── 2026 PGA Tour schedule (used by the dynamic "next up" hero) ─────────────
-// Update this list once a year; the page derives current/next/upcoming
-// from today's date so no other code has to change between events.
-const TOUR_SCHEDULE = [
-  { name: 'AT&T Pebble Beach Pro-Am',     start: '2026-02-12', end: '2026-02-15', type: 'signature' },
-  { name: 'Genesis Invitational',         start: '2026-02-19', end: '2026-02-22', type: 'signature' },
-  { name: 'Arnold Palmer Invitational',   start: '2026-03-05', end: '2026-03-08', type: 'signature' },
-  { name: 'Masters Tournament',           start: '2026-04-09', end: '2026-04-13', type: 'major'     },
-  { name: 'RBC Heritage',                 start: '2026-04-16', end: '2026-04-19', type: 'signature' },
-  { name: 'Cadillac Championship',        start: '2026-04-30', end: '2026-05-03', type: 'signature' },
-  { name: 'Truist Championship',          start: '2026-05-07', end: '2026-05-10', type: 'signature' },
-  { name: 'PGA Championship',             start: '2026-05-11', end: '2026-05-17', type: 'major'     },
-  { name: 'The Memorial Tournament',      start: '2026-06-04', end: '2026-06-07', type: 'signature' },
-  { name: 'US Open',                      start: '2026-06-15', end: '2026-06-21', type: 'major'     },
-  { name: 'Travelers Championship',       start: '2026-06-25', end: '2026-06-28', type: 'signature' },
-  { name: 'The Open Championship',        start: '2026-07-13', end: '2026-07-19', type: 'major'     },
-];
-
-// today's date with time stripped — single source of truth for status
-function _today() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
-
-// 'live' | 'next' | 'upcoming' | 'completed' — derived from start/end dates
-function getEventStatus(t, today = _today(), nextUpName = null) {
-  const start = new Date(t.start + 'T00:00:00');
-  const end   = new Date(t.end   + 'T23:59:59');
-  if (end < today) return 'completed';
-  if (today >= start && today <= end) return 'live';
-  if (nextUpName && t.name === nextUpName) return 'next';
-  return 'upcoming';
-}
-
-// First future-or-live event in the schedule; null if season is over
-function getCurrentOrNextEvent(today = _today()) {
-  return TOUR_SCHEDULE.find(t => new Date(t.end + 'T23:59:59') >= today) || null;
-}
-// Specifically the live event (or null)
-function getLiveEvent(today = _today()) {
-  return TOUR_SCHEDULE.find(t => {
-    const s = new Date(t.start + 'T00:00:00');
-    const e = new Date(t.end   + 'T23:59:59');
-    return today >= s && today <= e;
-  }) || null;
-}
-// Next event AFTER today (excludes a currently-live one)
-function getNextUpEvent(today = _today()) {
-  return TOUR_SCHEDULE.find(t => new Date(t.start + 'T00:00:00') > today) || null;
-}
-function getUpcomingEvents(limit = 4, today = _today()) {
-  const next = getNextUpEvent(today);
-  if (!next) return [];
-  const startIdx = TOUR_SCHEDULE.indexOf(next) + 1;
-  return TOUR_SCHEDULE.slice(startIdx, startIdx + limit);
-}
-function getNextMajor(today = _today()) {
-  return TOUR_SCHEDULE.find(t => t.type === 'major' && new Date(t.start + 'T00:00:00') > today) || null;
-}
+// 2026 PGA schedule + status helpers live in utils/pgaSchedule.js — single
+// source of truth used by this page, HubLanding, and anywhere else that
+// needs "what's happening on Tour right now." Imports are at the top.
 
 // ── Majors & Signature events carousel ───────────────────────────────────────
 // Infinite horizontal scroll showing only the "big deal" tournaments.

@@ -58,3 +58,21 @@ export function getEventStatus(t, today = _today(), nextUpName = null) {
   if (nextUpName && t.name === nextUpName) return 'next';
   return 'upcoming';
 }
+
+// First future-or-live event. Null if season is over.
+export function getCurrentOrNextEvent(today = _today()) {
+  return TOUR_SCHEDULE.find(t => new Date(t.end + 'T23:59:59') >= today) || null;
+}
+
+// Next N events AFTER the next one (useful for "upcoming 3/4" strips).
+export function getUpcomingEvents(limit = 4, today = _today()) {
+  const next = getNextUpEvent(today);
+  if (!next) return [];
+  const startIdx = TOUR_SCHEDULE.indexOf(next) + 1;
+  return TOUR_SCHEDULE.slice(startIdx, startIdx + limit);
+}
+
+// Next major (The Masters, PGA Championship, US Open, The Open) after today.
+export function getNextMajor(today = _today()) {
+  return TOUR_SCHEDULE.find(t => t.type === 'major' && new Date(t.start + 'T00:00:00') > today) || null;
+}
