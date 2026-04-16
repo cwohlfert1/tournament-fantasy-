@@ -405,13 +405,19 @@ router.post('/leagues', authMiddleware, async (req, res) => {
           tiersArr = [{ tier: 1, odds_min: '', odds_max: '', picks: parseInt(starters_count) || 6 }];
         }
         if (tiersArr.length > 0) {
+          // Pull real DataGolf odds from any existing pool for this tournament.
+          // Falls back to ranking-based synthetic odds if no pool exists yet.
           const fieldPlayers = await db.all(`
             SELECT gp.id, gp.name, gp.world_ranking, gp.country,
-                   COALESCE(ptp_existing.odds_display, NULL) AS odds_display,
-                   COALESCE(ptp_existing.odds_decimal, NULL) AS odds_decimal
+                   ptp_real.odds_display, ptp_real.odds_decimal
             FROM golf_tournament_fields gtf
             JOIN golf_players gp ON gp.id = gtf.player_id
-            LEFT JOIN pool_tier_players ptp_existing ON ptp_existing.player_id = gp.id AND ptp_existing.tournament_id = ?
+            LEFT JOIN (
+              SELECT player_id, odds_display, odds_decimal
+              FROM pool_tier_players
+              WHERE tournament_id = ? AND odds_locked_at IS NOT NULL
+              GROUP BY player_id
+            ) ptp_real ON ptp_real.player_id = gp.id
             WHERE gtf.tournament_id = ?
           `, poolTournamentIdFinal, poolTournamentIdFinal);
 
@@ -441,6 +447,13 @@ router.post('/leagues', authMiddleware, async (req, res) => {
             }
           });
           console.log(`[league-create] auto-seeded ${fieldPlayers.length} players for "${name}" (${fmt})`);
+
+          // For salary_cap: assign salaries based on odds/ranking after seeding
+          if (fmt === 'salary_cap') {
+            const { assignSalaryCapSalaries } = require('./golf-pool');
+            const salResult = await assignSalaryCapSalaries(id);
+            console.log(`[league-create] assigned salaries for "${name}": ${salResult.updated} players`);
+          }
         }
       } catch (e) {
         console.error(`[league-create] auto-seed failed for "${name}":`, e.message);
