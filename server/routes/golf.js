@@ -289,7 +289,7 @@ router.post('/leagues', authMiddleware, async (req, res) => {
 
     if (!name || !team_name) return res.status(400).json({ error: 'League name and team name required' });
 
-    const fmt = ['pool', 'salary_cap', 'tourneyrun'].includes(format_type) ? format_type : 'tourneyrun';
+    const fmt = ['pool', 'salary_cap', 'draft', 'tourneyrun'].includes(format_type) ? format_type : 'tourneyrun';
 
     // Derive roster_size and starters_per_week from format
     let roster_size, starters_per_week;
@@ -525,7 +525,7 @@ router.get('/leagues/my-rosters', authMiddleware, async (req, res) => {
       JOIN golf_league_members glm ON glm.golf_league_id = gl.id AND glm.user_id = ?
       LEFT JOIN pool_picks pp ON pp.league_id = gl.id AND pp.user_id = ?
         AND pp.tournament_id = gl.pool_tournament_id
-      WHERE gl.format_type IN ('pool', 'salary_cap') AND gl.pool_tournament_id IS NOT NULL
+      WHERE gl.format_type IN ('pool', 'salary_cap', 'draft') AND gl.pool_tournament_id IS NOT NULL
       GROUP BY gl.id
     `, req.user.id, req.user.id);
     const result = {};

@@ -804,7 +804,7 @@ router.post('/admin/dev/sync-pool-tiers', superadmin, async (req, res) => {
       : '';
     const args = req.body.league_id ? [req.body.league_id] : [];
     const leagues = await db.all(
-      `SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id IS NOT NULL AND status != 'archived' ${filter}`,
+      `SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap', 'draft') AND pool_tournament_id IS NOT NULL AND status != 'archived' ${filter}`,
       ...args
     );
 
@@ -1020,7 +1020,7 @@ router.post('/admin/dev/sync-espn-field', superadmin, async (req, res) => {
 
     // ── Step 4: Rebuild pool_tier_players (now with updated odds) ─────────────
     const affectedLeagues = await db.all(
-      "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'",
+      "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap', 'draft') AND pool_tournament_id = ? AND status != 'archived'",
       tournament_id
     );
 

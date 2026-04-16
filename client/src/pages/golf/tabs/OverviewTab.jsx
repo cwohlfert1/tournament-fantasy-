@@ -3,10 +3,11 @@ import { Users, Zap, Flag, Check, Copy, MessageSquare } from 'lucide-react';
 import { Button, Badge } from '../../../components/ui';
 
 const FORMAT_META = {
-  pool:        { label: 'Pool',        color: 'blue'  },
-  salary_cap:  { label: 'Salary Cap',  color: 'blue'  },
-  dk:          { label: 'Salary Cap',  color: 'blue'  },
-  tourneyrun:  { label: 'TourneyRun',  color: 'green' },
+  pool:        { label: 'Pool',         color: 'blue'   },
+  salary_cap:  { label: 'Salary Cap',   color: 'blue'   },
+  draft:       { label: 'Snake Draft',  color: 'purple' },
+  dk:          { label: 'Salary Cap',   color: 'blue'   },
+  tourneyrun:  { label: 'TourneyRun',   color: 'green'  },
 };
 
 export default function OverviewTab({ league, members, user, isComm, navigate, picksStatus }) {

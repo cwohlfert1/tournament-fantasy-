@@ -27,6 +27,7 @@ const FORMAT_META = {
   pool:        { label: '⛳ Pool',        pill: 'bg-green-500/15 border-green-500/30 text-green-400', duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-green-500'  },
   salary_cap:  { label: '💰 Salary Cap',  pill: 'bg-blue-500/15 border-blue-500/30 text-blue-400',   duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-blue-500'   },
   dk:          { label: '💰 Salary Cap',  pill: 'bg-blue-500/15 border-blue-500/30 text-blue-400',   duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-blue-500'   },
+  draft:       { label: '🐍 Snake Draft', pill: 'bg-purple-500/15 border-purple-500/30 text-purple-400', duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-purple-500' },
   tourneyrun:  { label: '🏆 TourneyRun',  pill: 'bg-teal-500/15 border-teal-500/30 text-teal-400',  duration: 'Season Long',    dPill: 'bg-gray-700/60 border-gray-700 text-gray-400',       bar: 'bg-teal-500'   },
 };
 function getMeta(fmt) { return FORMAT_META[fmt] || FORMAT_META.tourneyrun; }
@@ -143,7 +144,7 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
   const isComm = league.commissioner_id === userId;
   const meta   = getMeta(league.format_type);
 
-  const isPool = league.format_type === 'pool' || league.format_type === 'salary_cap';
+  const isPool = league.format_type === 'pool' || league.format_type === 'salary_cap' || league.format_type === 'draft';
   const poolTs  = isPool ? league.pool_tournament_status : null;
 
   // Standings rank for active/completed pool leagues
@@ -381,7 +382,7 @@ export default function GolfDashboard() {
 
   const isActiveLeague = l => {
     // Pool leagues tied to completed tournaments go to "past"
-    if ((l.format_type === 'pool' || l.format_type === 'salary_cap') && l.pool_tournament_status === 'completed') return false;
+    if ((l.format_type === 'pool' || l.format_type === 'salary_cap' || l.format_type === 'draft') && l.pool_tournament_status === 'completed') return false;
     // Already-active statuses (lobby, draft, active, etc.)
     if (ACTIVE_STATUSES.has(l.status)) return true;
     // Include pending_payment pool leagues whose tournament starts within 7 days

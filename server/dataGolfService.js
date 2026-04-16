@@ -382,7 +382,7 @@ async function _applyFieldToTournament(tourn, field) {
 
   const { _oddsToDecimal, _rankToOdds } = _getTierHelpers();
   const affectedLeagues = await db.all(
-    "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'",
+    "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap', 'draft') AND pool_tournament_id = ? AND status != 'archived'",
     tourn.id
   );
 
@@ -830,7 +830,7 @@ async function syncDgOddsTiers(tournamentId) {
   `, tournamentId);
 
   const leagues = await db.all(
-    "SELECT id FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'",
+    "SELECT id FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap', 'draft') AND pool_tournament_id = ? AND status != 'archived'",
     tournamentId
   );
 

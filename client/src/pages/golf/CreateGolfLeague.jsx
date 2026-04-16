@@ -630,7 +630,7 @@ export default function CreateGolfLeague() {
     setFormat(f);
     setForm(prev => ({
       ...prev,
-      max_teams: (f === 'pool' || f === 'salary_cap') ? 20 : 8,
+      max_teams: (f === 'pool' || f === 'salary_cap' || f === 'draft') ? 20 : 8,
       ...(f === 'pool' ? { pool_tier: 'standard', comm_pro_price: 12.99 } : {}),
     }));
   }

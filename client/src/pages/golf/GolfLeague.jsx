@@ -38,7 +38,7 @@ import OwnershipTab from './tabs/OwnershipTab';
 import SalaryCapPicksTab from './tabs/SalaryCapPicksTab';
 
 function getTabs(league, isComm, hideOverview = false) {
-  const isPool = league?.format_type === 'pool' || league?.format_type === 'salary_cap';
+  const isPool = league?.format_type === 'pool' || league?.format_type === 'salary_cap' || league?.format_type === 'draft';
   const isSalaryCap = league?.format_type === 'salary_cap';
   const base = [];
   if (!hideOverview) base.push({ key: 'overview', label: 'Overview' });
@@ -108,7 +108,7 @@ export default function GolfLeague() {
   }, [id]);
 
   useEffect(() => {
-    if (!league || !['pool', 'salary_cap'].includes(league.format_type) || !league.pool_tournament_id) return;
+    if (!league || !['pool', 'salary_cap', 'draft'].includes(league.format_type) || !league.pool_tournament_id) return;
     api.get(`/golf/leagues/${id}/my-roster`)
       .then(r => setPicksStatus({ submitted: r.data.submitted, picks_locked: r.data.picks_locked }))
       .catch(() => {});
@@ -116,7 +116,7 @@ export default function GolfLeague() {
 
   // Live standings push for pool / salary_cap leagues
   useEffect(() => {
-    if (!league || !['pool', 'salary_cap'].includes(league.format_type) || !user) return;
+    if (!league || !['pool', 'salary_cap', 'draft'].includes(league.format_type) || !user) return;
     const token = localStorage.getItem('token');
     if (!token) return;
     connectSocket(token);
@@ -182,12 +182,12 @@ export default function GolfLeague() {
   }
 
   const isComm = league.commissioner_id === user?.id;
-  const isPool = league.format_type === 'pool' || league.format_type === 'salary_cap';
+  const isPool = league.format_type === 'pool' || league.format_type === 'salary_cap' || league.format_type === 'draft';
 
   // Hide Overview tab once picks are submitted and tournament has started.
   // picksStatus loads async — stays false until resolved (no flash risk).
   const shouldHideOverview =
-    ['pool', 'salary_cap'].includes(league.format_type) &&
+    ['pool', 'salary_cap', 'draft'].includes(league.format_type) &&
     !!picksStatus?.submitted &&
     (league.pool_tournament_status === 'active' ||
      league.pool_tournament_status === 'completed' ||
@@ -229,7 +229,7 @@ export default function GolfLeague() {
               }
             </div>
           </div>
-          {(league.format_type === 'pool' || league.format_type === 'salary_cap')
+          {(league.format_type === 'pool' || league.format_type === 'salary_cap' || league.format_type === 'draft')
             ? (() => {
                 const ts = league.pool_tournament_status;
                 const ctaClass = "inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0";
