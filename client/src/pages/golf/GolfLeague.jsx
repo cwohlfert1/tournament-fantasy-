@@ -193,8 +193,10 @@ export default function GolfLeague() {
      league.pool_tournament_status === 'completed' ||
      !!picksStatus?.picks_locked);
 
-  // If the URL tab is 'overview' but it's hidden, treat as 'roster'.
-  const effectiveTab = tab === 'overview' && shouldHideOverview ? 'roster' : tab;
+  // If the URL tab is 'overview' but it's hidden, fall through to picks.
+  // salary_cap uses 'picks' tab; pool uses 'roster' — both show the user's lineup.
+  const defaultPicksTab = league.format_type === 'salary_cap' ? 'picks' : 'roster';
+  const effectiveTab = tab === 'overview' && shouldHideOverview ? defaultPicksTab : tab;
 
   function setTab(t) {
     setSearchParams({ tab: t });
@@ -237,9 +239,9 @@ export default function GolfLeague() {
                 if (ts === 'active')
                   return <Link to={`/golf/league/${id}?tab=standings`} className={ctaClass}>Pool Standings <ChevronRight className="w-4 h-4" /></Link>;
                 if (league.picks_locked || picksStatus?.picks_locked)
-                  return <Link to={`/golf/league/${id}?tab=roster`} className={ctaClass}>View My Picks <ChevronRight className="w-4 h-4" /></Link>;
+                  return <Link to={`/golf/league/${id}?tab=${defaultPicksTab}`} className={ctaClass}>View My Picks <ChevronRight className="w-4 h-4" /></Link>;
                 if (picksStatus?.submitted)
-                  return <Link to={`/golf/league/${id}?tab=roster`} className={ctaClass}>✓ View/Edit Picks <ChevronRight className="w-4 h-4" /></Link>;
+                  return <Link to={`/golf/league/${id}?tab=${defaultPicksTab}`} className={ctaClass}>✓ View/Edit Picks <ChevronRight className="w-4 h-4" /></Link>;
                 return <Link to={`/golf/league/${id}/picks`} className={ctaClass}>Make My Picks <ChevronRight className="w-4 h-4" /></Link>;
               })()
             : (league.draft_status !== 'completed' && (
