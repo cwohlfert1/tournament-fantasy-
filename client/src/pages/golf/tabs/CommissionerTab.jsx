@@ -1203,20 +1203,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
           )}
 
           {/* ── Import Members ── */}
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-            <h4 className="text-white text-sm font-bold mb-4">📥 Import Members</h4>
-            <p className="text-gray-500 text-xs mb-4">
-              Upload an Excel or CSV file to add members and send them invite emails.
-              Need a template?{' '}
-              <button
-                onClick={downloadCsvTemplate}
-                style={{ background: 'none', border: 'none', color: '#4ade80', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-              >
-                Download sample CSV
-              </button>
-            </p>
-            <ImportSection leagueId={leagueId} leagueName={leagueName} />
-          </div>
+          <ImportSection leagueId={leagueId} />
 
           {/* ── Mass Blast ── */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
