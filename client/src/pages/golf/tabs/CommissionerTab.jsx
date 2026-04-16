@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Flag, Hand, DollarSign, BarChart3, Trophy, Megaphone, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import Alert from '../../../components/ui/Alert';
@@ -14,6 +14,8 @@ import BlastModal      from './commissioner/BlastModal';
 import MassBlast       from './commissioner/MassBlast';
 import ReferralSection from './commissioner/ReferralSection';
 import ImportSection   from './commissioner/ImportSection';
+import UnpaidSection   from './commissioner/UnpaidSection';
+import QuickReminders  from './commissioner/QuickReminders';
 
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -293,60 +295,6 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
     ? 'Most fantasy points wins'
     : 'Lowest combined score wins (Stroke Play)';
 
-  // ── Template generators ─────────────────────────────────────────────────────
-  function picksReminderMsg() {
-    return `⛳ Reminder — picks for ${leagueName} are due before Thursday 8am ET. Head to TourneyRun to lock in your ${totalPicks ?? 7} golfers before the deadline. Don't get locked out!`;
-  }
-
-  function welcomeMsg() {
-    const picks = totalPicks ?? 'X';
-    const pool  = prizePool > 0 ? `$${prizePool.toFixed(0)}` : '[Prize Pool]';
-    return `Welcome to ${leagueName}! Here's how it works:\n- Pick ${picks} golfers before Thursday 8am ET\n- Players are grouped into tiers by betting odds\n- ${scoringLabel}\n- Prize pool: ${pool} — ${p1pct}% to 1st, ${p2pct}% to 2nd, ${p3pct}% to 3rd\n- Standings update automatically from ESPN\n\nGood luck and may the best golfer win! 🏆`;
-  }
-
-  function payReminderMsg() {
-    const amount = league?.buy_in_amount > 0 ? `$${league.buy_in_amount}` : '[buy-in amount]';
-    const methods = [
-      venmo  ? `Venmo: ${venmo}`   : '',
-      zelle  ? `Zelle: ${zelle}`   : '',
-      paypal ? `PayPal: ${paypal}` : '',
-    ].filter(Boolean).join('\n');
-    const methodsLine = methods || '[Add your payment methods in the Commissioner Hub]';
-    return `Hey! Just a reminder to pay your ${amount} buy-in for ${leagueName}.\n\n${methodsLine}\n\nPlease pay as soon as possible so the prize pool is accurate. Thanks!`;
-  }
-
-  function leaderboardMsg() {
-    const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
-    return `Standings are updated in ${leagueName}! Check where you stand and who you need to beat.\n\u2192 ${url}`;
-  }
-
-  function winnerMsg() {
-    const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
-    let w1, w2;
-    if (league?.format_type === 'pool' && poolStandings.length) {
-      // poolStandings already has rank=1 as winner regardless of scoring style
-      const byRank = [...poolStandings].sort((a, b) => a.rank - b.rank);
-      w1 = byRank[0]?.team_name || '[1st place]';
-      w2 = byRank[1]?.team_name || '[2nd place]';
-    } else {
-      const sorted = [...members].sort((a, b) => Number(b.season_points || 0) - Number(a.season_points || 0));
-      w1 = sorted[0]?.team_name || '[1st place]';
-      w2 = sorted[1]?.team_name || '[2nd place]';
-    }
-    const prize1 = prizePool > 0 ? `$${(prizePool * p1pct / 100).toFixed(0)}` : '[prize]';
-    const prize2 = prizePool > 0 ? `$${(prizePool * p2pct / 100).toFixed(0)}` : '[prize]';
-    return `That's a wrap on ${leagueName}!\n\u{1F3C6} 1st place: ${w1} \u2014 ${prize1}\n\u{1F948} 2nd place: ${w2} \u2014 ${prize2}\n\nThanks everyone for playing \u2014 see you at the next tournament!\n\u2192 ${url}`;
-  }
-
-  function inviteMsg() {
-    const url = `https://www.tourneyrun.app/golf/league/${leagueId}`;
-    const tournament = league?.pool_tournament_name || 'the upcoming tournament';
-    const spotsLeft = Math.max(0, (league?.max_teams || 0) - members.length);
-    const spotsLine = spotsLeft > 0 ? `${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} left.` : '';
-    const codeLine = league?.invite_code ? `\nInvite code: ${league.invite_code}` : '';
-    return `We're running a golf pool for ${tournament}!\n${spotsLine} Join here:${codeLine}\n\u2192 ${url}`;
-  }
-
   // ── Handlers ────────────────────────────────────────────────────────────────
   async function handleUpgrade() {
     setUpgrading(true);
@@ -485,22 +433,6 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const showPromoBar = !isPaid && !alreadyUsedPromo && membersNeeded > 0;
   const pct = Math.min(100, Math.round((memberCount / 6) * 100));
 
-  // ── Quick-send button styles ─────────────────────────────────────────────────
-  const quickBtnBase = {
-    border: 'none', borderRadius: 8, padding: '8px 10px',
-    fontWeight: 700, fontSize: 11, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    gap: 4, textAlign: 'center', lineHeight: 1.3,
-  };
-  const quickBtns = [
-    { icon: Flag,        label: 'Picks Reminder',     msg: picksReminderMsg, style: { ...quickBtnBase, background: 'rgba(22,163,74,0.15)',   color: '#4ade80', border: '1px solid rgba(22,163,74,0.35)'   } },
-    { icon: Hand,        label: 'Welcome & Rules',    msg: welcomeMsg,       style: { ...quickBtnBase, background: 'rgba(59,130,246,0.12)',  color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)'  } },
-    { icon: DollarSign,  label: 'Pay Your Buy-In',    msg: payReminderMsg,   style: { ...quickBtnBase, background: 'rgba(245,158,11,0.12)',  color: '#fbbf24', border: '1px solid rgba(245,158,11,0.35)'  } },
-    { icon: BarChart3,   label: 'Leaderboard Update', msg: leaderboardMsg,   style: { ...quickBtnBase, background: 'rgba(139,92,246,0.12)',  color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.35)'  } },
-    { icon: Trophy,      label: 'Winner Announcement',msg: winnerMsg,        style: { ...quickBtnBase, background: 'rgba(234,179,8,0.12)',   color: '#fde047', border: '1px solid rgba(234,179,8,0.35)'   } },
-    { icon: Megaphone,   label: 'Invite More Players',msg: inviteMsg,        style: { ...quickBtnBase, background: 'rgba(20,184,166,0.12)',  color: '#5eead4', border: '1px solid rgba(20,184,166,0.35)'  } },
-  ];
-
   return (
     <div className="space-y-4">
       {/* Unpaid entries banner */}
@@ -529,70 +461,14 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         </div>
       )}
 
-      {/* Unpaid entries detailed table — bordered rows, no pills */}
-      {league?.buy_in_amount > 0 && unpaidList && unpaidList.unpaid_count > 0 && (
-        <div data-testid="unpaid-entries-section" style={{
-          position: 'relative',
-          background: 'linear-gradient(to right, rgba(245,158,11,0.06), rgba(15,23,35,0.4) 50%)',
-          border: '1px solid rgba(245,158,11,0.28)',
-          borderLeft: '3px solid #f59e0b',
-          borderRadius: 10,
-          padding: '14px 16px',
-          boxShadow: '-4px 0 14px -3px rgba(245,158,11,0.25)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true">
-                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                <path d="M12 9v4"/>
-                <path d="M12 17h.01"/>
-              </svg>
-              <div>
-                <div style={{ color: '#f3f4f6', fontSize: 13, fontWeight: 600, letterSpacing: '-0.005em', lineHeight: 1.35 }}>Unpaid Entries</div>
-                <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 3, lineHeight: 1.45 }}>
-                  <span style={{ color: '#fbbf24', fontWeight: 700 }}>{unpaidList.unpaid_count}</span> of {unpaidList.total_entries} entries still need payment
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                data-testid="unpaid-csv-button"
-                onClick={downloadUnpaidCsv}
-                style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#d1d5db' }}
-              >Download CSV</button>
-              <button
-                type="button"
-                data-testid="unpaid-remind-button"
-                onClick={() => sendPayReminders()}
-                disabled={remindingSending}
-                style={{ padding: '6px 14px', borderRadius: 8, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.18)', color: '#fbbf24', letterSpacing: '-0.005em' }}
-              >{remindingSending ? 'Sending…' : 'Send Reminder'}</button>
-            </div>
-          </div>
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            {unpaidList.unpaid.map((u, i) => (
-              <div
-                key={`${u.user_id}_${u.entry_number}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.4fr 1.6fr 0.5fr 0.9fr 0.5fr',
-                  gap: 10,
-                  alignItems: 'center',
-                  padding: '10px 4px',
-                  borderBottom: i === unpaidList.unpaid.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
-                  fontSize: 12,
-                }}
-              >
-                <div style={{ color: '#ffffff', fontWeight: 600 }}>{u.full_name || u.username}</div>
-                <div style={{ color: '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
-                <div style={{ color: '#6b7280' }}>#{u.entry_number}</div>
-                <div style={{ color: '#6b7280' }}>{u.entry_date ? new Date(u.entry_date).toLocaleDateString() : '—'}</div>
-                <div style={{ color: '#fbbf24', fontWeight: 700, textAlign: 'right' }}>UNPAID</div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Unpaid entries detailed table */}
+      {league?.buy_in_amount > 0 && (
+        <UnpaidSection
+          unpaidList={unpaidList}
+          onDownloadCsv={downloadUnpaidCsv}
+          onSendReminders={() => sendPayReminders()}
+          sending={remindingSending}
+        />
       )}
 
       {/* ─── Re-invite Past Members ─── */}
@@ -1395,14 +1271,16 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
             </div>
 
             {/* Quick-send template buttons — 3×2 grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 16 }}>
-              {quickBtns.map(({ icon: Icon, label, msg, style }) => (
-                <button key={label} style={{ ...style, gap: 6 }} onClick={() => setBlastModal(msg())}>
-                  <Icon size={13} style={{ flexShrink: 0 }} />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
+            <QuickReminders
+              ctx={{
+                leagueId, leagueName, league,
+                totalPicks, prizePool, scoringLabel,
+                p1pct, p2pct, p3pct,
+                venmo, zelle, paypal,
+                members, poolStandings,
+              }}
+              onSelect={msg => setBlastModal(msg)}
+            />
 
             {/* Divider */}
             <div style={{ borderTop: '1px solid #111827', marginBottom: 14 }} />
