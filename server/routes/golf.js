@@ -711,9 +711,8 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
           const dropResult = applyDropScoring(picks, dropCount, { lockedDroppedIds });
           total_points = dropResult.team_score;
           enrichedPicks = dropResult.picks.map(p => ({
-            player_name: p.player_name, tier_number: p.tier_number, country: p.country,
-            // Use player_total (sum of rounds) as the per-player score for stroke play.
-            // p.fantasy_points from the DB holds the TourneyRun calculation — ignore it here.
+            player_id: p.player_id, player_name: p.player_name, tier_number: p.tier_number, country: p.country,
+            espn_player_id: p.espn_player_id,
             fantasy_points: p.player_total,
             round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
             finish_position: p.finish_position, made_cut: p.made_cut,
@@ -730,7 +729,8 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
           // Majors multiply total by 1.5×. Team total = sum of all picks' fantasy_points.
           total_points = Math.round(picks.reduce((s, p) => s + (p.fantasy_points || 0), 0) * 10) / 10;
           enrichedPicks = picks.map(p => ({
-            player_name: p.player_name, tier_number: p.tier_number, country: p.country,
+            player_id: p.player_id, player_name: p.player_name, tier_number: p.tier_number, country: p.country,
+            espn_player_id: p.espn_player_id,
             fantasy_points: p.fantasy_points || 0,
             round1: p.round1, round2: p.round2, round3: p.round3, round4: p.round4,
             finish_position: p.finish_position, made_cut: p.made_cut,
