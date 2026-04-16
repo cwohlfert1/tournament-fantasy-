@@ -728,7 +728,7 @@ router.get('/leagues/:id/standings', authMiddleware, async (req, res) => {
       }
 
       return res.json({
-        standings, format: 'pool',
+        standings, format: league.format_type,
         scoring_style: scoringStyle,
         drop_count: league.pool_drop_count ?? 2,
         drops_applied: !!league.pool_drops_applied,

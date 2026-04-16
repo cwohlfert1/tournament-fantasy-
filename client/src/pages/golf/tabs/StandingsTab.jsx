@@ -247,7 +247,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
   if (loading) return <div className="py-10 text-center text-gray-500 text-sm">Loading standings…</div>;
 
-  const isPool      = data?.format === 'pool';
+  const isPool      = data?.format === 'pool' || data?.format === 'salary_cap';
   const tournament  = data?.tournament;
   const isLive      = tournament?.status === 'active';
   const isComplete  = tournament?.status === 'completed' || tournament?.status === 'complete';

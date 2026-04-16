@@ -564,7 +564,7 @@ async function pushPoolStandings(tournamentId) {
     const poolLeagues = await db.all(`
       SELECT gl.id, gl.name, gl.scoring_style
       FROM golf_leagues gl
-      WHERE gl.format_type = 'pool'
+      WHERE gl.format_type IN ('pool', 'salary_cap')
         AND gl.status != 'archived'
         AND gl.pool_tournament_id = ?
     `, tournamentId);
@@ -685,7 +685,7 @@ async function syncTournamentField(tournamentId) {
   }
 
   const leagues = await db.all(
-    "SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type = 'pool' AND status != 'archived'",
+    "SELECT id FROM golf_leagues WHERE pool_tournament_id = ? AND format_type IN ('pool', 'salary_cap') AND status != 'archived'",
     tournamentId
   );
   if (!leagues.length) return;
@@ -962,7 +962,7 @@ async function runFieldSync() {
   // Find pool leagues with tournaments starting within 7 days
   const upcoming = await db.all(`
     SELECT DISTINCT gt.id, gt.name FROM golf_tournaments gt
-    JOIN golf_leagues gl ON gl.pool_tournament_id = gt.id AND gl.format_type = 'pool' AND gl.status != 'archived'
+    JOIN golf_leagues gl ON gl.pool_tournament_id = gt.id AND gl.format_type IN ('pool', 'salary_cap') AND gl.status != 'archived'
     WHERE gt.status IN ('scheduled','active')
       AND date(gt.start_date) <= date('now', '+7 days')
       AND date(gt.start_date) >= date('now', '-1 days')
@@ -1140,7 +1140,7 @@ async function syncEspnFieldForTournament(tournamentId) {
 
   // ── Rebuild pool_tier_players for affected leagues ───────────────────────────
   const affectedLeagues = await db.all(
-    "SELECT * FROM golf_leagues WHERE format_type = 'pool' AND pool_tournament_id = ? AND status != 'archived'",
+    "SELECT * FROM golf_leagues WHERE format_type IN ('pool', 'salary_cap') AND pool_tournament_id = ? AND status != 'archived'",
     tournamentId
   );
 
