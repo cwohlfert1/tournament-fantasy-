@@ -630,7 +630,7 @@ export default function CreateGolfLeague() {
     setFormat(f);
     setForm(prev => ({
       ...prev,
-      max_teams: f === 'pool' ? 20 : 8,
+      max_teams: (f === 'pool' || f === 'salary_cap') ? 20 : 8,
       ...(f === 'pool' ? { pool_tier: 'standard', comm_pro_price: 12.99 } : {}),
     }));
   }
@@ -1152,13 +1152,13 @@ export default function CreateGolfLeague() {
                 </p>
               </div>
 
-              {/* Max Teams */}
+              {/* Max Teams — same tiers as pool (supports up to 300) */}
               <div>
                 <label className="label mb-2.5">Max Teams</label>
-                <PillSelector
-                  options={[4, 6, 8, 10, 12].map(n => ({ value: n, label: String(n) }))}
-                  value={form.max_teams}
-                  onChange={v => set('max_teams', v)}
+                <PoolTierSelector
+                  maxTeams={form.max_teams}
+                  poolTier={form.pool_tier}
+                  onChange={(maxTeams, poolTier, commProPrice) => setForm(f => ({ ...f, max_teams: maxTeams, pool_tier: poolTier, comm_pro_price: commProPrice }))}
                 />
               </div>
 

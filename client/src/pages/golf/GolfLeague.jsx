@@ -38,7 +38,7 @@ import OwnershipTab from './tabs/OwnershipTab';
 import SalaryCapPicksTab from './tabs/SalaryCapPicksTab';
 
 function getTabs(league, isComm, hideOverview = false) {
-  const isPool = league?.format_type === 'pool';
+  const isPool = league?.format_type === 'pool' || league?.format_type === 'salary_cap';
   const isSalaryCap = league?.format_type === 'salary_cap';
   const base = [];
   if (!hideOverview) base.push({ key: 'overview', label: 'Overview' });
@@ -212,7 +212,7 @@ export default function GolfLeague() {
             <h1 className="text-3xl font-bold text-white break-words">{league.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {isComm && <Badge color="blue">Commissioner</Badge>}
-              {league.format_type === 'pool'
+              {isPool
                 ? (() => {
                     const ts = league.pool_tournament_status;
                     if (ts === 'active')    return <Badge color="green"><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mr-1" />Live</Badge>;
@@ -220,13 +220,13 @@ export default function GolfLeague() {
                     if (league.picks_locked) return <Badge color="yellow">Picks Locked</Badge>;
                     return <Badge color="green">Picks Open</Badge>;
                   })()
-                : (league.draft_status === 'completed'
+                : league.draft_status === 'completed'
                     ? <Badge color="green">Season Active</Badge>
-                    : <Badge color="yellow">Draft Pending</Badge>)
+                    : null
               }
             </div>
           </div>
-          {league.format_type === 'pool'
+          {(league.format_type === 'pool' || league.format_type === 'salary_cap')
             ? (() => {
                 const ts = league.pool_tournament_status;
                 const ctaClass = "inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0";
