@@ -4,6 +4,7 @@ import { User, Mail, Lock, IdCard, Eye, EyeOff, ArrowRight, Zap } from 'lucide-r
 import { useAuth } from '../contexts/AuthContext';
 import { useDocTitle } from '../hooks/useDocTitle';
 import AuthLayout, { IconInput } from '../components/AuthLayout';
+import Alert from '../components/ui/Alert';
 import api from '../api';
 
 export default function Register() {
@@ -74,12 +75,14 @@ export default function Register() {
     <AuthLayout>
       {/* Smart Draft credit banner */}
       {sdSession && (
-        <div className="flex items-center gap-2.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 rounded-xl px-4 py-3 text-sm mb-5">
-          <Zap size={18} className="shrink-0 text-yellow-400" />
-          <div>
-            <div className="font-bold">Smart Draft credit ready!</div>
-            <div className="text-yellow-400/80 text-xs mt-0.5">Create your account to activate it.</div>
-          </div>
+        <div style={{ marginBottom: 20 }}>
+          <Alert
+            variant="warning"
+            icon={Zap}
+            title="Smart Draft credit ready"
+          >
+            Create your account to activate it.
+          </Alert>
         </div>
       )}
 
@@ -91,10 +94,7 @@ export default function Register() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-3.5 py-2.5 text-sm">
-            <span className="shrink-0 mt-0.5">⚠️</span>
-            {error}
-          </div>
+          <Alert variant="destructive" title={error} onClose={() => setError('')} compact />
         )}
 
         <IconInput

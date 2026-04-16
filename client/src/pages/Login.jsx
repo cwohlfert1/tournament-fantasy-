@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useDocTitle } from '../hooks/useDocTitle';
 import AuthLayout, { IconInput } from '../components/AuthLayout';
+import Alert from '../components/ui/Alert';
 import api from '../api';
 
 export default function Login() {
@@ -75,10 +76,7 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-3.5 py-2.5 text-sm">
-            <span className="shrink-0 mt-0.5">⚠️</span>
-            {error}
-          </div>
+          <Alert variant="destructive" title={error} onClose={() => setError('')} compact />
         )}
 
         <IconInput
