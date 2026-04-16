@@ -684,9 +684,11 @@ router.get('/leagues/:id/my-roster', authMiddleware, async (req, res) => {
         ptp.tier_number, ptp.odds_display, ptp.odds_decimal, ptp.world_ranking,
         ptp.salary, ptp.manually_overridden, ptp.created_at,
         COALESCE(ptp.country, gp.country) AS country,
-        COALESCE(ptp.is_withdrawn, 0) AS is_withdrawn
+        COALESCE(ptp.is_withdrawn, 0) AS is_withdrawn,
+        gtf.espn_player_id
       FROM pool_tier_players ptp
       LEFT JOIN golf_players gp ON gp.id = ptp.player_id
+      LEFT JOIN golf_tournament_fields gtf ON gtf.tournament_id = ptp.tournament_id AND gtf.player_id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ? AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
       GROUP BY ptp.player_id
       ORDER BY ptp.tier_number ASC, ptp.odds_decimal ASC, ptp.world_ranking ASC

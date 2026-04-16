@@ -3,6 +3,7 @@ import { DollarSign, Lock, X } from 'lucide-react';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
 import GolfLoader from '../../../components/golf/GolfLoader';
+import PlayerAvatar from '../../../components/golf/PlayerAvatar';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -213,8 +214,8 @@ function PlayerPickerModal({ players, selectedIds, salaryCap, currentSpent, onPi
                   textAlign: 'left',
                 }}
               >
-                {/* Flag */}
-                <span style={{ fontSize: 20, flexShrink: 0 }}>{toFlag(p.country)}</span>
+                {/* Player headshot */}
+                <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={36} />
 
                 {/* Name + odds */}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -407,7 +408,7 @@ export default function SalaryCapPicksTab({ leagueId, league }) {
                   }}
                 >
                   <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12, width: 20, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
-                  <span style={{ fontSize: 18, flexShrink: 0 }}>{toFlag(p.country || livePick?.country)}</span>
+                  <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id || livePick?.espn_player_id} size={32} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {flipName(p.player_name)}
