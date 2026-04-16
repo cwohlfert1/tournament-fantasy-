@@ -80,9 +80,9 @@ export default function LiveGamesBanner({ leagueId, onLiveStatus }) {
                 <div className="mb-2.5">
                   <div className="flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-white font-bold">{game.team1}</span>
-                    <span className="text-red-400 font-black text-lg tabular-nums">{game.team1_score ?? 0}</span>
+                    <span className="text-red-400 font-bold text-lg tabular-nums">{game.team1_score ?? 0}</span>
                     <span className="text-gray-600">–</span>
-                    <span className="text-red-400 font-black text-lg tabular-nums">{game.team2_score ?? 0}</span>
+                    <span className="text-red-400 font-bold text-lg tabular-nums">{game.team2_score ?? 0}</span>
                     <span className="text-white font-bold">{game.team2}</span>
                   </div>
                   <div className="text-gray-500 text-xs mt-0.5 flex items-center gap-1.5">

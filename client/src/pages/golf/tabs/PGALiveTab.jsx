@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Flag } from 'lucide-react';
 import api from '../../../api';
+import Select from '../../../components/ui/Select';
 
 // ── Hole-by-hole scorecard helpers
 function holeSym(strokes, toparStr) {
@@ -224,11 +225,16 @@ export default function PGALiveTab({ leagueId, league }) {
             </button>
           ))}
         </div>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ background: '#111827', border: '1px solid #1f2937', color: '#9ca3af', fontSize: 12, padding: '5px 10px', borderRadius: 8, cursor: 'pointer' }}>
-          <option value="position">Sort: Position</option>
-          <option value="today">Sort: Today</option>
-          <option value="name">Sort: Name</option>
-        </select>
+        <Select
+          value={sortBy}
+          onChange={setSortBy}
+          size="sm"
+          options={[
+            { value: 'position', label: 'Sort: Position' },
+            { value: 'today',    label: 'Sort: Today' },
+            { value: 'name',     label: 'Sort: Name' },
+          ]}
+        />
       </div>
 
       {/* ── Leaderboard ── */}

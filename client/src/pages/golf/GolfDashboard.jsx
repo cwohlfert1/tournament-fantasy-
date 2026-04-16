@@ -63,7 +63,7 @@ function PrizeBreakdown({ league }) {
     <div className="mt-2 bg-gray-800/50 rounded-xl px-3 py-2.5 space-y-1.5">
       <div className="flex items-center justify-between text-xs">
         <span className="text-gray-500 font-semibold">Prize Pool</span>
-        <span className="text-white font-black">${prizePool.toLocaleString()}</span>
+        <span className="text-white font-bold">${prizePool.toLocaleString()}</span>
       </div>
       {shown.map((p, i) => (
         <div key={p.place} className="flex items-center justify-between text-xs">
@@ -108,7 +108,7 @@ function NextTournamentBanner({ tournament }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-0.5">
-            <span className="text-white font-black text-sm sm:text-base truncate">{tournament.name}</span>
+            <span className="text-white font-bold text-sm sm:text-base truncate">{tournament.name}</span>
             {isLive && (
               <span className="inline-flex items-center gap-1 bg-green-500/20 border border-green-500/40 text-green-400 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> LIVE NOW
@@ -125,11 +125,11 @@ function NextTournamentBanner({ tournament }) {
         </div>
         {!isLive && daysUntil > 0 && (
           <div className="text-right shrink-0">
-            <div className={`font-black text-lg tabular-nums ${tournament.is_major ? 'text-yellow-400' : 'text-green-400'}`}>{daysUntil}d</div>
+            <div className={`font-bold text-lg tabular-nums ${tournament.is_major ? 'text-yellow-400' : 'text-green-400'}`}>{daysUntil}d</div>
             <div className="text-gray-500 text-[10px] uppercase tracking-wide">until start</div>
           </div>
         )}
-        {isLive && <div className="text-right shrink-0"><div className="text-green-400 font-black text-sm">In Progress</div></div>}
+        {isLive && <div className="text-right shrink-0"><div className="text-green-400 font-bold text-sm">In Progress</div></div>}
       </div>
     </div>
   );
@@ -182,7 +182,7 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
         {/* Name + status */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-black text-white leading-tight truncate">{league.name}</div>
+            <div className="text-lg font-bold text-white leading-tight truncate">{league.name}</div>
             <div className="flex items-center gap-1.5 mt-1">
               <span className={`w-1.5 h-1.5 rounded-full ${statusDot} shrink-0 ${statusPulse ? 'animate-pulse' : ''}`} />
               <span className={`text-xs font-bold ${statusColor}`}>{statusLabel}</span>
@@ -280,7 +280,7 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
 function SectionHeader({ label, count }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      <h2 className="text-lg font-black text-white">{label}</h2>
+      <h2 className="text-lg font-bold text-white">{label}</h2>
       {count !== undefined && (
         <span className="text-xs font-bold text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
           {count}
@@ -322,7 +322,7 @@ function NotificationsSection({ notifications, dismissed, onDismiss }) {
   return (
     <div className="mb-8">
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-base font-black text-white">Notifications</h2>
+        <h2 className="text-base font-bold text-white">Notifications</h2>
         <span className="text-xs font-bold text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">{visible.length}</span>
       </div>
       <div className="space-y-2">
@@ -398,7 +398,7 @@ export default function GolfDashboard() {
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8 sm:mb-10">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">Golf Leagues</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight">Golf Leagues</h1>
           <p className="text-gray-400 mt-1">Welcome back, {user?.username}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -449,7 +449,7 @@ export default function GolfDashboard() {
             <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center mx-auto mb-5">
               <Flag className="w-8 h-8 text-green-400" />
             </div>
-            <h2 className="text-2xl font-black text-white mb-3">No leagues yet</h2>
+            <h2 className="text-2xl font-bold text-white mb-3">No leagues yet</h2>
             <p className="text-gray-400 max-w-md mx-auto mb-8">
               Create a golf league or join one with an invite code to start competing.
             </p>
@@ -462,7 +462,7 @@ export default function GolfDashboard() {
                   <Plus className="w-6 h-6 text-green-400" />
                 </div>
                 <div>
-                  <div className="text-white font-black text-sm">Create Custom League</div>
+                  <div className="text-white font-bold text-sm">Create Custom League</div>
                   <div className="text-gray-500 text-xs mt-0.5">Draft, salary cap, or daily</div>
                 </div>
               </Link>
@@ -474,7 +474,7 @@ export default function GolfDashboard() {
                   🏆
                 </div>
                 <div>
-                  <div className="text-white font-black text-sm">Run an Office Pool</div>
+                  <div className="text-white font-bold text-sm">Run an Office Pool</div>
                   <div className="text-gray-500 text-xs mt-0.5">Pick sheet, per tournament</div>
                 </div>
               </Link>
@@ -486,7 +486,7 @@ export default function GolfDashboard() {
                   <Ticket className="w-6 h-6 text-green-400" />
                 </div>
                 <div>
-                  <div className="text-white font-black text-sm">Join a League</div>
+                  <div className="text-white font-bold text-sm">Join a League</div>
                   <div className="text-gray-500 text-xs mt-0.5">Enter your invite code</div>
                 </div>
               </Link>
@@ -522,7 +522,7 @@ export default function GolfDashboard() {
             onClick={() => setPastOpen(o => !o)}
             className="flex items-center gap-2 mb-4 group"
           >
-            <h2 className="text-lg font-black text-gray-400 group-hover:text-gray-200 transition-colors">Past Leagues</h2>
+            <h2 className="text-lg font-bold text-gray-400 group-hover:text-gray-200 transition-colors">Past Leagues</h2>
             <span className="text-xs font-bold text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">
               {pastLeagues.length}
             </span>

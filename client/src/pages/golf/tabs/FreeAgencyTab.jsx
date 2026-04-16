@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Flag, Trophy, Check, ArrowRight } from 'lucide-react';
 import { Badge } from '../../../components/ui';
 import api from '../../../api';
+import Select from '../../../components/ui/Select';
 
 const getTier = (salary) => {
   if (salary >= 800) return { label: 'Elite', color: '#f59e0b' };
@@ -128,15 +129,15 @@ export default function FreeAgencyTab({ leagueId, league }) {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-gray-800/60 rounded-xl px-3 py-2.5 text-center">
             <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Remaining</div>
-            <div className="text-green-400 font-black text-xl tabular-nums">${waivers?.faabRemaining ?? '—'}</div>
+            <div className="text-green-400 font-bold text-xl tabular-nums">${waivers?.faabRemaining ?? '—'}</div>
           </div>
           <div className="bg-gray-800/60 rounded-xl px-3 py-2.5 text-center">
             <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Budget</div>
-            <div className="text-white font-black text-xl tabular-nums">${waivers?.faabBudget ?? '—'}</div>
+            <div className="text-white font-bold text-xl tabular-nums">${waivers?.faabBudget ?? '—'}</div>
           </div>
           <div className="bg-gray-800/60 rounded-xl px-3 py-2.5 text-center">
             <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Pending</div>
-            <div className="text-yellow-400 font-black text-xl tabular-nums">{pendingBids.length}</div>
+            <div className="text-yellow-400 font-bold text-xl tabular-nums">{pendingBids.length}</div>
           </div>
         </div>
       </div>
@@ -183,17 +184,16 @@ export default function FreeAgencyTab({ leagueId, league }) {
             {rosterFull && (
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1.5">Drop player (roster full)</label>
-                <select
+                <Select
                   value={dropPlayerId}
-                  onChange={e => setDropPlayerId(e.target.value)}
-                  required
-                  className="w-full bg-gray-800 border border-gray-700 focus:border-green-500 focus:outline-none text-white text-sm rounded-xl px-3 py-2.5"
-                >
-                  <option value="">Select player to drop...</option>
-                  {droppable.map(p => (
-                    <option key={p.player_id} value={p.player_id}>{p.name} (${p.salary})</option>
-                  ))}
-                </select>
+                  onChange={setDropPlayerId}
+                  options={droppable.map(p => ({
+                    value: p.player_id,
+                    label: `${p.name} ($${p.salary})`,
+                  }))}
+                  placeholder="Select player to drop..."
+                  fullWidth
+                />
               </div>
             )}
             <button
@@ -328,7 +328,7 @@ export default function FreeAgencyTab({ leagueId, league }) {
                             ].map(s => (
                               <div key={s.label} className="text-center">
                                 <div className="text-gray-600 text-[10px] uppercase tracking-wide mb-0.5">{s.label}</div>
-                                <div className="font-black text-sm tabular-nums" style={{ color: s.color }}>{s.value}</div>
+                                <div className="font-bold text-sm tabular-nums" style={{ color: s.color }}>{s.value}</div>
                               </div>
                             ))}
                           </div>

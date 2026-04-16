@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import GolfLoader from '../../components/golf/GolfLoader';
+import Select from '../../components/ui/Select';
 
 const TIER_LABEL = {
   800: { label: 'Elite', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
@@ -91,7 +92,7 @@ export default function GolfDraft() {
         <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
           <Flag className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">League not found</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">League not found</h2>
         <Link to="/golf/dashboard" className="inline-flex items-center gap-1.5 text-green-400 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Back
         </Link>
@@ -137,7 +138,7 @@ export default function GolfDraft() {
         <Link to={`/golf/league/${id}`} className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-400 text-sm transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to League
         </Link>
-        <h1 className="text-3xl font-black text-white mt-2">{league.name} — Draft</h1>
+        <h1 className="text-3xl font-bold text-white mt-2">{league.name} — Draft</h1>
       </div>
 
       {error && (
@@ -150,7 +151,7 @@ export default function GolfDraft() {
           <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center mx-auto mb-4">
             <Flag className="w-8 h-8 text-green-400" />
           </div>
-          <h2 className="text-2xl font-black text-white mb-2">Waiting for Draft to Start</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">Waiting for Draft to Start</h2>
           <p className="text-gray-400 mb-6">
             {members.length} of {league.max_teams} members joined.
           </p>
@@ -158,7 +159,7 @@ export default function GolfDraft() {
             <button
               onClick={startDraft}
               disabled={starting || members.length < 2}
-              className="px-8 py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-full transition-all shadow-lg shadow-green-500/25"
+              className="px-8 py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-bold rounded-full transition-all shadow-lg shadow-green-500/25"
             >
               {starting ? 'Starting...' : 'Start Draft Now →'}
             </button>
@@ -174,7 +175,7 @@ export default function GolfDraft() {
           <div className="w-14 h-14 rounded-2xl bg-green-500/15 flex items-center justify-center mx-auto mb-3">
             <Award className="w-7 h-7 text-green-400" />
           </div>
-          <h2 className="text-xl font-black text-green-400 mb-1">Draft Complete!</h2>
+          <h2 className="text-xl font-bold text-green-400 mb-1">Draft Complete!</h2>
           <p className="text-gray-400 text-sm mb-4">All picks have been made. Season is underway.</p>
           <Link
             to={`/golf/league/${id}`}
@@ -196,7 +197,7 @@ export default function GolfDraft() {
           }`}>
             <div>
               {isMyTurn ? (
-                <div className="flex items-center gap-2 text-green-400 font-black text-lg">
+                <div className="flex items-center gap-2 text-green-400 font-bold text-lg">
                   <Zap className="w-5 h-5" /> Your Pick!
                 </div>
               ) : (
@@ -209,7 +210,7 @@ export default function GolfDraft() {
             {!isPool && (
               <div className="text-right">
                 <div className="text-gray-500 text-xs">Your salary</div>
-                <div className={`font-black ${usedSalary > cap * 0.9 ? 'text-red-400' : 'text-white'}`}>
+                <div className={`font-bold ${usedSalary > cap * 0.9 ? 'text-red-400' : 'text-white'}`}>
                   ${usedSalary.toLocaleString()} / ${cap.toLocaleString()}
                 </div>
               </div>
@@ -233,18 +234,18 @@ export default function GolfDraft() {
                   />
                 </div>
                 {!isPool && (
-                  <select
+                  <Select
                     value={filterSalary}
-                    onChange={e => setFilterSalary(e.target.value)}
-                    className="bg-gray-900 border border-gray-700 text-sm text-gray-300 px-3 py-2 rounded-lg focus:outline-none"
-                  >
-                    <option value="all">All Tiers</option>
-                    <option value="800">Elite ($800)</option>
-                    <option value="600">Star ($600)</option>
-                    <option value="400">Value ($400)</option>
-                    <option value="300">Deep ($300)</option>
-                    <option value="200">Flier ($200)</option>
-                  </select>
+                    onChange={setFilterSalary}
+                    options={[
+                      { value: 'all', label: 'All Tiers' },
+                      { value: '800', label: 'Elite ($800)' },
+                      { value: '600', label: 'Star ($600)' },
+                      { value: '400', label: 'Value ($400)' },
+                      { value: '300', label: 'Deep ($300)' },
+                      { value: '200', label: 'Flier ($200)' },
+                    ]}
+                  />
                 )}
               </div>
 
@@ -311,7 +312,7 @@ export default function GolfDraft() {
                         <div key={p.player_id} className="flex items-center justify-between px-4 py-2.5 gap-2">
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             {isTourneyRun && (
-                              <span className={`text-[9px] font-black uppercase shrink-0 px-1.5 py-0.5 rounded border ${
+                              <span className={`text-[9px] font-bold uppercase shrink-0 px-1.5 py-0.5 rounded border ${
                                 isCore
                                   ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
                                   : 'text-blue-400 bg-blue-500/10 border-blue-500/30'
@@ -345,7 +346,7 @@ export default function GolfDraft() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               {isMyPick && (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-1.5 py-0.5 rounded shrink-0">
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-1.5 py-0.5 rounded shrink-0">
                                   <Star className="w-2.5 h-2.5 fill-current" /> CORE
                                 </span>
                               )}

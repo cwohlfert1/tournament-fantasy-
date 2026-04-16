@@ -335,7 +335,7 @@ export default function Profile() {
 
         {/* Page header */}
         <div style={{ marginBottom: 32 }}>
-          <h1 style={{ margin: 0, fontSize: 'clamp(1.6rem,4vw,2.1rem)', fontWeight: 900, letterSpacing: '-0.04em', color: '#fff' }}>
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.6rem,4vw,2.1rem)', fontWeight: 700, letterSpacing: '-0.04em', color: '#fff' }}>
             Your Profile
           </h1>
           {memberSince && (

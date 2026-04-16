@@ -53,7 +53,7 @@ export default function GolfStrategy() {
         <p style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 12 }}>
           Strategy Guide
         </p>
-        <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">How to win your league</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">How to win your league</h1>
         <p className="text-gray-400 text-base max-w-2xl leading-relaxed">
           One draft, all season, majors at 1.5×. Here's what separates the winners from the mid-table.
         </p>

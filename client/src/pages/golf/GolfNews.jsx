@@ -31,7 +31,7 @@ export default function GolfNews() {
         <p style={{ color: '#22c55e', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 12 }}>
           Golf News
         </p>
-        <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">What's happening on tour</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">What's happening on tour</h1>
         <p className="text-gray-400 text-base leading-relaxed">
           Latest news, fantasy tips, and injury updates from the PGA Tour.
         </p>

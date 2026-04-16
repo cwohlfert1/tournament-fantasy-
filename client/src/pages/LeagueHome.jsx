@@ -552,7 +552,7 @@ export default function LeagueHome() {
         <div className="absolute -inset-y-6 inset-x-0 bg-brand-500/5 rounded-3xl blur-2xl pointer-events-none" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl sm:text-5xl font-black text-white mb-3 leading-tight break-words">
+            <h1 className="text-3xl sm:text-5xl font-bold text-white mb-3 leading-tight break-words">
               {league.name}
             </h1>
             <StatusBadge status={league.status} />
@@ -641,7 +641,7 @@ export default function LeagueHome() {
                     : 'bg-gray-900 border-gray-800 hover:border-brand-500/30 hover:shadow-brand-500/10'
                 }`}>
                 <div className="text-2xl mb-2">{card.icon}</div>
-                <div className={`text-2xl font-black mb-0.5 ${card.gold ? 'text-amber-400' : 'text-brand-400'}`}>
+                <div className={`text-2xl font-bold mb-0.5 ${card.gold ? 'text-amber-400' : 'text-brand-400'}`}>
                   {card.value}
                 </div>
                 <div className="text-gray-200 text-sm font-semibold">{card.label}</div>
@@ -661,7 +661,7 @@ export default function LeagueHome() {
                   <div>
                     <div className="text-amber-500 text-xs font-bold uppercase tracking-widest mb-2">Prize Pool</div>
                     <div className="flex items-end gap-3 flex-wrap">
-                      <span className="text-5xl sm:text-6xl font-black text-white">{fmt(prizePool)}</span>
+                      <span className="text-5xl sm:text-6xl font-bold text-white">{fmt(prizePool)}</span>
                       {members.length < league.max_teams && (
                         <span className="text-amber-400/50 text-xl font-bold mb-2">/ {fmt(maxPrizePool)} max</span>
                       )}
@@ -712,7 +712,7 @@ export default function LeagueHome() {
                         return (
                           <div key={p.label} className={`rounded-xl border p-3 ${p.ring}`}>
                             <div className="text-xl mb-1">{p.icon}</div>
-                            <div className={`text-xl font-black ${p.text}`}>{fmt(cur)}</div>
+                            <div className={`text-xl font-bold ${p.text}`}>{fmt(cur)}</div>
                             {members.length < league.max_teams && (
                               <div className="text-gray-500 text-xs">up to {fmt(max)}</div>
                             )}
@@ -726,7 +726,7 @@ export default function LeagueHome() {
                       {bonus > 0 && (
                         <div className="rounded-xl border border-purple-500/30 bg-purple-900/15 p-3">
                           <div className="text-xl mb-1">🎯</div>
-                          <div className="text-xl font-black text-purple-400">{fmt(bonus)}</div>
+                          <div className="text-xl font-bold text-purple-400">{fmt(bonus)}</div>
                           <div className="text-gray-400 text-xs mt-0.5">Single game bonus</div>
                           <div className="text-gray-600 text-xs">highest single-game scorer</div>
                         </div>
@@ -780,7 +780,7 @@ export default function LeagueHome() {
           {league.status === 'drafting' && (
             <div className="text-center bg-brand-500/10 border border-brand-500/25 rounded-2xl p-10">
               <div className="text-6xl mb-3">⚡</div>
-              <h3 className="text-2xl font-black text-white mb-2">Draft Is Live!</h3>
+              <h3 className="text-2xl font-bold text-white mb-2">Draft Is Live!</h3>
               <p className="text-gray-400 mb-6">Get in there before your pick timer runs out.</p>
               <Link to={`/league/${id}/draft`} className="btn-primary px-10 py-3 text-lg inline-flex items-center gap-2">
                 🚀 Enter Draft Room
@@ -802,7 +802,7 @@ export default function LeagueHome() {
               <div className="p-6 space-y-4">
                 <div className="bg-gray-800/60 rounded-xl p-6 text-center">
                   <p className="text-gray-500 text-xs uppercase tracking-widest mb-3">Invite Code</p>
-                  <p className="text-brand-400 font-mono font-black text-3xl sm:text-5xl tracking-widest sm:tracking-[0.25em] mb-5 select-all">
+                  <p className="text-brand-400 font-mono font-bold text-3xl sm:text-5xl tracking-widest sm:tracking-[0.25em] mb-5 select-all">
                     {league.invite_code}
                   </p>
                   <div className="flex gap-3 justify-center flex-wrap">
@@ -951,7 +951,7 @@ export default function LeagueHome() {
               <button
                 onClick={startDraft}
                 disabled={starting || members.length < 2}
-                className="w-full py-5 text-xl font-black bg-brand-500 hover:bg-brand-400 disabled:opacity-40 text-white rounded-2xl transition-all duration-200 hover:scale-[1.01] hover:shadow-2xl hover:shadow-brand-500/30 disabled:hover:scale-100 flex items-center justify-center gap-3"
+                className="w-full py-5 text-xl font-bold bg-brand-500 hover:bg-brand-400 disabled:opacity-40 text-white rounded-2xl transition-all duration-200 hover:scale-[1.01] hover:shadow-2xl hover:shadow-brand-500/30 disabled:hover:scale-100 flex items-center justify-center gap-3"
               >
                 <span className="text-3xl">🚀</span>
                 {starting ? 'Starting Draft...' : 'Start Draft'}
@@ -1008,12 +1008,12 @@ export default function LeagueHome() {
                       {hasScores && (
                         <div className="text-right">
                           <div className="text-[10px] text-gray-500 uppercase tracking-wider">Points</div>
-                          <div className="font-black text-brand-400" style={{ fontSize: 18 }}>{totalPts.toFixed(1)}</div>
+                          <div className="font-bold text-brand-400" style={{ fontSize: 18 }}>{totalPts.toFixed(1)}</div>
                         </div>
                       )}
                       <div className="text-right">
                         <div className="text-[10px] text-gray-500 uppercase tracking-wider">Proj</div>
-                        <div className="font-black text-gray-300" style={{ fontSize: 18 }}>{totalETP.toFixed(1)}</div>
+                        <div className="font-bold text-gray-300" style={{ fontSize: 18 }}>{totalETP.toFixed(1)}</div>
                       </div>
                     </div>
                   </div>
@@ -1233,7 +1233,7 @@ export default function LeagueHome() {
                 <div className="flex items-center gap-2 px-5 pt-4 pb-1">
                   <span className="text-base">🎯</span>
                   <span className="text-amber-400 font-bold text-sm">Single Game Bonus</span>
-                  <span className="text-amber-300 font-black text-sm">{fmt(bonus)}</span>
+                  <span className="text-amber-300 font-bold text-sm">{fmt(bonus)}</span>
                   <span className="ml-auto text-gray-600 text-xs">{sgExpanded ? '▲ collapse' : '▼ expand'}</span>
                 </div>
 
@@ -1250,8 +1250,8 @@ export default function LeagueHome() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-3 flex-wrap">
-                            <span className="text-white font-black text-xl leading-tight">{sgLeader.player_name}</span>
-                            <span className="text-amber-400 font-black text-xl">{sgLeader.points} pts</span>
+                            <span className="text-white font-bold text-xl leading-tight">{sgLeader.player_name}</span>
+                            <span className="text-amber-400 font-bold text-xl">{sgLeader.points} pts</span>
                             {sgLeader.is_live && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
                                 style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>
@@ -1316,7 +1316,7 @@ export default function LeagueHome() {
                                 <div className="text-gray-700 text-xs mt-0.5">Undrafted</div>
                               )}
                             </div>
-                            <span className={`font-black text-sm shrink-0 ${i === 0 ? 'text-amber-400' : 'text-gray-400'}`}>
+                            <span className={`font-bold text-sm shrink-0 ${i === 0 ? 'text-amber-400' : 'text-gray-400'}`}>
                               {row.points} pts
                             </span>
                           </div>

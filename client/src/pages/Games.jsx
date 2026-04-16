@@ -142,7 +142,7 @@ function GameCard({ game, myDraftedPlayerIds }) {
               )}
             </div>
             {(isLive || isFinal) && score1 !== null && (
-              <span className={`font-black text-xl tabular-nums ${
+              <span className={`font-bold text-xl tabular-nums ${
                 isFinal && winner === game.team1 ? 'text-green-400' : 'text-white'
               }`}>{score1}</span>
             )}
@@ -164,7 +164,7 @@ function GameCard({ game, myDraftedPlayerIds }) {
               )}
             </div>
             {(isLive || isFinal) && score2 !== null && (
-              <span className={`font-black text-xl tabular-nums ${
+              <span className={`font-bold text-xl tabular-nums ${
                 isFinal && winner === game.team2 ? 'text-green-400' : 'text-white'
               }`}>{score2}</span>
             )}

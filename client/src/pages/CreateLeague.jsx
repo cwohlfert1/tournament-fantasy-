@@ -168,7 +168,7 @@ export default function CreateLeague() {
       {/* ── Page header ── */}
       <div className="mb-8">
         <div className="relative inline-block mb-1">
-          <h1 className="text-3xl sm:text-4xl font-black text-white relative z-10">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white relative z-10">
             Create Your League
           </h1>
           <div className="absolute -inset-3 bg-brand-500/10 blur-2xl rounded-full pointer-events-none" />
@@ -292,7 +292,7 @@ export default function CreateLeague() {
                 </div>
                 {buyIn > 0 && (
                   <p className="text-brand-400 text-xs mt-1.5 font-medium">
-                    Prize pool: <span className="font-black text-sm">{fmt(prizePool)}</span>
+                    Prize pool: <span className="font-bold text-sm">{fmt(prizePool)}</span>
                     <span className="text-gray-500 ml-1">({form.max_teams} teams × {fmt(buyIn)})</span>
                   </p>
                 )}
@@ -507,7 +507,7 @@ export default function CreateLeague() {
               <button
                 type="submit"
                 disabled={loading || !!payoutError}
-                className="btn-primary w-full py-4 text-base font-black disabled:opacity-50"
+                className="btn-primary w-full py-4 text-base font-bold disabled:opacity-50"
               >
                 {submitLabel}
               </button>
@@ -553,7 +553,7 @@ export default function CreateLeague() {
                         <span className="text-white font-semibold">{fmt(buyIn)}/mgr</span>
                       </Row>
                       <Row label="Prize pool">
-                        <span className="text-brand-400 font-black text-base">{fmt(mainPool)}</span>
+                        <span className="text-brand-400 font-bold text-base">{fmt(mainPool)}</span>
                       </Row>
                       {p1 > 0 && (
                         <Row label={`🥇 1st (${p1}%)`}>
@@ -605,7 +605,7 @@ export default function CreateLeague() {
                     {form.smartDraft && (
                       <div className="border-t border-gray-700 pt-2">
                         <Row label="Total due today">
-                          <span className="text-white font-black text-base">$7.99</span>
+                          <span className="text-white font-bold text-base">$7.99</span>
                         </Row>
                       </div>
                     )}

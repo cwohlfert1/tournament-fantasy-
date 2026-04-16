@@ -114,8 +114,8 @@ function SgBonusCard({ sgLeader, sgBoard, bonus }) {
               <div className="flex-1 min-w-0">
                 {/* Player name — hero */}
                 <div className="flex items-baseline gap-3 flex-wrap">
-                  <span className="text-white font-black text-2xl leading-tight">{sgLeader.player_name}</span>
-                  <span className="text-purple-400 font-black text-2xl">{sgLeader.points} pts</span>
+                  <span className="text-white font-bold text-2xl leading-tight">{sgLeader.player_name}</span>
+                  <span className="text-purple-400 font-bold text-2xl">{sgLeader.points} pts</span>
                   {sgLeader.is_live && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded"
                       style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>
@@ -198,7 +198,7 @@ function SgBonusCard({ sgLeader, sgBoard, bonus }) {
                           <div className="text-gray-700 text-xs mt-0.5">Undrafted</div>
                         )}
                       </div>
-                      <span className={`font-black text-sm shrink-0 ${i === 0 ? 'text-purple-400' : 'text-gray-400'}`}>
+                      <span className={`font-bold text-sm shrink-0 ${i === 0 ? 'text-purple-400' : 'text-gray-400'}`}>
                         {row.points} pts
                       </span>
                     </div>
@@ -449,9 +449,9 @@ export default function Leaderboard() {
             onClick={() => setPrizePoolOpen(v => !v)}
             className="w-full flex items-center gap-2 px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
           >
-            <span className="text-yellow-400 font-black text-lg">💰</span>
+            <span className="text-yellow-400 font-bold text-lg">💰</span>
             <span className="text-yellow-400 font-bold text-sm">Prize Pool</span>
-            <span className="text-white font-black text-sm">{fmt(totalPool)}</span>
+            <span className="text-white font-bold text-sm">{fmt(totalPool)}</span>
             {!prizePoolOpen && (
               <span className="text-gray-500 text-xs truncate">
                 {pct1 > 0 && `· 1st ${fmt(pay1)}`}{pct2 > 0 && ` · 2nd ${fmt(pay2)}`}{pct3 > 0 && ` · 3rd ${fmt(pay3)}`}
@@ -683,7 +683,7 @@ export default function Leaderboard() {
                         </span>
                       )}
                       <div className="text-right min-w-[40px]">
-                        <div className="font-black leading-tight" style={{ fontSize: 22, color: ptsColor }}>{team.total_points > 0 ? team.total_points : '—'}</div>
+                        <div className="font-bold leading-tight" style={{ fontSize: 22, color: ptsColor }}>{team.total_points > 0 ? team.total_points : '—'}</div>
                         <div className="text-gray-500 text-[10px]">pts</div>
                         {/* Mobile: Proj stacked below pts (hidden on sm+ where column header shows) */}
                         {projETP !== null && projETP > 0 && (

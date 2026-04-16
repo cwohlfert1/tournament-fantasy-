@@ -949,7 +949,7 @@ export default function PoolRosterTab({ leagueId, league }) {
             {submitted && (tournStatus === 'active' || tournStatus === 'completed') && teamScore != null && (
               <div style={{ marginTop: 16, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,232,122,0.15)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
                 <div>
-                  <span style={{ fontSize: 20, fontWeight: 900, color: teamScore < 0 ? '#22c55e' : teamScore > 0 ? '#ef4444' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: teamScore < 0 ? '#22c55e' : teamScore > 0 ? '#ef4444' : '#9ca3af', fontVariantNumeric: 'tabular-nums' }}>
                     {teamScore === 0 ? 'E' : (teamScore > 0 ? '+' : '') + teamScore}
                   </span>
                   <span style={{ fontSize: 12, color: '#4b5563', marginLeft: 6 }}>Your score</span>

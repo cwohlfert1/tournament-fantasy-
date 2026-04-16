@@ -329,7 +329,7 @@ function CountdownBlock() {
             border: '0.5px solid rgba(255,255,255,0.07)',
             borderRadius: 16,
           }} className="px-4 sm:px-6 py-4 sm:py-5 text-center min-w-[72px] sm:min-w-[90px]">
-            <div className="text-5xl sm:text-6xl font-black text-white tabular-nums leading-none">
+            <div className="text-5xl sm:text-6xl font-bold text-white tabular-nums leading-none">
               {String(v).padStart(2, '0')}
             </div>
             <div className="text-gray-500 text-[10px] sm:text-xs font-bold tracking-widest mt-2">{l}</div>
@@ -513,7 +513,7 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="#how-it-works"
-              className="inline-flex items-center justify-center gap-2 font-black text-white px-10 py-4 rounded-full transition-all text-base"
+              className="inline-flex items-center justify-center gap-2 font-bold text-white px-10 py-4 rounded-full transition-all text-base"
               style={{
                 background: '#f97316',
                 boxShadow: '0 8px 32px rgba(249,115,22,0.35)',
@@ -543,7 +543,7 @@ export default function Landing() {
           <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em' }}>
             Trusted since 2016
           </p>
-          <h2 style={{ color: '#fff', fontSize: 'clamp(22px,4vw,32px)', fontWeight: 900, letterSpacing: '-0.02em' }}>
+          <h2 style={{ color: '#fff', fontSize: 'clamp(22px,4vw,32px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
             Born from a decade of tournament fantasy experience.
           </h2>
           <p className="text-gray-400 text-base max-w-2xl mx-auto">
@@ -562,7 +562,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               Get started
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: 16 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: 16 }}>
               Grab Your Crew.<br className="hidden sm:block" /> Forget the Bracket.
             </h2>
             <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
@@ -608,7 +608,7 @@ export default function Landing() {
           <div className="text-center">
             <Link
               to={user ? '/create-league' : '/register'}
-              className="inline-flex items-center justify-center font-black text-white text-base px-8 py-4 rounded-full transition-all"
+              className="inline-flex items-center justify-center font-bold text-white text-base px-8 py-4 rounded-full transition-all"
               style={{
                 background: '#f97316',
                 boxShadow: '0 8px 32px rgba(249,115,22,0.3)',
@@ -629,7 +629,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               Live draft room
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
               A live draft your crew will actually show up for.
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>Real-time snake draft — countdown timer, auto-pick, live player queue.</p>
@@ -645,7 +645,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               Exclusive feature
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
               Live Bracket. Built in.
             </h2>
             <p className="text-gray-400 text-base max-w-xl mx-auto">
@@ -666,7 +666,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               Unlike anything else
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: 12 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: 12 }}>
               Unlike bracket challenges,<br className="hidden sm:block" /> YOUR players score YOUR points.
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 17 }}>Three weeks of non-stop action with every bucket counting.</p>
@@ -703,7 +703,7 @@ export default function Landing() {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
               >
                 <div style={{ fontSize: 32, marginBottom: 14 }}>{card.icon}</div>
-                <h3 style={{ color: '#fff', fontWeight: 900, fontSize: 18, marginBottom: 8 }}>{card.title}</h3>
+                <h3 style={{ color: '#fff', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>{card.title}</h3>
                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, lineHeight: 1.6 }}>{card.desc}</p>
               </div>
             ))}
@@ -718,7 +718,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               Up and running in minutes
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.025em' }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.025em' }}>
               Four steps. Infinite trash talk.
             </h2>
           </div>
@@ -753,8 +753,8 @@ export default function Landing() {
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'translateY(0)'; }}
               >
                 <div style={{ fontSize: 28, marginBottom: 12 }}>{step.icon}</div>
-                <div style={{ color: '#f97316', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 8 }}>{step.num}</div>
-                <h3 style={{ fontWeight: 900, color: '#fff', fontSize: 14, marginBottom: 8, lineHeight: 1.3 }}>{step.title}</h3>
+                <div style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 8 }}>{step.num}</div>
+                <h3 style={{ fontWeight: 700, color: '#fff', fontSize: 14, marginBottom: 8, lineHeight: 1.3 }}>{step.title}</h3>
                 <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, lineHeight: 1.6 }}>{step.desc}</p>
               </div>
             ))}
@@ -763,7 +763,7 @@ export default function Landing() {
           <div className="text-center mt-12">
             <Link
               to={user ? '/create-league' : '/register'}
-              className="inline-flex items-center gap-2 font-black text-white text-lg px-8 py-4 rounded-full transition-all"
+              className="inline-flex items-center gap-2 font-bold text-white text-lg px-8 py-4 rounded-full transition-all"
               style={{
                 background: '#f97316',
                 boxShadow: '0 8px 32px rgba(249,115,22,0.35)',
@@ -785,7 +785,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               ETP scoring system
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
               Real scoring. Real stakes.
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, maxWidth: 560, margin: '0 auto' }}>
@@ -808,7 +808,7 @@ export default function Landing() {
                 ].map(item => (
                   <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>{item.label}</span>
-                    <span style={{ color: item.color, fontWeight: 900, fontSize: 15 }}>{item.pts}</span>
+                    <span style={{ color: item.color, fontWeight: 700, fontSize: 15 }}>{item.pts}</span>
                   </div>
                 ))}
               </div>
@@ -845,7 +845,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               What people are saying
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em' }}>
               Trusted since 2016
             </h2>
           </div>
@@ -876,7 +876,7 @@ export default function Landing() {
                     background: 'rgba(249,115,22,0.15)',
                     border: '1px solid rgba(249,115,22,0.3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fb923c', fontSize: 11, fontWeight: 900, flexShrink: 0,
+                    color: '#fb923c', fontSize: 11, fontWeight: 700, flexShrink: 0,
                   }}>{t.init}</div>
                   <div>
                     <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{t.name}</div>
@@ -896,7 +896,7 @@ export default function Landing() {
             <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 12 }}>
               Zero platform cut
             </p>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: 16 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: 16 }}>
               You set the stakes.<br className="hidden sm:block" /> You keep the winnings.
             </h2>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
@@ -935,7 +935,7 @@ export default function Landing() {
       <section style={{ padding: 'clamp(64px,10vw,96px) 16px' }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
-            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px,4vw,40px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 12 }}>
               Can't make the draft?<br />
               <span style={{ color: '#fb923c' }}>We've got you. ⚡</span>
             </h2>
@@ -955,7 +955,7 @@ export default function Landing() {
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {['Uses raw PPG only', 'Ignores injuries', 'No team balance', 'No region balance'].map(item => (
                   <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'rgba(255,255,255,0.45)', fontSize: 14 }}>
-                    <span style={{ color: '#ef4444', fontWeight: 900, fontSize: 16, flexShrink: 0 }}>✗</span>
+                    <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>✗</span>
                     {item}
                   </li>
                 ))}
@@ -985,7 +985,7 @@ export default function Landing() {
                     'Region balance built in',
                   ].map(item => (
                     <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
-                      <span style={{ color: '#4ade80', fontWeight: 900, fontSize: 16, flexShrink: 0 }}>✓</span>
+                      <span style={{ color: '#4ade80', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>✓</span>
                       {item}
                     </li>
                   ))}
@@ -998,7 +998,7 @@ export default function Landing() {
             <button
               onClick={handleSmartDraftCta}
               disabled={sdLoading}
-              className="inline-flex items-center gap-2 font-black text-base px-8 py-4 rounded-full transition-all disabled:opacity-70"
+              className="inline-flex items-center gap-2 font-bold text-base px-8 py-4 rounded-full transition-all disabled:opacity-70"
               style={{
                 background: '#f59e0b',
                 color: '#111',
@@ -1029,7 +1029,7 @@ export default function Landing() {
           <p style={{ color: '#f97316', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', marginBottom: 16 }}>
             ⚡ Time is running out
           </p>
-          <h2 style={{ color: '#fff', fontSize: 'clamp(36px,8vw,64px)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.03em', marginBottom: 16 }}>
+          <h2 style={{ color: '#fff', fontSize: 'clamp(36px,8vw,64px)', fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.03em', marginBottom: 16 }}>
             The bracket drops soon.<br />
             <span style={{ color: '#f97316' }}>Don't get left out.</span>
           </h2>
@@ -1046,7 +1046,7 @@ export default function Landing() {
           <div style={{ marginTop: 40 }}>
             <Link
               to={user ? '/create-league' : '/register'}
-              className="inline-flex items-center gap-3 font-black text-white text-xl px-10 py-5 rounded-full transition-all"
+              className="inline-flex items-center gap-3 font-bold text-white text-xl px-10 py-5 rounded-full transition-all"
               style={{
                 background: '#f97316',
                 boxShadow: '0 8px 48px rgba(249,115,22,0.4)',

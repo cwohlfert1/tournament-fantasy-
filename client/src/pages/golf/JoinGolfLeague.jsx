@@ -83,7 +83,7 @@ export default function JoinGolfLeague() {
         <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center mx-auto mb-4">
           <Flag className="w-8 h-8 text-green-400" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white">Join a Golf League</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Join a Golf League</h1>
         <p className="text-gray-400 mt-2">Enter your invite code to see the league details.</p>
       </div>
 
@@ -114,7 +114,7 @@ export default function JoinGolfLeague() {
                 <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border bg-yellow-500/10 border-yellow-500/30 text-yellow-400">FREE</span>
               )}
             </div>
-            <h2 className="text-white font-black text-xl">{preview.name}</h2>
+            <h2 className="text-white font-bold text-xl">{preview.name}</h2>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -191,7 +191,7 @@ export default function JoinGolfLeague() {
               <button
                 type="submit"
                 disabled={joinLoading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-xl transition-all shadow-lg shadow-green-500/20"
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-500/20"
               >
                 {joinLoading ? 'Joining…' : <><span>Join League</span><ArrowRight className="w-4 h-4" /></>}
               </button>

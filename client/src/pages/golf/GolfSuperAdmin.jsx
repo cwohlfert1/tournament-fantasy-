@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { showConfirm } from '../../components/ui/ConfirmDialog';
+import Select from '../../components/ui/Select';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ function Stat({ label, value, sub, color = '#4ade80' }) {
   return (
     <div style={{ background: '#0a1a0f', border: '1px solid #14532d55', borderRadius: 14, padding: '16px 20px' }}>
       <div style={{ color: '#4b5563', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
-      <div style={{ color, fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{value ?? '—'}</div>
+      <div style={{ color, fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{value ?? '—'}</div>
       {sub && <div style={{ color: '#374151', fontSize: 11, marginTop: 4 }}>{sub}</div>}
     </div>
   );
@@ -413,11 +414,14 @@ function PlayersTab() {
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name…"
           style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 10, padding: '9px 14px', fontSize: 13, flex: 1, minWidth: 180 }} />
-        <select value={tierFilter} onChange={e => setTier(e.target.value)}
-          style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 10, padding: '9px 14px', fontSize: 13 }}>
-          <option value="">All tiers</option>
-          {['Elite','Premium','Mid','Value','Sleeper'].map(t => <option key={t}>{t}</option>)}
-        </select>
+        <Select
+          value={tierFilter}
+          onChange={setTier}
+          options={[
+            { value: '', label: 'All tiers' },
+            ...['Elite','Premium','Mid','Value','Sleeper'].map(t => ({ value: t, label: t })),
+          ]}
+        />
         <button onClick={() => setShowAdd(true)}
           style={{ background: '#22c55e', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s' }}
           onMouseEnter={e => { e.currentTarget.style.background = '#16a34a'; }}
@@ -1052,13 +1056,15 @@ function MassEmailCard({ tournaments }) {
       {/* Audience */}
       <div style={{ marginBottom: 14 }}>
         <label style={{ display: 'block', color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Audience</label>
-        <select value={audience} onChange={e => { setAudience(e.target.value); setPreview(null); setConfirmed(false); }}
-          style={inputStyle}>
-          <option value="all_users">All TourneyRun Users</option>
-          <optgroup label="Past tournament players">
-            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name} players</option>)}
-          </optgroup>
-        </select>
+        <Select
+          value={audience}
+          onChange={v => { setAudience(v); setPreview(null); setConfirmed(false); }}
+          options={[
+            { value: 'all_users', label: 'All TourneyRun Users' },
+            ...tournaments.map(t => ({ value: String(t.id), label: `${t.name} players` })),
+          ]}
+          fullWidth
+        />
       </div>
 
       {/* Subject */}
@@ -1295,7 +1301,7 @@ function DevToolsTab() {
               <div style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
                 Invite Code
               </div>
-              <div style={{ color: '#f59e0b', fontSize: 32, fontWeight: 900, letterSpacing: '0.12em', fontFamily: 'monospace' }}>
+              <div style={{ color: '#f59e0b', fontSize: 32, fontWeight: 700, letterSpacing: '0.12em', fontFamily: 'monospace' }}>
                 {valsparModal.inviteCode}
               </div>
             </div>
@@ -1307,7 +1313,7 @@ function DevToolsTab() {
                 { label: 'Tiers', value: valsparModal.tiersConfigured },
               ].map(({ label, value }) => (
                 <div key={label} style={{ flex: 1, background: '#1f2937', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
-                  <div style={{ color: '#f59e0b', fontSize: 20, fontWeight: 900 }}>{value}</div>
+                  <div style={{ color: '#f59e0b', fontSize: 20, fontWeight: 700 }}>{value}</div>
                   <div style={{ color: '#4b5563', fontSize: 11 }}>{label}</div>
                 </div>
               ))}
@@ -1365,10 +1371,15 @@ function DevToolsTab() {
           'Manually trigger score sync for a specific tournament.',
           'sync',
           <div>
-            <select value={selectedT} onChange={e => setSelectedT(e.target.value)}
-              style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}>
-              {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <div style={{ marginBottom: 10 }}>
+              <Select
+                value={selectedT}
+                onChange={setSelectedT}
+                options={tournaments.map(t => ({ value: String(t.id), label: t.name }))}
+                fullWidth
+                size="sm"
+              />
+            </div>
             <button onClick={() => run('sync')} disabled={loading.sync || !selectedT}
               style={{ background: (loading.sync || !selectedT) ? 'rgba(0,232,122,0.4)' : '#22c55e', color: '#001a0d', border: 'none', borderRadius: 8, padding: '10px 24px', fontSize: 14, fontWeight: 700, cursor: (loading.sync || !selectedT) ? 'not-allowed' : 'pointer', transition: 'background 0.15s' }}
               onMouseEnter={e => { if (!loading.sync && selectedT) e.currentTarget.style.background = '#16a34a'; }}
@@ -1398,10 +1409,15 @@ function DevToolsTab() {
           'Fetches the official entry list from ESPN for the selected tournament and rebuilds pool_tier_players for any linked pool leagues.',
           'syncEspnField',
           <div>
-            <select value={selectedT} onChange={e => setSelectedT(e.target.value)}
-              style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}>
-              {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            <div style={{ marginBottom: 10 }}>
+              <Select
+                value={selectedT}
+                onChange={setSelectedT}
+                options={tournaments.map(t => ({ value: String(t.id), label: t.name }))}
+                fullWidth
+                size="sm"
+              />
+            </div>
             <button onClick={() => run('syncEspnField')} disabled={loading.syncEspnField || !selectedT}
               style={{ background: (loading.syncEspnField || !selectedT) ? '#1e3a5f' : '#2563eb', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: (loading.syncEspnField || !selectedT) ? 'not-allowed' : 'pointer' }}>
               {loading.syncEspnField ? 'Fetching…' : 'Sync ESPN Field →'}
@@ -1444,13 +1460,15 @@ function DevToolsTab() {
           Run before each tournament to verify ESPN event ID, player pool, status, API reachability, and score sync are all healthy.
         </p>
 
-        <select
-          value={selectedT}
-          onChange={e => { setSelectedT(e.target.value); setReadiness(null); }}
-          style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 12 }}
-        >
-          {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+        <div style={{ marginBottom: 12 }}>
+          <Select
+            value={selectedT}
+            onChange={v => { setSelectedT(v); setReadiness(null); }}
+            options={tournaments.map(t => ({ value: String(t.id), label: t.name }))}
+            fullWidth
+            size="sm"
+          />
+        </div>
 
         {readiness && (
           <div style={{ marginBottom: 14 }}>
@@ -1573,14 +1591,18 @@ function DevToolsTab() {
             Fetches this week's field from DataGolf, populates player pool,
             detects WDs, and rebuilds tiers for all linked pool leagues.
           </p>
-          <select
-            value={selectedT}
-            onChange={e => setSelectedT(e.target.value)}
-            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}
-          >
-            <option value="">— Current week (auto-detect) —</option>
-            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <div style={{ marginBottom: 10 }}>
+            <Select
+              value={selectedT}
+              onChange={setSelectedT}
+              options={[
+                { value: '', label: '\u2014 Current week (auto-detect) \u2014' },
+                ...tournaments.map(t => ({ value: String(t.id), label: t.name })),
+              ]}
+              fullWidth
+              size="sm"
+            />
+          </div>
           {dgResults.field && (
             <div style={{ marginBottom: 12 }}>
               {dgResults.field.error
@@ -1677,14 +1699,16 @@ function DevToolsTab() {
             Fetches cumulative strokes-gained data (sg_total, sg_putt, sg_app, etc.)
             for an active tournament. Updates every 5 min during rounds.
           </p>
-          <select
-            value={selectedT}
-            onChange={e => setSelectedT(e.target.value)}
-            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}
-          >
-            <option value="">— Select tournament —</option>
-            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <div style={{ marginBottom: 10 }}>
+            <Select
+              value={selectedT}
+              onChange={setSelectedT}
+              options={tournaments.map(t => ({ value: String(t.id), label: t.name }))}
+              placeholder="\u2014 Select tournament \u2014"
+              fullWidth
+              size="sm"
+            />
+          </div>
           {dgResults.live && (
             <div style={{ marginBottom: 12 }}>
               {dgResults.live.error
@@ -1734,14 +1758,16 @@ function DevToolsTab() {
             <div>Tier 3: +4000 to +7999 (longshots with a chance)</div>
             <div>Tier 4: +8000 or longer (lottery tickets)</div>
           </div>
-          <select
-            value={selectedT}
-            onChange={e => setSelectedT(e.target.value)}
-            style={{ background: '#111', border: '1px solid #1f2937', color: '#d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 12, width: '100%', marginBottom: 10 }}
-          >
-            <option value="">— Select tournament —</option>
-            {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <div style={{ marginBottom: 10 }}>
+            <Select
+              value={selectedT}
+              onChange={setSelectedT}
+              options={tournaments.map(t => ({ value: String(t.id), label: t.name }))}
+              placeholder="\u2014 Select tournament \u2014"
+              fullWidth
+              size="sm"
+            />
+          </div>
           {dgResults.oddsTiers && (
             <div style={{ marginBottom: 12 }}>
               {dgResults.oddsTiers.error
@@ -2079,7 +2105,7 @@ export default function GolfSuperAdmin() {
               🛡️
             </div>
             <div>
-              <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>
+              <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
                 Golf Superadmin Panel
               </h1>
               <p style={{ color: '#4b5563', fontSize: 13, margin: 0 }}>TourneyRun Golf platform management</p>

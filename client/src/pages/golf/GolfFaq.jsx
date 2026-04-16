@@ -197,7 +197,7 @@ export default function GolfFaq() {
         <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full mb-4">
           ⛳ Golf FAQ
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Frequently asked questions</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Frequently asked questions</h1>
         <p className="text-gray-400 text-base">Everything you need to know about TourneyRun Golf.</p>
       </div>
 

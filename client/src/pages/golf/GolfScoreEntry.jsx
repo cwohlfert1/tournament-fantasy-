@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import GolfLoader from '../../components/golf/GolfLoader';
+import Select from '../../components/ui/Select';
 
 // Client-side preview of commissioner pts formula
 function previewPts(s, par, isMajor) {
@@ -182,7 +183,7 @@ export default function GolfScoreEntry() {
         >
           <ArrowLeft className="w-4 h-4" /> {league.name}
         </Link>
-        <h1 className="text-3xl font-black text-white mt-3">Enter Scores</h1>
+        <h1 className="text-3xl font-bold text-white mt-3">Enter Scores</h1>
         <p className="text-gray-400 mt-1 text-sm">Commissioner score entry — updates all member standings automatically.</p>
       </div>
 
@@ -191,18 +192,16 @@ export default function GolfScoreEntry() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Tournament</label>
-            <select
+            <Select
               value={selectedTournId}
-              onChange={e => setSelectedTournId(e.target.value)}
-              className="w-full bg-gray-800 text-white text-sm px-3 py-2.5 rounded-xl border border-gray-700 focus:outline-none focus:border-green-500"
-            >
-              <option value="">Select tournament...</option>
-              {tournaments.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.status}){t.is_major ? ' ★' : t.is_signature ? ' ◆' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedTournId}
+              options={tournaments.map(t => ({
+                value: t.id,
+                label: `${t.name} (${t.status})${t.is_major ? ' \u2605' : t.is_signature ? ' \u25C6' : ''}`,
+              }))}
+              placeholder="Select tournament..."
+              fullWidth
+            />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Course Par</label>
@@ -300,7 +299,7 @@ export default function GolfScoreEntry() {
                           <div className="text-gray-500 text-xs">{p.country} · Rank #{p.world_ranking}</div>
                         </div>
                         {preview !== null && (
-                          <div className={`text-sm font-black ${ptsColor}`}>{ptsLabel}</div>
+                          <div className={`text-sm font-bold ${ptsColor}`}>{ptsLabel}</div>
                         )}
                       </div>
                       <div className="grid grid-cols-4 gap-2 mb-2">
@@ -370,7 +369,7 @@ export default function GolfScoreEntry() {
                         min="1"
                         className="w-full bg-gray-800 text-white text-sm text-center px-1 py-1.5 rounded-lg border border-gray-700 focus:outline-none focus:border-green-500"
                       />
-                      <div className={`text-center text-sm font-black tabular-nums ${ptsColor}`}>
+                      <div className={`text-center text-sm font-bold tabular-nums ${ptsColor}`}>
                         {ptsLabel}
                       </div>
                     </div>
@@ -396,7 +395,7 @@ export default function GolfScoreEntry() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-2xl transition-all shadow-lg shadow-green-500/25 flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-bold rounded-2xl transition-all shadow-lg shadow-green-500/25 flex items-center justify-center gap-2"
           >
             <Save className="w-5 h-5" />
             {saving ? 'Saving...' : 'Calculate & Save All'}

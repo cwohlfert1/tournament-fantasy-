@@ -6,6 +6,7 @@ import api from '../api';
 import BallLoader from '../components/BallLoader';
 import { showToast } from '../components/ui/Toast';
 import { showConfirm } from '../components/ui/ConfirmDialog';
+import Select from '../components/ui/Select';
 
 const TABS = ['Leagues', 'Users', 'Players', 'Financials', 'Dev Tools'];
 
@@ -265,15 +266,13 @@ function LeaguesTab() {
               ))}
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Status</label>
-                <select
+                <Select
                   value={editForm.status}
-                  onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-                >
-                  {['lobby', 'drafting', 'active', 'complete'].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                  onChange={v => setEditForm(f => ({ ...f, status: v }))}
+                  options={['lobby', 'drafting', 'active', 'complete'].map(s => ({ value: s, label: s }))}
+                  fullWidth
+                  size="sm"
+                />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -701,13 +700,13 @@ function PlayersTab() {
               ))}
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Injury Status</label>
-                <select
+                <Select
                   value={editForm.injury_status}
-                  onChange={e => setEditForm(f => ({ ...f, injury_status: e.target.value }))}
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-                >
-                  {INJURY_STATUSES.map(s => <option key={s} value={s}>{s || 'Healthy'}</option>)}
-                </select>
+                  onChange={v => setEditForm(f => ({ ...f, injury_status: v }))}
+                  options={INJURY_STATUSES.map(s => ({ value: s, label: s || 'Healthy' }))}
+                  fullWidth
+                  size="sm"
+                />
               </div>
               {editForm.injury_status && (
                 <div>

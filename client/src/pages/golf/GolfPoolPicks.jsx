@@ -59,7 +59,7 @@ function ConfirmModal({ tiers, selected, names, onConfirm, onCancel, submitting 
   return (
     <div className="fixed inset-0 bg-black/75 flex items-end sm:items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
-        <h3 className="text-white font-black text-xl mb-1">Lock in your picks?</h3>
+        <h3 className="text-white font-bold text-xl mb-1">Lock in your picks?</h3>
         <p className="text-gray-400 text-sm mb-5">You won't be able to change them after submitting.</p>
 
         <div className="bg-gray-800/60 rounded-xl p-4 mb-5 space-y-3">
@@ -95,7 +95,7 @@ function ConfirmModal({ tiers, selected, names, onConfirm, onCancel, submitting 
             type="button"
             onClick={onConfirm}
             disabled={submitting}
-            className="flex-1 py-3 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-xl transition-all text-sm"
+            className="flex-1 py-3 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-bold rounded-xl transition-all text-sm"
           >
             {submitting ? 'Submitting…' : 'Yes, lock my picks →'}
           </button>
@@ -152,7 +152,7 @@ function PicksSummary({ tiers, selected, names, totalDone, totalTarget, canSubmi
         type="button"
         onClick={onSubmit}
         disabled={!canSubmit}
-        className={`w-full py-3 rounded-xl font-black text-sm transition-all ${
+        className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
           canSubmit
             ? 'bg-green-500 hover:bg-green-400 text-white shadow-lg shadow-green-500/20'
             : 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed'
@@ -389,7 +389,7 @@ export default function GolfPoolPicks() {
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-800 border border-gray-700 mb-5">
         <Lock className="w-7 h-7 text-gray-400" />
       </div>
-      <h2 className="text-white font-black text-2xl mb-2">Picks are closed</h2>
+      <h2 className="text-white font-bold text-2xl mb-2">Picks are closed</h2>
       <p className="text-gray-400 text-sm mb-8">
         Tee time has passed. Check the leaderboard to track your players.
       </p>
@@ -406,7 +406,7 @@ export default function GolfPoolPicks() {
   if (!league?.pool_tournament_id) return (
     <div className="max-w-xl mx-auto px-4 py-16 text-center">
       <AlertCircle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
-      <h2 className="text-white font-black text-xl mb-2">No tournament assigned yet</h2>
+      <h2 className="text-white font-bold text-xl mb-2">No tournament assigned yet</h2>
       <p className="text-gray-400 text-sm mb-6">
         The commissioner needs to set up the tournament pick sheet before you can make picks.
       </p>
@@ -431,7 +431,7 @@ export default function GolfPoolPicks() {
       </Link>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-black text-white">{tourn?.name || 'Pick Sheet'}</h1>
+        <h1 className="text-2xl font-bold text-white">{tourn?.name || 'Pick Sheet'}</h1>
         <p className="text-gray-400 text-sm mt-1">
           Lock your picks before Thursday tee time
           {lockTime && <> · <Countdown lockTime={lockTime} /></>}
@@ -492,7 +492,7 @@ export default function GolfPoolPicks() {
             type="button"
             onClick={() => setShowConfirm(true)}
             disabled={!canSubmit}
-            className={`w-full py-3.5 rounded-xl font-black text-sm transition-all ${
+            className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all ${
               canSubmit
                 ? 'bg-green-500 hover:bg-green-400 text-white shadow-lg shadow-green-500/20'
                 : 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed'

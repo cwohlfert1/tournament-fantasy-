@@ -373,7 +373,7 @@ function TourScheduleBanner() {
               </span>
             )}
           </div>
-          <div style={{ color: '#fff', fontSize: 22, fontWeight: 900, letterSpacing: '-0.01em', marginBottom: 4 }}>
+          <div style={{ color: '#fff', fontSize: 22, fontWeight: 800, letterSpacing: '-0.01em', marginBottom: 4 }}>
             {featured.name}
           </div>
           <div style={{ color: '#6b7280', fontSize: 13 }}>
@@ -488,7 +488,7 @@ export default function GolfLanding() {
               <>
                 <Link
                   to="/golf/create?format=pool"
-                  className="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-black px-10 py-4 rounded-full transition-all shadow-lg shadow-green-500/30 text-base"
+                  className="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-10 py-4 rounded-full transition-all shadow-lg shadow-green-500/30 text-base"
                 >
                   <Trophy size={15} strokeWidth={1.75} /> Run an Office Pool →
                 </Link>
@@ -509,7 +509,7 @@ export default function GolfLanding() {
               <>
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-black px-10 py-4 rounded-full transition-all shadow-lg shadow-green-500/30 text-base"
+                  className="inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-10 py-4 rounded-full transition-all shadow-lg shadow-green-500/30 text-base"
                 >
                   Get Started Free <ArrowRight className="w-5 h-5" />
                 </Link>
@@ -726,12 +726,12 @@ export default function GolfLanding() {
           <div className="flex justify-center gap-4 sm:gap-8 flex-wrap">
             {SCORING.map(s => (
               <div key={s.label} className="text-center">
-                <div className={`text-xl font-black ${s.color}`}>{s.pts}</div>
+                <div className={`text-xl font-bold ${s.color}`}>{s.pts}</div>
                 <div className="text-gray-600 text-xs mt-0.5">{s.label}</div>
               </div>
             ))}
             <div className="text-center">
-              <div className="text-xl font-black text-yellow-400">1.5×</div>
+              <div className="text-xl font-bold text-yellow-400">1.5×</div>
               <div className="text-gray-600 text-xs mt-0.5">Majors</div>
             </div>
           </div>
@@ -746,7 +746,7 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section id="formats" className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-3">Pick your format</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white text-center mb-3">Pick your format</h2>
           <p className="text-gray-500 text-center text-sm mb-10">All formats, one platform.</p>
 
           <div className="grid sm:grid-cols-3 gap-5">
@@ -754,14 +754,14 @@ export default function GolfLanding() {
             {/* Card 1: TourneyRun */}
             <div className="relative bg-gray-900 border border-green-500/35 rounded-2xl p-5 sm:p-6 ring-1 ring-green-500/15">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
+                <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
                   style={{ background: '#22c55e', color: '#052e16' }}>
                   Recommended
                 </span>
               </div>
               <div className="mt-3">
                 <div className="text-2xl mb-2">🏌️</div>
-                <h3 className="text-white font-black text-base">Season Long Fantasy</h3>
+                <h3 className="text-white font-bold text-base">Season Long Fantasy</h3>
                 <p className="text-green-400/80 text-xs mt-0.5 mb-4">Draft once. Compete all season.</p>
                 <ul className="space-y-2 text-sm text-gray-400">
                   {[
@@ -783,7 +783,7 @@ export default function GolfLanding() {
             {/* Card 2: Golf Pool */}
             <div className="relative bg-gray-900 border border-green-500/40 rounded-2xl p-5 sm:p-6 ring-1 ring-yellow-500/10">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
+                <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
                   style={{ background: '#f59e0b', color: '#451a03' }}>
                   New
                 </span>
@@ -791,7 +791,7 @@ export default function GolfLanding() {
               <div className="mt-3">
                 <div className="text-2xl mb-2">📋</div>
                 <span className="bg-green-500/20 text-green-400 text-xs font-semibold px-2 py-0.5 rounded-full inline-block mb-2">Most Popular</span>
-                <h3 className="text-white font-black text-base">Golf Pool</h3>
+                <h3 className="text-white font-bold text-base">Golf Pool</h3>
                 <p className="text-yellow-400/80 text-xs mt-0.5 mb-4">Best for office pools & casual groups</p>
                 <ul className="space-y-2 text-sm text-gray-400">
                   {[
@@ -821,7 +821,7 @@ export default function GolfLanding() {
             {/* Card 3: Salary Cap */}
             <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-6 hover:border-green-500/30 transition-colors">
               <div className="text-2xl mb-2">💰</div>
-              <h3 className="text-white font-black text-base">Salary Cap</h3>
+              <h3 className="text-white font-bold text-base">Salary Cap</h3>
               <p className="text-gray-400 text-xs mt-0.5 mb-4">Build a roster under a budget. Top score wins.</p>
               <ul className="space-y-2 text-sm text-gray-400">
                 {[
@@ -860,7 +860,7 @@ export default function GolfLanding() {
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div>
-              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
+              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Run your office pool.<br />
                 <span style={{ color: '#22c55e' }}>Without the spreadsheet.</span>
               </h2>
@@ -926,10 +926,10 @@ export default function GolfLanding() {
 
             {/* LEFT — copy */}
             <div>
-              <p style={{ color: '#22c55e', fontSize: 'clamp(14px,1.5vw,16px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 16 }}>
+              <p style={{ color: '#22c55e', fontSize: 'clamp(14px,1.5vw,16px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 16 }}>
                 Already running a pool?
               </p>
-              <h3 style={{ color: '#fff', fontSize: 'clamp(24px,3.5vw,38px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
+              <h3 style={{ color: '#fff', fontSize: 'clamp(24px,3.5vw,38px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Import your <span style={{ color: '#22c55e' }}>existing</span> group.
               </h3>
               <p style={{ color: '#9ca3af', fontSize: 15, lineHeight: 1.7, marginBottom: 32 }}>
@@ -1078,7 +1078,7 @@ export default function GolfLanding() {
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div style={{ order: 2 }}>
-              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
+              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Salary cap golf.<br />
                 <span style={{ color: '#22c55e' }}>Your budget. Your picks.</span>
               </h2>
@@ -1133,7 +1133,7 @@ export default function GolfLanding() {
         <div className="max-w-5xl mx-auto">
           <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
             <div>
-              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 900, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
+              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
                 Season-long fantasy golf.<br />
                 <span style={{ color: '#22c55e' }}>Draft once. Win all year.</span>
               </h2>
@@ -1192,10 +1192,10 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="max-w-4xl mx-auto px-4 py-16 sm:py-20">
         <div className="text-center mb-10">
-          <div className="inline-block text-green-400 text-xs font-black uppercase tracking-widest mb-3">
+          <div className="inline-block text-green-400 text-xs font-bold uppercase tracking-widest mb-3">
             Exclusive Feature
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
             Live PGA Scoreboard. Built in.
           </h2>
           <p className="text-gray-400 text-base max-w-xl mx-auto">
@@ -1327,10 +1327,10 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="max-w-4xl mx-auto px-4 py-16 sm:py-20">
         <div className="text-center mb-12">
-          <div className="inline-block text-green-400 text-xs font-black uppercase tracking-widest mb-3">
+          <div className="inline-block text-green-400 text-xs font-bold uppercase tracking-widest mb-3">
             Built for commissioners
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
             Built for commissioners. Priced for everyone.
           </h2>
           <p className="text-gray-400 text-base max-w-lg mx-auto">
@@ -1362,7 +1362,7 @@ export default function GolfLanding() {
             <span style={{ color: '#22c55e', fontWeight: 800, fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TourneyRun Commissioner Fee</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 32, lineHeight: 1 }}>$12.99</span>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 32, lineHeight: 1 }}>$12.99</span>
             <span style={{ color: '#9ca3af', fontSize: 14 }}>per tournament to start</span>
           </div>
           <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 12 }}>
@@ -1385,10 +1385,10 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="max-w-4xl mx-auto px-4 py-16 sm:py-20">
         <div className="text-center mb-10">
-          <div className="inline-block text-green-400 text-xs font-black uppercase tracking-widest mb-3">
+          <div className="inline-block text-green-400 text-xs font-bold uppercase tracking-widest mb-3">
             Why TourneyRun?
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
             Why TourneyRun over the other guys?
           </h2>
           <p className="text-gray-400 text-base">
@@ -1446,7 +1446,7 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="max-w-4xl mx-auto px-4 py-16 sm:py-20">
         <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-black text-white mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
             Ditch the spreadsheet.
           </h2>
           <p className="text-gray-400 text-base">
@@ -1494,7 +1494,7 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
         <div ref={howItWorksRef} id="how-it-works" className="max-w-4xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white text-center mb-3">
             Up and running before {nextMajor ? `the ${nextMajor.name.replace(/^The /, '')}` : 'the next major'}
           </h2>
           <p className="text-gray-500 text-center text-sm mb-12">Four steps. Five minutes.</p>
@@ -1523,7 +1523,7 @@ export default function GolfLanding() {
               },
             ].map(({ n, title, body }) => (
               <div key={n} className="flex gap-4 bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-green-500/20 transition-colors">
-                <div className="text-3xl font-black text-green-500/25 shrink-0 leading-none pt-0.5" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <div className="text-3xl font-bold text-green-500/25 shrink-0 leading-none pt-0.5" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   {n}
                 </div>
                 <div>
@@ -1540,7 +1540,7 @@ export default function GolfLanding() {
       {/* S7: Scoring breakdown                                                */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="max-w-3xl mx-auto px-4 py-16 sm:py-20">
-        <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-3">
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-white text-center mb-3">
           Real scoring, real stakes
         </h2>
         <p className="text-gray-500 text-center text-sm mb-10">Points awarded shot-by-shot and at tournament end.</p>
@@ -1549,7 +1549,7 @@ export default function GolfLanding() {
         <div className="flex justify-center gap-4 sm:gap-8 flex-wrap mb-8">
           {SCORING.map(s => (
             <div key={s.label} className="text-center">
-              <div className={`text-2xl font-black ${s.color}`}>{s.pts}</div>
+              <div className={`text-2xl font-bold ${s.color}`}>{s.pts}</div>
               <div className="text-gray-600 text-xs mt-0.5">{s.label}</div>
             </div>
           ))}
@@ -1590,7 +1590,7 @@ export default function GolfLanding() {
               <span style={{ color: '#eab308', fontSize: 14 }}>★</span>
               <span style={{ color: '#eab308', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Major Tournament</span>
             </div>
-            <h2 style={{ color: '#fff', fontSize: 'clamp(26px, 5vw, 40px)', fontWeight: 900, lineHeight: 1.15, marginBottom: 14 }}>
+            <h2 style={{ color: '#fff', fontSize: 'clamp(26px, 5vw, 40px)', fontWeight: 800, lineHeight: 1.15, marginBottom: 14 }}>
               {(() => {
                 const d = new Date(nextMajor.start + 'T12:00:00');
                 return `${nextMajor.name} is ${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.`;
@@ -1633,7 +1633,7 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white text-center mb-3">
             Majors + Signature Events
           </h2>
           <p className="text-gray-500 text-center text-sm mb-10">The biggest events of the season. Points stack all year.</p>
@@ -1716,8 +1716,8 @@ export default function GolfLanding() {
       {/* S9: Social proof                                                     */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <Section className="max-w-4xl mx-auto px-4 py-16 sm:py-20">
-        <p className="text-center text-green-400 text-xs font-black uppercase tracking-widest mb-3">Trusted since 2016</p>
-        <h2 className="text-2xl sm:text-3xl font-black text-white text-center mb-10">
+        <p className="text-center text-green-400 text-xs font-bold uppercase tracking-widest mb-3">Trusted since 2016</p>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-white text-center mb-10">
           Real leagues. Real stakes.
         </h2>
         <div className="grid sm:grid-cols-3 gap-5">
@@ -1738,10 +1738,10 @@ export default function GolfLanding() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       <div style={{ background: '#111827' }} className="py-20 px-4">
         <div className="max-w-xl mx-auto text-center">
-          <div className="inline-block text-green-400 text-xs font-black uppercase tracking-widest mb-4">
+          <div className="inline-block text-green-400 text-xs font-bold uppercase tracking-widest mb-4">
             Invite Friends
           </div>
-          <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight mb-4">
             Skip the weekly grind.<br />Do this all season long.
           </h2>
           <p className="text-gray-400 text-base leading-relaxed mb-8">

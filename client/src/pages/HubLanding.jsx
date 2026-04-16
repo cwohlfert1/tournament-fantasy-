@@ -326,7 +326,7 @@ function ReferralSection() {
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 14 }}>
             Refer a Commissioner
           </div>
-          <h2 style={{ margin: '0 0 16px', fontSize: 'clamp(1.9rem,4.5vw,3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 'clamp(1.9rem,4.5vw,3rem)', fontWeight: 800, letterSpacing: '-0.03em', color: '#fff' }}>
             Still running your pool in a group chat?
           </h2>
           <p style={{ margin: '0 auto', fontSize: 16, color: 'rgba(255,255,255,0.5)', maxWidth: 580, lineHeight: 1.7 }}>
@@ -347,7 +347,7 @@ function ReferralSection() {
               <div style={{
                 width: 40, height: 40, borderRadius: '50%',
                 background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)',
-                color: '#f59e0b', fontWeight: 900, fontSize: 16,
+                color: '#f59e0b', fontWeight: 700, fontSize: 16,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 margin: '0 auto 16px',
               }}>
@@ -748,7 +748,7 @@ export default function HubLanding() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#16a34a', marginBottom: 14 }}>Choose Your Game</div>
-            <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>
+            <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 800, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>
               Two sports. One platform.
             </h2>
           </div>
@@ -771,7 +771,7 @@ export default function HubLanding() {
                     padding: '4px 12px', borderRadius: 100, marginBottom: 16,
                   }}>FEATURED · 2026 PGA Season Live</span>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>⛳</div>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Fantasy Golf</h3>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>Fantasy Golf</h3>
                   <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
                     PGA Tour season-long fantasy, office pools, and salary cap. One platform, every format.
                   </p>
@@ -815,7 +815,7 @@ export default function HubLanding() {
                     padding: '4px 12px', borderRadius: 100, marginBottom: 16,
                   }}>2026 Tournament · Starting Soon</span>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>🏀</div>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Fantasy Basketball</h3>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>Fantasy Basketball</h3>
                   <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
                     Draft college players. Score points as they win tournament games. 3 weeks, one champion.
                   </p>
@@ -910,7 +910,7 @@ export default function HubLanding() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 68 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#16a34a', marginBottom: 14 }}>How It Works</div>
-            <h2 style={{ margin: 0, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            <h2 style={{ margin: 0, fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
               <span style={{ color: '#fff' }}>Three steps. </span>
               <span style={{
                 background: 'linear-gradient(135deg, #00ff88, #16a34a)',
@@ -962,7 +962,7 @@ export default function HubLanding() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 14 }}>Play How You Want</div>
-            <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
+            <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 800, letterSpacing: '-0.03em', color: '#fff' }}>
               Three formats. One platform.
             </h2>
           </div>
@@ -997,7 +997,7 @@ export default function HubLanding() {
           <MastersPromoBanner />
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 14 }}>Pricing</div>
-            <h2 style={{ margin: '0 0 12px', fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff' }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 800, letterSpacing: '-0.03em', color: '#fff' }}>
               We charge a flat fee per tournament. That's it.
             </h2>
             <p style={{ margin: 0, fontSize: 16, color: 'rgba(255,255,255,0.4)' }}>The bigger your pool, the worse the deal gets on other platforms. With us, you pay once — whether it's 8 players or 80.</p>
@@ -1006,7 +1006,7 @@ export default function HubLanding() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 40, alignItems: 'center' }}>
             {/* Left — statement */}
             <div>
-              <p style={{ margin: '0 0 16px', fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 900, color: '#fff', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+              <p style={{ margin: '0 0 16px', fontSize: 'clamp(1.5rem,3vw,2.2rem)', fontWeight: 800, color: '#fff', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
                 From <span style={{ color: '#22c55e' }}>$12.99</span> per tournament.
               </p>
               <p style={{ margin: '0 0 12px', fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75 }}>
@@ -1068,7 +1068,7 @@ export default function HubLanding() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 18 }}>🏆</span>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.02em' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>
                 <span style={{ color: '#fff', fontWeight: 400 }}>tourney</span><span style={{ color: '#16a34a', fontWeight: 700 }}>run</span>
               </div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>© 2026 Player Pool Fantasy</div>

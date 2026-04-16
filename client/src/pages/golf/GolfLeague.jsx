@@ -140,7 +140,7 @@ export default function GolfLeague() {
         <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
           <Flag className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">{loadError}</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">{loadError}</h2>
         <Link to="/golf/dashboard" className="inline-flex items-center gap-1.5 text-green-400 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Back to dashboard
         </Link>
@@ -158,7 +158,7 @@ export default function GolfLeague() {
         <div className="w-16 h-16 rounded-2xl bg-green-900/40 border border-green-700/40 flex items-center justify-center mx-auto mb-5">
           <Trophy className="w-8 h-8 text-green-400" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">
+        <h2 className="text-2xl font-bold text-white mb-2">
           {justPaid ? 'Confirming your payment…' : 'Payment required'}
         </h2>
         <p className="text-gray-400 text-sm mb-6">
@@ -209,7 +209,7 @@ export default function GolfLeague() {
         </Link>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-black text-white break-words">{league.name}</h1>
+            <h1 className="text-3xl font-bold text-white break-words">{league.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {isComm && <Badge color="blue">Commissioner</Badge>}
               {league.format_type === 'pool'

@@ -3,6 +3,7 @@ import { Target, Lock, Check } from 'lucide-react';
 import { Badge } from '../../../components/ui';
 import api from '../../../api';
 import GolfPaymentModal from '../../../components/golf/GolfPaymentModal';
+import Select from '../../../components/ui/Select';
 
 export default function LineupTab({ leagueId, league }) {
   const [tournaments, setTournaments] = useState([]);
@@ -101,17 +102,15 @@ export default function LineupTab({ leagueId, league }) {
       {tournaments.length > 0 && (
         <div>
           <label className="label mb-2">Select Tournament</label>
-          <select
+          <Select
             value={selectedTournId || ''}
-            onChange={e => setSelectedTournId(Number(e.target.value))}
-            className="input"
-          >
-            {tournaments.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} — {t.start_date?.slice(0, 10)}{t.is_major ? ' ★' : ''}
-              </option>
-            ))}
-          </select>
+            onChange={v => setSelectedTournId(Number(v))}
+            options={tournaments.map(t => ({
+              value: t.id,
+              label: `${t.name} \u2014 ${t.start_date?.slice(0, 10)}${t.is_major ? ' \u2605' : ''}`,
+            }))}
+            fullWidth
+          />
         </div>
       )}
 

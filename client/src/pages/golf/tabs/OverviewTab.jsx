@@ -58,7 +58,7 @@ export default function OverviewTab({ league, members, user, isComm, navigate, p
           {statCards.map(s => (
             <div key={s.label} className="bg-gray-800/60 rounded-xl px-4 py-3 text-center">
               <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">{s.label}</div>
-              <div className="text-white font-black text-2xl">{s.value}</div>
+              <div className="text-white font-bold text-2xl">{s.value}</div>
             </div>
           ))}
         </div>
@@ -67,7 +67,7 @@ export default function OverviewTab({ league, members, user, isComm, navigate, p
         <div className="border border-gray-700 rounded-xl p-4 bg-gray-800/30">
           <div className="text-gray-500 text-xs font-bold uppercase tracking-wide mb-2">Invite Code</div>
           <div className="flex items-center gap-3">
-            <span className="text-white font-black text-2xl tracking-widest flex-1">{league.invite_code}</span>
+            <span className="text-white font-bold text-2xl tracking-widest flex-1">{league.invite_code}</span>
             <button
               onClick={copyInvite}
               className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all border ${

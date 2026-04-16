@@ -115,7 +115,7 @@ export default function AuthLayout({ children }) {
                 background: 'linear-gradient(135deg, #22c55e 0%, #00c96a 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
-                <span style={{ color: '#000', fontWeight: 900, fontSize: 14, letterSpacing: '-0.03em' }}>TR</span>
+                <span style={{ color: '#000', fontWeight: 700, fontSize: 14, letterSpacing: '-0.03em' }}>TR</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
                 <div style={{ fontSize: '22px', letterSpacing: '-0.02em', lineHeight: 1 }}>

@@ -1507,7 +1507,7 @@ export default function DraftRoom() {
                 <div className="lg:hidden flex items-center gap-2 mb-2">
                   <span className="text-white font-bold text-sm">My Queue</span>
                   {queuedPlayers.length > 0 && (
-                    <span className="bg-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                    <span className="bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                       {queuedPlayers.length}
                     </span>
                   )}
@@ -1862,7 +1862,7 @@ export default function DraftRoom() {
                 )}
                 {/* Queue count badge */}
                 {t.id === 'queue' && queuedPlayers.length > 0 && (
-                  <span className="absolute top-1.5 right-[18%] min-w-[14px] h-3.5 bg-yellow-500 text-black text-[8px] font-black rounded-full flex items-center justify-center px-0.5">
+                  <span className="absolute top-1.5 right-[18%] min-w-[14px] h-3.5 bg-yellow-500 text-black text-[8px] font-bold rounded-full flex items-center justify-center px-0.5">
                     {queuedPlayers.length}
                   </span>
                 )}

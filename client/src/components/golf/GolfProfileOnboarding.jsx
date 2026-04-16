@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../../api';
+import Select from '../ui/Select';
 
 const MONTHS = [
   'January','February','March','April','May','June',
@@ -48,7 +49,7 @@ export default function GolfProfileOnboarding({ onComplete, onSkip }) {
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>⛳</div>
-          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 6px' }}>
+          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>
             One more thing before you tee off
           </h2>
           <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>
@@ -101,18 +102,30 @@ export default function GolfProfileOnboarding({ onComplete, onSkip }) {
             Date of Birth <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr', gap: 8 }}>
-            <select value={month} onChange={e => setMonth(e.target.value)} style={selectStyle}>
-              <option value="">Month</option>
-              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-            </select>
-            <select value={day} onChange={e => setDay(e.target.value)} style={selectStyle}>
-              <option value="">Day</option>
-              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-            <select value={year} onChange={e => setYear(e.target.value)} style={selectStyle}>
-              <option value="">Year</option>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <Select
+              value={month}
+              onChange={setMonth}
+              options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+              placeholder="Month"
+              size="sm"
+              fullWidth
+            />
+            <Select
+              value={day}
+              onChange={setDay}
+              options={DAYS.map(d => ({ value: String(d), label: String(d) }))}
+              placeholder="Day"
+              size="sm"
+              fullWidth
+            />
+            <Select
+              value={year}
+              onChange={setYear}
+              options={YEARS.map(y => ({ value: String(y), label: String(y) }))}
+              placeholder="Year"
+              size="sm"
+              fullWidth
+            />
           </div>
           <p style={{ color: '#4b5563', fontSize: 11, marginTop: 6 }}>Must be 18 or older to participate.</p>
         </div>
@@ -139,13 +152,3 @@ export default function GolfProfileOnboarding({ onComplete, onSkip }) {
   );
 }
 
-const selectStyle = {
-  background: '#111',
-  border: '1px solid #1f2937',
-  borderRadius: 8,
-  color: '#d1d5db',
-  fontSize: 13,
-  padding: '9px 10px',
-  width: '100%',
-  appearance: 'none',
-};

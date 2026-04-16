@@ -13,7 +13,7 @@ const S = {
   },
   title: {
     fontSize: 32,
-    fontWeight: 900,
+    fontWeight: 700,
     color: '#fff',
     marginBottom: 4,
     lineHeight: 1.2,

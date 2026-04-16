@@ -59,7 +59,7 @@ function TimerBar({ endsAt, timerSecs = 30 }) {
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="text-gray-500 flex items-center gap-1"><Clock className="w-3 h-3" /> Bidding closes</span>
-        <span className={`font-black text-base tabular-nums ${textColor}`}>{Math.ceil(secs)}s</span>
+        <span className={`font-bold text-base tabular-nums ${textColor}`}>{Math.ceil(secs)}s</span>
       </div>
       <div className="w-full bg-gray-800 rounded-full h-2">
         <div
@@ -151,7 +151,7 @@ export default function GolfAuctionDraft() {
         <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
           <Flag className="w-8 h-8 text-gray-600" />
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">League not found</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">League not found</h2>
         <Link to="/golf/dashboard" className="text-green-400 hover:underline flex items-center gap-1 justify-center">
           <ArrowLeft className="w-4 h-4" /> Back to dashboard
         </Link>
@@ -210,14 +210,14 @@ export default function GolfAuctionDraft() {
       {/* ── Top bar: league name + status ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white">Auction Draft</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Auction Draft</h1>
           <p className="text-gray-400 text-sm mt-0.5">{league.name}</p>
         </div>
         {/* Budget pill */}
         {myBudget && (
           <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2">
             <DollarSign className="w-4 h-4 text-green-400" />
-            <span className="text-white font-black text-lg">{myBudgetAmt}</span>
+            <span className="text-white font-bold text-lg">{myBudgetAmt}</span>
             <span className="text-gray-500 text-xs">credits left</span>
           </div>
         )}
@@ -236,7 +236,7 @@ export default function GolfAuctionDraft() {
           <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center mx-auto mb-4">
             <Trophy className="w-8 h-8 text-green-400" />
           </div>
-          <h2 className="text-xl font-black text-white mb-2">Waiting for Commissioner</h2>
+          <h2 className="text-xl font-bold text-white mb-2">Waiting for Commissioner</h2>
           <p className="text-gray-400 text-sm mb-2">
             {members.length} team{members.length !== 1 ? 's' : ''} registered · Budget: ${league.auction_budget || 1000} per team
           </p>
@@ -247,7 +247,7 @@ export default function GolfAuctionDraft() {
             <button
               onClick={startAuction}
               disabled={starting || members.length < 2}
-              className="px-8 py-3 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-xl transition-all shadow-lg shadow-green-500/20"
+              className="px-8 py-3 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-500/20"
             >
               {starting ? 'Starting...' : 'Start Auction →'}
             </button>
@@ -260,7 +260,7 @@ export default function GolfAuctionDraft() {
       {isComplete && (
         <div className="bg-green-500/8 border border-green-500/25 rounded-2xl p-6 text-center mb-6">
           <Trophy className="w-10 h-10 text-green-400 mx-auto mb-3" />
-          <h2 className="text-xl font-black text-white mb-1">Auction Complete!</h2>
+          <h2 className="text-xl font-bold text-white mb-1">Auction Complete!</h2>
           <p className="text-gray-400 text-sm mb-4">All roster spots have been filled. The season is now active.</p>
           <Link
             to={`/golf/league/${id}`}
@@ -289,12 +289,12 @@ export default function GolfAuctionDraft() {
 
                   <div className="flex items-start gap-4 mb-4">
                     <div className="flex-1 min-w-0">
-                      <div className="text-white text-xl font-black truncate">{currentPlayer.name}</div>
+                      <div className="text-white text-xl font-bold truncate">{currentPlayer.name}</div>
                       <div className="text-gray-400 text-sm mt-0.5">{currentPlayer.country} · Rank #{currentPlayer.world_ranking}</div>
                       <TierBadge salary={currentPlayer.salary} />
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-green-400 font-black text-3xl">${session.current_high_bid}</div>
+                      <div className="text-green-400 font-bold text-3xl">${session.current_high_bid}</div>
                       <div className="text-gray-500 text-xs">
                         {isAmIHighBidder
                           ? <span className="text-green-400 font-semibold">You're winning!</span>
@@ -325,7 +325,7 @@ export default function GolfAuctionDraft() {
                       <button
                         type="submit"
                         disabled={bidding || !bidAmount}
-                        className="px-5 py-2.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-black rounded-lg transition-all shrink-0"
+                        className="px-5 py-2.5 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-bold rounded-lg transition-all shrink-0"
                       >
                         {bidding ? '...' : 'Bid'}
                       </button>
@@ -344,7 +344,7 @@ export default function GolfAuctionDraft() {
                       <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center mx-auto mb-3">
                         <Zap className="w-5 h-5 text-yellow-400" />
                       </div>
-                      <h3 className="text-white font-black mb-1">Your Turn to Nominate!</h3>
+                      <h3 className="text-white font-bold mb-1">Your Turn to Nominate!</h3>
                       <p className="text-gray-400 text-sm">Pick a player from the board below to start bidding.</p>
                     </>
                   ) : (

@@ -64,7 +64,7 @@ export default function GolfPaymentSuccess() {
           <span style={{ color: '#4ade80', fontSize: 12, fontWeight: 700 }}>✓ Payment confirmed</span>
         </div>
 
-        <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 900, margin: '0 0 10px' }}>{msg.title}</h1>
+        <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 700, margin: '0 0 10px' }}>{msg.title}</h1>
         <p style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.6, margin: '0 0 28px' }}>{msg.body}</p>
 
         <Link

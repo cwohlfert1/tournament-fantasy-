@@ -34,7 +34,7 @@ export default function ForgotPassword() {
   return (
     <AuthLayout>
       <div className="text-center mb-7">
-        <h1 className="text-2xl font-black text-white mb-1">Reset Password</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">Reset Password</h1>
         <p className="text-gray-400 text-sm">We'll send you a link to set a new password</p>
       </div>
 
@@ -73,7 +73,7 @@ export default function ForgotPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl font-black text-base text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-brand-500/25 disabled:opacity-50 disabled:scale-100"
+            className="w-full py-3 rounded-xl font-bold text-base text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-brand-500/25 disabled:opacity-50 disabled:scale-100"
             style={{ background: 'linear-gradient(135deg, #378ADD 0%, #2563EB 100%)' }}
           >
             {loading ? 'Sending…' : 'Send Reset Link →'}

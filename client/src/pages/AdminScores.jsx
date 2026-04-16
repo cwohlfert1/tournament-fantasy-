@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import BallLoader from '../components/BallLoader';
 import { showToast } from '../components/ui/Toast';
+import Select from '../components/ui/Select';
 
 const ROUNDS = [
   'First Round', 'Second Round', 'Round of 16', 'Top 8', 'Semifinals', 'Championship'
@@ -288,12 +289,17 @@ export default function AdminScores() {
                             </div>
                             <div>
                               <label className="label text-xs">Winner</label>
-                              <select className="input py-1.5 text-sm" value={quickWinner}
-                                onChange={e => setQuickWinner(e.target.value)}>
-                                <option value="">Select...</option>
-                                <option value={game.team1}>{game.team1}</option>
-                                <option value={game.team2}>{game.team2}</option>
-                              </select>
+                              <Select
+                                value={quickWinner}
+                                onChange={setQuickWinner}
+                                options={[
+                                  { value: game.team1, label: game.team1 },
+                                  { value: game.team2, label: game.team2 },
+                                ]}
+                                placeholder="Select..."
+                                size="sm"
+                                fullWidth
+                              />
                             </div>
                           </div>
                           <div className="flex gap-2 items-center">
@@ -340,11 +346,16 @@ export default function AdminScores() {
                 </div>
                 <div>
                   <label className="label">Winner</label>
-                  <select className="input" value={winnerTeam} onChange={e => setWinnerTeam(e.target.value)}>
-                    <option value="">No winner yet</option>
-                    <option value={selectedGame.team1}>{selectedGame.team1}</option>
-                    <option value={selectedGame.team2}>{selectedGame.team2}</option>
-                  </select>
+                  <Select
+                    value={winnerTeam}
+                    onChange={setWinnerTeam}
+                    options={[
+                      { value: '', label: 'No winner yet' },
+                      { value: selectedGame.team1, label: selectedGame.team1 },
+                      { value: selectedGame.team2, label: selectedGame.team2 },
+                    ]}
+                    fullWidth
+                  />
                 </div>
               </div>
               {[
@@ -422,30 +433,38 @@ export default function AdminScores() {
               </div>
               <div>
                 <label className="label">Round</label>
-                <select className="input" value={gameForm.round_name}
-                  onChange={e => setGameForm({ ...gameForm, round_name: e.target.value })}>
-                  {ROUNDS.map(r => <option key={r}>{r}</option>)}
-                </select>
+                <Select
+                  value={gameForm.round_name}
+                  onChange={v => setGameForm({ ...gameForm, round_name: v })}
+                  options={ROUNDS.map(r => ({ value: r, label: r }))}
+                  fullWidth
+                />
               </div>
               <div>
                 <label className="label">Team 1</label>
-                <select className="input" value={gameForm.team1}
-                  onChange={e => setGameForm({ ...gameForm, team1: e.target.value })} required>
-                  <option value="">Select team...</option>
-                  {teams.filter(t => !t.is_eliminated).map(t => (
-                    <option key={t.team} value={t.team}>{t.team} (#{t.seed})</option>
-                  ))}
-                </select>
+                <Select
+                  value={gameForm.team1}
+                  onChange={v => setGameForm({ ...gameForm, team1: v })}
+                  options={teams.filter(t => !t.is_eliminated).map(t => ({
+                    value: t.team,
+                    label: `${t.team} (#${t.seed})`,
+                  }))}
+                  placeholder="Select team..."
+                  fullWidth
+                />
               </div>
               <div>
                 <label className="label">Team 2</label>
-                <select className="input" value={gameForm.team2}
-                  onChange={e => setGameForm({ ...gameForm, team2: e.target.value })} required>
-                  <option value="">Select team...</option>
-                  {teams.filter(t => !t.is_eliminated).map(t => (
-                    <option key={t.team} value={t.team}>{t.team} (#{t.seed})</option>
-                  ))}
-                </select>
+                <Select
+                  value={gameForm.team2}
+                  onChange={v => setGameForm({ ...gameForm, team2: v })}
+                  options={teams.filter(t => !t.is_eliminated).map(t => ({
+                    value: t.team,
+                    label: `${t.team} (#${t.seed})`,
+                  }))}
+                  placeholder="Select team..."
+                  fullWidth
+                />
               </div>
               <div className="sm:col-span-2">
                 <button type="submit" className="btn-secondary px-6 py-2">Add Game</button>

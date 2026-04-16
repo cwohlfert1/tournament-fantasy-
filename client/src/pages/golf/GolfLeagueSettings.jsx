@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, ChevronDown, AlertCircle, Users, Bell } from 'lucide-react';
+import Select from '../../components/ui/Select';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
@@ -26,19 +27,16 @@ function TournamentSelector({ tournaments, selectedId, onChange }) {
           <p className="text-gray-400 text-xs mt-0.5">Choose which tournament to build the pick sheet for.</p>
         </div>
       </div>
-      <div className="relative">
-        <select
-          className="input w-full appearance-none pr-10"
-          value={selectedId || ''}
-          onChange={e => onChange(e.target.value)}
-        >
-          <option value="">-- Select tournament --</option>
-          {tournaments.map(t => (
-            <option key={t.id} value={t.id}>{t.name} ({t.start_date?.slice(0, 10)})</option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-      </div>
+      <Select
+        value={selectedId || ''}
+        onChange={onChange}
+        options={tournaments.map(t => ({
+          value: t.id,
+          label: `${t.name} (${t.start_date?.slice(0, 10)})`,
+        }))}
+        placeholder="-- Select tournament --"
+        fullWidth
+      />
     </div>
   );
 }
@@ -95,18 +93,17 @@ function TieredView({ tiers, leagueId, tournamentId, onRefresh }) {
                 <span className="text-gray-600 text-xs shrink-0">{(p.odds_display || '').replace(':', '/')}</span>
 
                 {/* Move dropdown */}
-                <div className="relative shrink-0">
-                  <select
-                    className="appearance-none bg-gray-800 border border-gray-700 text-gray-400 text-xs rounded-lg px-2.5 py-1 pr-6 cursor-pointer hover:border-gray-600 transition-colors"
+                <div className="shrink-0">
+                  <Select
                     value={tier.tier}
-                    onChange={e => movePlayer(p.player_id, parseInt(e.target.value))}
+                    onChange={v => movePlayer(p.player_id, parseInt(v))}
                     disabled={moving === p.player_id}
-                  >
-                    {tierNumbers.map(n => (
-                      <option key={n} value={n}>Tier {n}{n === tier.tier ? ' ✓' : ''}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
+                    options={tierNumbers.map(n => ({
+                      value: n,
+                      label: `Tier ${n}${n === tier.tier ? ' \u2713' : ''}`,
+                    }))}
+                    size="sm"
+                  />
                 </div>
               </div>
             ))}
@@ -423,7 +420,7 @@ export default function GolfLeagueSettings() {
       </Link>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-black text-white">Pick Sheet Settings</h1>
+        <h1 className="text-2xl font-bold text-white">Pick Sheet Settings</h1>
         <p className="text-gray-400 text-sm mt-1">{league.name} · {isSalaryCap ? 'Salary Cap' : 'Tiered Draft'}</p>
       </div>
 

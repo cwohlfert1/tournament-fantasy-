@@ -270,7 +270,7 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
         <div>
-          <h1 className="text-4xl font-black text-white leading-tight">
+          <h1 className="text-4xl font-bold text-white leading-tight">
             Welcome back, {user?.username} 👋
           </h1>
           <p className="text-gray-400 mt-1 text-lg">Your tournament leagues at a glance</p>
@@ -321,7 +321,7 @@ export default function Dashboard() {
               }
             `}</style>
 
-            <h2 className="text-3xl font-black text-white mb-3">Your court is empty</h2>
+            <h2 className="text-3xl font-bold text-white mb-3">Your court is empty</h2>
             <p className="text-gray-400 text-lg max-w-md mx-auto mb-10">
               Create a league or join one with an invite code to get started.
             </p>
@@ -334,7 +334,7 @@ export default function Dashboard() {
                 <div className="absolute inset-0 rounded-2xl bg-brand-500/0 group-hover:bg-brand-500/5 transition-colors duration-300" />
                 <span className="relative text-4xl group-hover:scale-110 transition-transform duration-200">➕</span>
                 <div className="relative">
-                  <div className="text-white font-black text-lg">Create a League</div>
+                  <div className="text-white font-bold text-lg">Create a League</div>
                   <div className="text-gray-500 text-sm mt-0.5">Set the rules, invite your crew</div>
                 </div>
               </Link>
@@ -346,7 +346,7 @@ export default function Dashboard() {
                 <div className="absolute inset-0 rounded-2xl bg-brand-500/0 group-hover:bg-brand-500/5 transition-colors duration-300" />
                 <span className="relative text-4xl group-hover:scale-110 transition-transform duration-200">🎟</span>
                 <div className="relative">
-                  <div className="text-white font-black text-lg">Join a League</div>
+                  <div className="text-white font-bold text-lg">Join a League</div>
                   <div className="text-gray-500 text-sm mt-0.5">Enter your invite code</div>
                 </div>
               </Link>
@@ -400,7 +400,7 @@ export default function Dashboard() {
                     <div className="min-w-0">
                       <Link
                         to={`/league/${league.id}`}
-                        className="text-lg font-black text-white hover:text-brand-400 hover:underline transition-colors truncate leading-tight block cursor-pointer"
+                        className="text-lg font-bold text-white hover:text-brand-400 hover:underline transition-colors truncate leading-tight block cursor-pointer"
                         onClick={e => e.stopPropagation()}
                       >
                         {league.name}
@@ -416,7 +416,7 @@ export default function Dashboard() {
                     </div>
                     {buyIn > 0 && (
                       <div className="shrink-0 text-right">
-                        <div className="text-amber-400 font-black text-xl">{fmt(prizePool)}</div>
+                        <div className="text-amber-400 font-bold text-xl">{fmt(prizePool)}</div>
                         <div className="text-gray-500 text-[10px]">prize pool</div>
                       </div>
                     )}

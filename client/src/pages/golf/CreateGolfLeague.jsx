@@ -4,6 +4,7 @@ import { Flag, DollarSign, Trophy, Settings, Check, Zap, X } from 'lucide-react'
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { isMastersPromoActive, POOL_TIERS } from '../../utils/poolPricing';
+import Select from '../../components/ui/Select';
 
 // ── Format definitions ────────────────────────────────────────────────────────
 
@@ -690,7 +691,7 @@ export default function CreateGolfLeague() {
     <div className="max-w-2xl mx-auto px-4 py-8 sm:py-10">
 
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-black text-white">Create Golf League</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Create Golf League</h1>
         <p className="text-gray-400 mt-1 text-sm sm:text-base">Set up your PGA Tour fantasy league for the 2026 season.</p>
       </div>
 
@@ -724,7 +725,7 @@ export default function CreateGolfLeague() {
                   <f.Icon className={`w-5 h-5 ${f.iconColor}`} />
                 </div>
                 <div className="flex items-center gap-2 mb-1.5 flex-wrap pr-6">
-                  <span className={`font-black text-sm sm:text-base ${format === f.key ? 'text-white' : 'text-gray-300'}`}>
+                  <span className={`font-bold text-sm sm:text-base ${format === f.key ? 'text-white' : 'text-gray-300'}`}>
                     {f.title}
                   </span>
                   {f.recommended && (
@@ -778,19 +779,16 @@ export default function CreateGolfLeague() {
               {/* Tournament Picker */}
               <div>
                 <label className="label mb-1.5">Which tournament is this pool for? *</label>
-                <select
-                  className="input text-sm"
+                <Select
                   value={form.pool_tournament_id}
-                  onChange={e => set('pool_tournament_id', e.target.value)}
-                  required
-                >
-                  <option value="">— Select a tournament —</option>
-                  {tournaments.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}{t.start_date ? ` · ${new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}{t.is_major ? ' (Major)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={v => set('pool_tournament_id', v)}
+                  options={tournaments.map(t => ({
+                    value: t.id,
+                    label: `${t.name}${t.start_date ? ` · ${new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}${t.is_major ? ' (Major)' : ''}`,
+                  }))}
+                  placeholder="— Select a tournament —"
+                  fullWidth
+                />
                 {tournaments.length === 0 && (
                   <p className="text-gray-600 text-xs mt-1.5">Loading tournaments…</p>
                 )}

@@ -15,6 +15,7 @@ import MassBlast       from './commissioner/MassBlast';
 import ReferralSection from './commissioner/ReferralSection';
 import ImportSection   from './commissioner/ImportSection';
 import UnpaidSection   from './commissioner/UnpaidSection';
+import Select from '../../../components/ui/Select';
 import QuickReminders  from './commissioner/QuickReminders';
 
 
@@ -929,18 +930,19 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                   <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">
                     Missed Cut Rule {tournamentActive && <span style={{ color: '#6b7280', fontWeight: 400, textTransform: 'none' }}>(locked — tournament active)</span>}
                   </label>
-                  <select
+                  <Select
                     value={missedCutRule}
-                    onChange={e => setMissedCutRule(e.target.value)}
+                    onChange={setMissedCutRule}
                     disabled={tournamentActive}
-                    className="input w-full text-sm"
-                    data-testid="missed-cut-rule-select"
-                  >
-                    <option value="fixed">Fixed Penalty (+{missedCutPenalty || 8} per missed round)</option>
-                    <option value="highest_carded">Highest Carded Round (worst score from field)</option>
-                    <option value="stroke_penalty">Custom Stroke Penalty (set below)</option>
-                    <option value="exclude">Exclude (no penalty — for no-cut events)</option>
-                  </select>
+                    fullWidth
+                    size="sm"
+                    options={[
+                      { value: 'fixed',           label: `Fixed Penalty (+${missedCutPenalty || 8} per missed round)` },
+                      { value: 'highest_carded',  label: 'Highest Carded Round (worst score from field)' },
+                      { value: 'stroke_penalty',  label: 'Custom Stroke Penalty (set below)' },
+                      { value: 'exclude',         label: 'Exclude (no penalty — for no-cut events)' },
+                    ]}
+                  />
                   {(missedCutRule === 'stroke_penalty' || missedCutRule === 'fixed') && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                       <span style={{ color: '#9ca3af', fontSize: 12 }}>Strokes per missed round</span>

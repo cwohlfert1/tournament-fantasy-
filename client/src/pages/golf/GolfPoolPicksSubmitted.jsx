@@ -103,7 +103,7 @@ export default function GolfPoolPicksSubmitted() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/15 border border-green-500/30 mb-4">
           <Check className="w-8 h-8 text-green-400" />
         </div>
-        <h1 className="text-3xl font-black text-white mb-2">You're locked in!</h1>
+        <h1 className="text-3xl font-bold text-white mb-2">You're locked in!</h1>
         <p className="text-gray-400 text-sm">
           {tournament ? `${tournament.name} · ` : ''}Your picks are submitted and can't be changed.
         </p>

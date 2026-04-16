@@ -77,7 +77,7 @@ function SeasonPassModal({ meta, credits, loading, onPay, onClose }) {
         <button onClick={onClose} aria-label="Close" style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, borderRadius: 4, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#d1d5db'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}><X size={16} /></button>
       </div>
 
-      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 6px' }}>Unlock the full 2026 season</h2>
+      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>Unlock the full 2026 season</h2>
       <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 20px', lineHeight: 1.5 }}>One payment. Every PGA Tour event. All season long.</p>
 
       {/* Comparison */}
@@ -136,7 +136,7 @@ function OfficePoolModal({ meta, credits, loading, onPay, onClose }) {
         <button onClick={onClose} aria-label="Close" style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, borderRadius: 4, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#d1d5db'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}><X size={16} /></button>
       </div>
 
-      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 4px' }}>
         {meta.tournamentName || 'Tournament Entry'}
         {meta.isMajor && <span style={{ marginLeft: 8, fontSize: 13, color: '#fbbf24', fontWeight: 700 }}>★ MAJOR</span>}
       </h2>
@@ -157,7 +157,7 @@ function OfficePoolModal({ meta, credits, loading, onPay, onClose }) {
       )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
-        <span style={{ color: '#22c55e', fontWeight: 900, fontSize: 28 }}>${price}</span>
+        <span style={{ color: '#22c55e', fontWeight: 700, fontSize: 28 }}>${price}</span>
         <span style={{ color: '#4b5563', fontSize: 13 }}>one-time entry</span>
       </div>
 
@@ -190,7 +190,7 @@ function CommProModal({ meta, loading, onPay, onClose }) {
         <button onClick={onClose} aria-label="Close" style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, borderRadius: 4, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#d1d5db'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}><X size={16} /></button>
       </div>
 
-      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>Run your league like a pro</h2>
+      <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 4px' }}>Run your league like a pro</h2>
       <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 20px' }}>Commissioner tools that save you hours every tournament week.</p>
 
       <div style={{ marginBottom: 20 }}>
@@ -219,7 +219,7 @@ function CommProModal({ meta, loading, onPay, onClose }) {
       )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 16 }}>
-        <span style={{ color: '#a78bfa', fontWeight: 900, fontSize: 28 }}>$19.99</span>
+        <span style={{ color: '#a78bfa', fontWeight: 700, fontSize: 28 }}>$19.99</span>
         <span style={{ color: '#4b5563', fontSize: 13 }}>/ season</span>
       </div>
 

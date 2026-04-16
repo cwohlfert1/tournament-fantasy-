@@ -16,6 +16,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import { showConfirm } from '../ui/ConfirmDialog';
+import Select from '../ui/Select';
 
 export default function ReinviteFromPastLeague({ targetLeagueId, targetLeagueName, onClose }) {
   const [pastLeagues, setPastLeagues]     = useState(null); // null = loading, [] = none
@@ -117,22 +118,21 @@ export default function ReinviteFromPastLeague({ targetLeagueId, targetLeagueNam
         Members already in this pool are skipped automatically.
       </p>
 
-      <select
-        data-testid="reinvite-source-select"
-        value={selectedId}
-        onChange={e => setSelectedId(e.target.value)}
-        disabled={sending}
-        className="input w-full text-sm"
-        style={{ marginBottom: 10 }}
-      >
-        <option value="">— Select a past pool —</option>
-        {pastLeagues.map(l => (
-          <option key={l.id} value={l.id}>
-            {l.name} ({l.member_count} member{l.member_count === 1 ? '' : 's'})
-            {l.tournament_name ? ` · ${l.tournament_name}` : ''}
-          </option>
-        ))}
-      </select>
+      <div style={{ marginBottom: 10 }}>
+        <Select
+          id="reinvite-source-select"
+          value={selectedId}
+          onChange={setSelectedId}
+          disabled={sending}
+          fullWidth
+          size="sm"
+          placeholder="Select a past pool"
+          options={pastLeagues.map(l => ({
+            value: l.id,
+            label: `${l.name} (${l.member_count} member${l.member_count === 1 ? '' : 's'})${l.tournament_name ? ` · ${l.tournament_name}` : ''}`,
+          }))}
+        />
+      </div>
 
       {selected && (
         <div data-testid="reinvite-preview" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#d1d5db' }}>
