@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Lock, Trophy, ChevronRight } from 'lucide-react';
+import { Check, Lock, Trophy, ChevronRight, X } from 'lucide-react';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
 import GolfLoader from '../../../components/golf/GolfLoader';
@@ -149,7 +149,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
               {tierConfig?.odds_min && tierConfig?.odds_max && ` · ${fmtOdds(tierConfig.odds_min)} – ${fmtOdds(tierConfig.odds_max)}`}
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', color: '#9ca3af', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', color: '#9ca3af', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {/* Search bar */}
@@ -183,7 +183,7 @@ function TierPickerModal({ tierNum, tierConfig, players, currentSel, onPick, onC
               <button
                 onClick={() => { setQuery(''); searchRef.current?.focus(); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 18, padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
-              >×</button>
+              ><X size={14} /></button>
             )}
           </div>
         </div>
@@ -378,7 +378,7 @@ function PlayerCard({ pick, tier, idx, tournStatus, picksLocked, navigate, leagu
             <button
               onClick={e => { e.stopPropagation(); onRemove(); }}
               style={{ width: 44, height: 44, background: isPreTournWD ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isPreTournWD ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '50%', cursor: 'pointer', color: isPreTournWD ? '#f87171' : '#9ca3af', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: -6 }}
-            >×</button>
+            ><X size={14} /></button>
           </>
         ) : teeTxt ? (
           <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600, textAlign: 'right' }}>{teeTxt}</span>
@@ -661,7 +661,7 @@ export default function PoolRosterTab({ leagueId, league }) {
                         <button
                           onClick={() => setSelected(prev => ({ ...prev, [tierNum]: (prev[tierNum] || []).filter(x => x !== playerId) }))}
                           style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: '#6b7280', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                        >×</button>
+                        ><X size={14} /></button>
                       </div>
                     </div>
                   );

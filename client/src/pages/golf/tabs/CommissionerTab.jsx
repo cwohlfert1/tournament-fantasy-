@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { X, Flag, Hand, DollarSign, BarChart3, Trophy, Megaphone, AlertTriangle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import Alert from '../../../components/ui/Alert';
@@ -60,7 +61,7 @@ function EmailCopyModal({ emails, count, onClose }) {
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>{count} Email Address{count === 1 ? '' : 'es'}</div>
           <button onClick={onClose} type="button" aria-label="Close"
-            style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}>×</button>
+            style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}><X size={14} /></button>
         </div>
         <p style={{ color: '#9ca3af', fontSize: 12, marginTop: 0, marginBottom: 10 }}>
           Tap Copy All, then paste into your email client's BCC field.
@@ -577,9 +578,12 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       // 24h pool-level lockout — ask the commissioner to confirm an override.
       if (err.response?.status === 409 && data?.recently_sent) {
         const when = data.last_sent_at ? new Date(data.last_sent_at).toLocaleString() : 'recently';
-        const ok = window.confirm(
-          `A payment reminder was already sent for this pool ${when}.\n\nSend another reminder now anyway?`
-        );
+        const ok = await showConfirm({
+          title: 'Send another reminder?',
+          description: `A payment reminder was already sent for this pool ${when}. Send another now anyway?`,
+          confirmLabel: 'Send again',
+          variant: 'warning',
+        });
         if (ok) { setRemindingSending(false); return sendPayReminders({ confirm: true }); }
       } else {
         showToast.error(data?.error || 'Failed to send reminders');
@@ -640,9 +644,12 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       const data = err.response?.data;
       if (err.response?.status === 409 && data?.recently_sent) {
         const when = data.last_sent_at ? new Date(data.last_sent_at).toLocaleString() : 'recently';
-        const ok = window.confirm(
-          `A "${data.last_type}" email was sent for this pool ${when}.\n\nSend this message anyway?`
-        );
+        const ok = await showConfirm({
+          title: 'Send another message?',
+          description: `A "${data.last_type}" email was already sent for this pool ${when}. Send this one anyway?`,
+          confirmLabel: 'Send message',
+          variant: 'warning',
+        });
         if (ok) { setBlasting(false); return sendCommissionerBlast({ confirm: true }); }
       } else {
         showToast.error(data?.error || 'Failed to send');
@@ -936,12 +943,12 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
     gap: 4, textAlign: 'center', lineHeight: 1.3,
   };
   const quickBtns = [
-    { label: '⛳ Picks Reminder',    msg: picksReminderMsg, style: { ...quickBtnBase, background: 'rgba(22,163,74,0.15)',   color: '#4ade80',  border: '1px solid rgba(22,163,74,0.35)'   } },
-    { label: '👋 Welcome & Rules',   msg: welcomeMsg,       style: { ...quickBtnBase, background: 'rgba(59,130,246,0.12)',  color: '#93c5fd',  border: '1px solid rgba(59,130,246,0.35)'  } },
-    { label: '💰 Pay Your Buy-In',   msg: payReminderMsg,   style: { ...quickBtnBase, background: 'rgba(245,158,11,0.12)', color: '#fbbf24',  border: '1px solid rgba(245,158,11,0.35)'  } },
-    { label: '📊 Leaderboard Update',msg: leaderboardMsg,   style: { ...quickBtnBase, background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',  border: '1px solid rgba(139,92,246,0.35)'  } },
-    { label: '🎉 Winner Announcement',msg: winnerMsg,       style: { ...quickBtnBase, background: 'rgba(234,179,8,0.12)',  color: '#fde047',  border: '1px solid rgba(234,179,8,0.35)'   } },
-    { label: '📣 Invite More Players',msg: inviteMsg,       style: { ...quickBtnBase, background: 'rgba(20,184,166,0.12)', color: '#5eead4',  border: '1px solid rgba(20,184,166,0.35)'  } },
+    { icon: Flag,        label: 'Picks Reminder',     msg: picksReminderMsg, style: { ...quickBtnBase, background: 'rgba(22,163,74,0.15)',   color: '#4ade80', border: '1px solid rgba(22,163,74,0.35)'   } },
+    { icon: Hand,        label: 'Welcome & Rules',    msg: welcomeMsg,       style: { ...quickBtnBase, background: 'rgba(59,130,246,0.12)',  color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)'  } },
+    { icon: DollarSign,  label: 'Pay Your Buy-In',    msg: payReminderMsg,   style: { ...quickBtnBase, background: 'rgba(245,158,11,0.12)',  color: '#fbbf24', border: '1px solid rgba(245,158,11,0.35)'  } },
+    { icon: BarChart3,   label: 'Leaderboard Update', msg: leaderboardMsg,   style: { ...quickBtnBase, background: 'rgba(139,92,246,0.12)',  color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.35)'  } },
+    { icon: Trophy,      label: 'Winner Announcement',msg: winnerMsg,        style: { ...quickBtnBase, background: 'rgba(234,179,8,0.12)',   color: '#fde047', border: '1px solid rgba(234,179,8,0.35)'   } },
+    { icon: Megaphone,   label: 'Invite More Players',msg: inviteMsg,        style: { ...quickBtnBase, background: 'rgba(20,184,166,0.12)',  color: '#5eead4', border: '1px solid rgba(20,184,166,0.35)'  } },
   ];
 
   return (
@@ -949,7 +956,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
       {/* Unpaid entries banner */}
       {unpaidSummary && unpaidSummary.unpaid > 0 && !unpaidBannerDismissed && league?.buy_in_amount > 0 && (
         <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 18 }}>⚠️</span>
+          <AlertTriangle size={18} style={{ color: '#fbbf24', flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ color: '#fbbf24', fontSize: 13, fontWeight: 700 }}>
               {unpaidSummary.unpaid} entr{unpaidSummary.unpaid === 1 ? 'y hasn\'t' : 'ies haven\'t'} paid yet
@@ -967,7 +974,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
             <button
               onClick={() => setUnpaidBannerDismissed(true)}
               style={{ color: '#6b7280', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer' }}
-            >&times;</button>
+            ><X size={14} /></button>
           </div>
         </div>
       )}
@@ -1228,7 +1235,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                   onClick={() => setCapacityDismissed(true)}
                   style={{ color: 'rgba(255,255,255,0.3)', fontSize: 18, lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: '0 2px' }}
                   aria-label="Dismiss"
-                >×</button>
+                ><X size={14} /></button>
               </div>
               {upgradeError && <p style={{ color: '#f87171', fontSize: 12, marginBottom: 6 }}>{upgradeError}</p>}
               {nextTierData ? (
@@ -1391,7 +1398,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                               type="button"
                               onClick={() => setPayoutSplits(payoutSplits.filter((_, j) => j !== i))}
                               style={{ color: '#6b7280', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
-                            >&times;</button>
+                            ><X size={14} /></button>
                           )}
                         </div>
                       );
@@ -1839,9 +1846,10 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
             {/* Quick-send template buttons — 3×2 grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 16 }}>
-              {quickBtns.map(({ label, msg, style }) => (
-                <button key={label} style={style} onClick={() => setBlastModal(msg())}>
-                  {label}
+              {quickBtns.map(({ icon: Icon, label, msg, style }) => (
+                <button key={label} style={{ ...style, gap: 6 }} onClick={() => setBlastModal(msg())}>
+                  <Icon size={13} style={{ flexShrink: 0 }} />
+                  <span>{label}</span>
                 </button>
               ))}
             </div>
@@ -2046,13 +2054,13 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                 disabled={applyingDrops}
                 onClick={async () => {
                   const action = league.pool_drops_applied ? 'Re-apply' : 'Apply';
-                  if (!window.confirm(
-                    `${action} Round 2 drops?\n\nThis will mark the worst ${league.pool_drop_count ?? 2} ` +
-                    `players on each team as DROPPED based on their R1+R2 scores.\n\n` +
-                    (league.pool_drops_applied
-                      ? 'Drops will be recalculated from current scores.'
-                      : 'All players are currently counting. This will lock in drops.')
-                  )) return;
+                  const ok = await showConfirm({
+                    title: `${action} Round 2 drops?`,
+                    description: `Marks the worst ${league.pool_drop_count ?? 2} player(s) on each team as dropped based on R1+R2 scores. ${league.pool_drops_applied ? 'Drops will be recalculated from current scores.' : 'All players are currently counting — this locks in drops.'}`,
+                    confirmLabel: `${action} drops`,
+                    variant: 'warning',
+                  });
+                  if (!ok) return;
                   setApplyingDrops(true);
                   setDropResult(null);
                   try {
@@ -2102,7 +2110,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
                   {editingEntry.teamName} · {editingEntry.username}{editingEntry.entryNumber > 1 ? ` · Entry #${editingEntry.entryNumber}` : ''}
                 </p>
               </div>
-              <button onClick={() => { setEditingEntry(null); setSwapping(null); }} style={{ color: '#6b7280', fontSize: 20, background: 'none', border: 'none', cursor: 'pointer' }}>&times;</button>
+              <button onClick={() => { setEditingEntry(null); setSwapping(null); }} style={{ color: '#6b7280', fontSize: 20, background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} /></button>
             </div>
 
             {swapping ? (

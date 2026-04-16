@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Flag, DollarSign, Trophy, Settings, Check, Zap } from 'lucide-react';
+import { Flag, DollarSign, Trophy, Settings, Check, Zap, X } from 'lucide-react';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { isMastersPromoActive, POOL_TIERS } from '../../utils/poolPricing';
@@ -405,7 +405,7 @@ function TierConfigEditor({ tiers, onChange, fieldPlayers }) {
                     type="button"
                     onClick={() => removeTier(i)}
                     className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-red-400 text-lg leading-none transition-colors shrink-0"
-                  >×</button>
+                  ><X size={14} /></button>
                 )}
               </div>
               {/* Tier stats bar */}
@@ -1334,9 +1334,7 @@ export default function CreateGolfLeague() {
                               form.payout_places.filter((_, j) => j !== i).map((r, j) => ({ ...r, place: j + 1 }))
                             )}
                             className="w-7 h-7 flex items-center justify-center rounded text-gray-600 hover:text-red-400 text-lg leading-none transition-colors"
-                          >
-                            ×
-                          </button>
+                          ><X size={14} /></button>
                         )}
                       </div>
                     ))}

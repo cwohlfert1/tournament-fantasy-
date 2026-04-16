@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -8,6 +9,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
+import { showConfirm } from '../../components/ui/ConfirmDialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -283,7 +285,7 @@ function UsersTab() {
       {tempPw && (
         <div style={{ background: '#1e3a5f33', border: '1px solid #1e40af', color: '#60a5fa', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 12 }}>
           Temp password: <strong style={{ fontFamily: 'monospace' }}>{tempPw}</strong>
-          <button onClick={() => setTempPw(null)} style={{ marginLeft: 12, color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}>×</button>
+          <button onClick={() => setTempPw(null)} style={{ marginLeft: 12, color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}><X size={14} /></button>
         </div>
       )}
 
@@ -557,7 +559,7 @@ function AmbassadorCodes() {
   }
 
   async function deleteCode(id) {
-    if (!window.confirm('Delete this promo code and all its use records?')) return;
+    if (!(await showConfirm({ title: 'Delete promo code?', description: 'The code and all its use records will be permanently removed.', confirmLabel: 'Delete code', variant: 'destructive' }))) return;
     try {
       await api.delete(`/golf/admin/promo-codes/${id}`);
       load();

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Lock, KeyRound, Eye, EyeOff, CheckCircle2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthLayout, { IconInput } from '../components/AuthLayout';
+import Alert from '../components/ui/Alert';
 import { useDocTitle } from '../hooks/useDocTitle';
 import api from '../api';
 
@@ -17,7 +19,6 @@ export default function ForcePasswordReset() {
   const [error, setError]         = useState('');
   const [saving, setSaving]       = useState(false);
 
-  // Redirect if not logged in, or if already past the forced reset
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate('/login', { replace: true }); return; }
@@ -43,18 +44,29 @@ export default function ForcePasswordReset() {
 
   if (loading || !user) return null;
 
+  const EyeBtn = ({ show, onToggle }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={show ? 'Hide password' : 'Show password'}
+      className="h-8 w-8 flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors rounded-md"
+    >
+      {show ? <EyeOff size={16} /> : <Eye size={16} />}
+    </button>
+  );
+
   return (
     <AuthLayout>
-      <div className="text-center mb-7">
+      <div className="text-center mb-6">
         <div style={{
           width: 48, height: 48, borderRadius: 12,
           background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 16px',
         }}>
-          <span style={{ fontSize: 22 }}>🔐</span>
+          <KeyRound size={22} style={{ color: '#fbbf24' }} />
         </div>
-        <h1 className="text-2xl font-black text-white mb-2">Set Your Password</h1>
+        <h1 className="text-2xl font-semibold text-white tracking-tight mb-2">Set your password</h1>
         <p className="text-gray-400 text-sm leading-relaxed">
           Your account was given a temporary password.<br />
           Create a new one to continue.
@@ -63,50 +75,39 @@ export default function ForcePasswordReset() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-3.5 py-2.5 text-sm">
-            <span className="shrink-0 mt-0.5">⚠️</span>
-            {error}
-          </div>
+          <Alert variant="destructive" title={error} onClose={() => setError('')} compact />
         )}
 
-        <div className="space-y-3">
-          <IconInput
-            icon="🔒"
-            type={showNew ? 'text' : 'password'}
-            placeholder="New password (min 6 characters)"
-            value={newPw}
-            onChange={e => setNewPw(e.target.value)}
-            required
-            autoComplete="new-password"
-            rightSlot={
-              <button type="button" onClick={() => setShowNew(s => !s)} className="p-2 text-gray-500 hover:text-gray-300 transition-colors text-sm select-none">
-                {showNew ? '🙈' : '👁'}
-              </button>
-            }
-          />
-          <IconInput
-            icon="✅"
-            type={showConf ? 'text' : 'password'}
-            placeholder="Confirm new password"
-            value={confirmPw}
-            onChange={e => setConfirmPw(e.target.value)}
-            required
-            autoComplete="new-password"
-            rightSlot={
-              <button type="button" onClick={() => setShowConf(s => !s)} className="p-2 text-gray-500 hover:text-gray-300 transition-colors text-sm select-none">
-                {showConf ? '🙈' : '👁'}
-              </button>
-            }
-          />
-        </div>
+        <IconInput
+          label="New password"
+          icon={<Lock size={16} aria-hidden="true" />}
+          type={showNew ? 'text' : 'password'}
+          placeholder="At least 6 characters"
+          value={newPw}
+          onChange={e => setNewPw(e.target.value)}
+          required
+          autoComplete="new-password"
+          rightSlot={<EyeBtn show={showNew} onToggle={() => setShowNew(s => !s)} />}
+        />
+        <IconInput
+          label="Confirm password"
+          icon={<CheckCircle2 size={16} aria-hidden="true" />}
+          type={showConf ? 'text' : 'password'}
+          placeholder="Re-enter password"
+          value={confirmPw}
+          onChange={e => setConfirmPw(e.target.value)}
+          required
+          autoComplete="new-password"
+          rightSlot={<EyeBtn show={showConf} onToggle={() => setShowConf(s => !s)} />}
+        />
 
         <button
           type="submit"
           disabled={saving}
-          className="w-full py-3 rounded-xl font-black text-base text-black transition-all duration-200 hover:scale-[1.02] hover:shadow-lg disabled:opacity-50 disabled:scale-100"
+          className="w-full h-11 rounded-xl font-bold text-sm text-black transition-all duration-200 hover:scale-[1.02] hover:shadow-lg disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2 mt-2"
           style={{ background: 'linear-gradient(135deg, #22c55e 0%, #00c96a 100%)' }}
         >
-          {saving ? 'Saving…' : 'Set New Password →'}
+          {saving ? 'Saving…' : (<>Set new password <ArrowRight size={16} /></>)}
         </button>
       </form>
 

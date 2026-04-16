@@ -15,6 +15,7 @@
  */
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import { showConfirm } from '../ui/ConfirmDialog';
 
 export default function ReinviteFromPastLeague({ targetLeagueId, targetLeagueName, onClose }) {
   const [pastLeagues, setPastLeagues]     = useState(null); // null = loading, [] = none
@@ -52,9 +53,12 @@ export default function ReinviteFromPastLeague({ targetLeagueId, targetLeagueNam
       const data = err.response?.data;
       if (err.response?.status === 409 && data?.recently_sent) {
         const when = data.last_sent_at ? new Date(data.last_sent_at).toLocaleString() : 'recently';
-        const ok = window.confirm(
-          `Re-invite emails were already sent for this pool ${when}.\n\nSend again anyway?`
-        );
+        const ok = await showConfirm({
+          title: 'Send re-invites again?',
+          description: `Re-invite emails were already sent for this pool ${when}. Send again anyway?`,
+          confirmLabel: 'Send again',
+          variant: 'warning',
+        });
         if (ok) { setSending(false); return send({ confirm: true }); }
       } else {
         setError(data?.error || 'Failed to send invites');

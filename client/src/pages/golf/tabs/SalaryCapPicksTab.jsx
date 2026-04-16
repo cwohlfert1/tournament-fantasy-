@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { DollarSign, Lock } from 'lucide-react';
+import { DollarSign, Lock, X } from 'lucide-react';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
 import GolfLoader from '../../../components/golf/GolfLoader';
@@ -158,7 +158,7 @@ function PlayerPickerModal({ players, selectedIds, salaryCap, currentSpent, onPi
               {fmtSalary(salaryCap - currentSpent)} remaining
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', color: '#9ca3af', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', color: '#9ca3af', width: 32, height: 32, borderRadius: '50%', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
 
         {/* Search */}
@@ -182,7 +182,7 @@ function PlayerPickerModal({ players, selectedIds, salaryCap, currentSpent, onPi
               placeholder="Search players..."
               style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#f1f5f9', fontSize: 14, fontWeight: 500 }}
             />
-            {query && <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>×</button>}
+            {query && <button onClick={() => setQuery('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 18, padding: '0 2px', lineHeight: 1 }}><X size={14} /></button>}
           </div>
         </div>
 
@@ -424,7 +424,7 @@ export default function SalaryCapPicksTab({ leagueId, league }) {
                     <button
                       onClick={() => removePick(p.player_id)}
                       style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#6b7280', width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                    >×</button>
+                    ><X size={14} /></button>
                   )}
                 </div>
               );

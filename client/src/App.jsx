@@ -9,6 +9,7 @@ import BossMode from './components/BossMode';
 import FloatingChat from './components/FloatingChat';
 import SindariusWidget from './components/SindariusWidget';
 import ToastContainer from './components/ui/Toast';
+import ConfirmDialogHost from './components/ui/ConfirmDialog';
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
@@ -130,6 +131,7 @@ export default function App() {
           <FloatingChat />
           <SindariusWidget />
           <ToastContainer />
+          <ConfirmDialogHost />
           <Routes>
             {/* ── Hub root ── */}
             <Route path="/" element={<HubLanding />} />

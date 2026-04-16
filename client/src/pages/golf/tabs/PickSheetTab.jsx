@@ -12,6 +12,7 @@
  *   - Countdown chip — amber, red pulse < 1hr
  */
 import { useState, useEffect, useMemo } from 'react';
+import { X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui';
 import api from '../../../api';
@@ -340,7 +341,7 @@ function PickSlot({ slotIdx, isLast, tier, player, locked, onSelect, onClear }) 
               fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: '4px 6px',
               flexShrink: 0,
             }}
-          >×</button>
+          ><X size={14} /></button>
         )}
       </div>
     );
@@ -536,7 +537,7 @@ function PlayerSelector({ tier, alreadyPicked, onPick, onClose }) {
             <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{TIER_NAMES[tier.tier] || ''}</span>
           </div>
           <button onClick={onClose} type="button" aria-label="Close"
-            style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}>×</button>
+            style={{ background: 'transparent', border: 'none', color: '#6b7280', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}><X size={14} /></button>
         </div>
 
         {/* Search */}

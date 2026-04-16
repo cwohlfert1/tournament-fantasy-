@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Trophy } from 'lucide-react';
+import { Trophy, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
@@ -296,7 +296,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 mb-6">
           <span className="text-amber-400 text-sm flex-1">Add your real name so commissioners can identify you for payments</span>
           <Link to="/account/profile" className="text-amber-300 text-xs font-bold hover:text-amber-200 whitespace-nowrap">Add Name →</Link>
-          <button onClick={() => { setNameBannerDismissed(true); localStorage.setItem('tr_name_banner_dismissed', '1'); }} className="text-gray-500 hover:text-gray-300 text-lg leading-none ml-1">&times;</button>
+          <button onClick={() => { setNameBannerDismissed(true); localStorage.setItem('tr_name_banner_dismissed', '1'); }} aria-label="Dismiss" className="text-gray-500 hover:text-gray-300 ml-1 p-1 rounded leading-none"><X size={14} /></button>
         </div>
       )}
 

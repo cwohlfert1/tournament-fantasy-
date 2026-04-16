@@ -62,14 +62,24 @@ export default function BallLoader({ fullScreen = false, message }) {
 
       {/* Ball + shadow stack */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          fontSize: 64,
-          lineHeight: 1,
-          display: 'block',
-          animation: 'ballBounce 0.72s ease-in-out infinite',
-        }}>
-          🏀
-        </div>
+        <svg
+          viewBox="0 0 64 64"
+          style={{ width: 64, height: 64, display: 'block', animation: 'ballBounce 0.72s ease-in-out infinite' }}
+          aria-hidden="true"
+        >
+          <defs>
+            <radialGradient id="bball-shade" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stopColor="#fb923c" />
+              <stop offset="60%" stopColor="#f97316" />
+              <stop offset="100%" stopColor="#c2410c" />
+            </radialGradient>
+          </defs>
+          <circle cx="32" cy="32" r="30" fill="url(#bball-shade)" stroke="#9a3412" strokeWidth="1" />
+          <path d="M32 2 Q42 17 42 32 Q42 47 32 62" fill="none" stroke="#7c2d12" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M32 2 Q22 17 22 32 Q22 47 32 62" fill="none" stroke="#7c2d12" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M2 32 Q17 24 32 24 Q47 24 62 32" fill="none" stroke="#7c2d12" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M2 32 Q17 40 32 40 Q47 40 62 32" fill="none" stroke="#7c2d12" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
         <div style={{
           width: 44,
           height: 10,

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { io } from 'socket.io-client';
 import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,7 +70,7 @@ function Composer({ placeholder, onSubmit, compact = false, autoFocus = false })
           <button
             onClick={() => setGifUrl('')}
             className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-black"
-          >×</button>
+          ><X size={14} /></button>
         </div>
       )}
       <div className="flex gap-2 items-end">
@@ -195,7 +196,7 @@ function WallPost({ post, currentUser, isCommissioner, leagueId, onReact, onRepl
                             <button
                               onClick={() => onDelete(null, reply.id)}
                               className="ml-auto text-gray-700 hover:text-red-400 text-xs"
-                            >×</button>
+                            ><X size={14} /></button>
                           )}
                         </div>
                         {reply.text && <p className="text-gray-300 text-xs whitespace-pre-wrap break-words">{reply.text}</p>}
@@ -477,7 +478,7 @@ export default function TrashTalkTab({ leagueId, isCommissioner }) {
                 <button
                   onClick={() => setChatGif('')}
                   className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-black"
-                >×</button>
+                ><X size={14} /></button>
               </div>
             )}
             <div className="flex gap-2 items-center">

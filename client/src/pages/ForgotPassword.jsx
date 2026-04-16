@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Mail, MailCheck, ArrowLeft } from 'lucide-react';
 import { useDocTitle } from '../hooks/useDocTitle';
 import AuthLayout, { IconInput } from '../components/AuthLayout';
+import Alert from '../components/ui/Alert';
 import api from '../api';
 
 export default function ForgotPassword() {
@@ -38,29 +40,28 @@ export default function ForgotPassword() {
 
       {submitted ? (
         <div className="text-center space-y-4">
-          <div className="text-5xl mb-2">📬</div>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-2" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
+            <MailCheck size={26} style={{ color: '#4ade80' }} />
+          </div>
           <p className="text-gray-300 text-sm leading-relaxed">
             If that email is registered, you'll receive a reset link shortly. Check your inbox (and spam folder).
           </p>
           <p className="text-gray-500 text-xs">The link expires in 1 hour.</p>
           <Link
             to="/login"
-            className="block mt-4 text-brand-400 hover:text-brand-300 font-semibold text-sm transition-colors"
+            className="inline-flex items-center gap-1.5 mt-4 text-green-400 hover:text-green-300 font-semibold text-sm transition-colors"
           >
-            ← Back to Sign In
+            <ArrowLeft size={14} /> Back to Sign In
           </Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-3.5 py-2.5 text-sm">
-              <span className="shrink-0 mt-0.5">⚠️</span>
-              {error}
-            </div>
+            <Alert variant="destructive" title={error} onClose={() => setError('')} compact />
           )}
 
           <IconInput
-            icon="📧"
+            icon={<Mail size={16} aria-hidden="true" />}
             type="email"
             placeholder="Your account email"
             value={email}
@@ -79,8 +80,8 @@ export default function ForgotPassword() {
           </button>
 
           <div className="text-center">
-            <Link to="/login" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
-              ← Back to Sign In
+            <Link to="/login" className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400 transition-colors">
+              <ArrowLeft size={12} /> Back to Sign In
             </Link>
           </div>
         </form>

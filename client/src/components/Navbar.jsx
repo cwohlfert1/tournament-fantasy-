@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { useGolfNotifications, NOTIF_STYLE } from '../hooks/useGolfNotifications';
@@ -104,8 +105,10 @@ function NotifRow({ notif, onDismiss, onClose }) {
       <button
         onClick={e => { e.stopPropagation(); onDismiss(notif.id); }}
         aria-label="Dismiss notification"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#374151', fontSize: 16, lineHeight: 1, padding: '1px 3px', flexShrink: 0, marginTop: -1 }}
-      >×</button>
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5563', padding: 3, lineHeight: 0, flexShrink: 0, borderRadius: 4, transition: 'color 0.15s' }}
+        onMouseEnter={e => e.currentTarget.style.color = '#9ca3af'}
+        onMouseLeave={e => e.currentTarget.style.color = '#4b5563'}
+      ><X size={13} /></button>
     </div>
   );
 }
@@ -188,6 +191,27 @@ function GolfBellMenu({ notifications, dismissed, dismiss, markAllRead, unreadCo
         </div>
       )}
     </div>
+  );
+}
+
+// ── Basketball SVG ───────────────────────────────────────────────────────────
+
+function BasketballSVG() {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" style={{ width: 26, height: 26, flexShrink: 0 }}>
+      <defs>
+        <radialGradient id="bb-nav-shade" cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#fb923c" />
+          <stop offset="60%" stopColor="#f97316" />
+          <stop offset="100%" stopColor="#c2410c" />
+        </radialGradient>
+      </defs>
+      <circle cx="16" cy="16" r="15" fill="url(#bb-nav-shade)" stroke="#7c2d12" strokeWidth="0.6"/>
+      <path d="M16 1 Q21 8.5 21 16 Q21 23.5 16 31" fill="none" stroke="#7c2d12" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M16 1 Q11 8.5 11 16 Q11 23.5 16 31" fill="none" stroke="#7c2d12" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M1 16 Q8.5 12 16 12 Q23.5 12 31 16" fill="none" stroke="#7c2d12" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M1 16 Q8.5 20 16 20 Q23.5 20 31 16" fill="none" stroke="#7c2d12" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
   );
 }
 
@@ -301,7 +325,7 @@ export default function Navbar({ variant }) {
           className="select-none"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
-          {isGolf ? <GolfBallSVG /> : <span style={{ fontSize: 22, lineHeight: 1 }}>🏀</span>}
+          {isGolf ? <GolfBallSVG /> : <BasketballSVG />}
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
             <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
               <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span>

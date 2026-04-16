@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import api from '../../api';
 
 // ── Gate types ────────────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ function SeasonPassModal({ meta, credits, loading, onPay, onClose }) {
         <span style={{ background: '#14532d', color: '#4ade80', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 20, border: '1px solid #166534' }}>
           2026 Season Pass
         </span>
-        <button onClick={onClose} style={{ color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
+        <button onClick={onClose} aria-label="Close" style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, borderRadius: 4, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#d1d5db'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}><X size={16} /></button>
       </div>
 
       <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 6px' }}>Unlock the full 2026 season</h2>
@@ -132,7 +133,7 @@ function OfficePoolModal({ meta, credits, loading, onPay, onClose }) {
         <span style={{ background: '#451a03', color: '#fbbf24', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 20, border: '1px solid #78350f' }}>
           Office Pool Entry
         </span>
-        <button onClick={onClose} style={{ color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
+        <button onClick={onClose} aria-label="Close" style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, borderRadius: 4, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#d1d5db'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}><X size={16} /></button>
       </div>
 
       <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
@@ -186,7 +187,7 @@ function CommProModal({ meta, loading, onPay, onClose }) {
         <span style={{ background: '#2e1065', color: '#a78bfa', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 20, border: '1px solid #4c1d95' }}>
           Commissioner Pro
         </span>
-        <button onClick={onClose} style={{ color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
+        <button onClick={onClose} aria-label="Close" style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 0, borderRadius: 4, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#d1d5db'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}><X size={16} /></button>
       </div>
 
       <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>Run your league like a pro</h2>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import BallLoader from '../components/BallLoader';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +12,7 @@ import TrashTalkTab from './TrashTalkTab';
 import LiveGamesBanner from '../components/LiveGamesBanner';
 import SindariusTab from '../components/SindariusTab';
 import { showToast } from '../components/ui/Toast';
+import { showConfirm } from '../components/ui/ConfirmDialog';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
@@ -98,7 +100,7 @@ function SmartDraftBanner({ leagueId }) {
         onClick={() => setDismissed(true)}
         className="absolute top-3 right-3 text-gray-600 hover:text-gray-400 text-lg leading-none"
         title="Dismiss"
-      >×</button>
+      ><X size={14} /></button>
 
       <div className="flex items-start gap-3">
         <span className="text-2xl shrink-0">⚡</span>
@@ -307,7 +309,7 @@ export default function LeagueHome() {
   }, [tab]);
 
   const randomizeDraftOrder = async () => {
-    if (!window.confirm('Randomize the draft order? This cannot be undone.')) return;
+    if (!(await showConfirm({ title: 'Randomize draft order?', description: 'The current order will be shuffled. This cannot be undone.', confirmLabel: 'Randomize', variant: 'warning' }))) return;
     setRandomizing(true);
     try {
       const res = await api.post(`/admin/leagues/${id}/randomize-order`);
@@ -338,7 +340,7 @@ export default function LeagueHome() {
   };
 
   const handleForceStart = async () => {
-    if (!window.confirm('This will mark all pending payments as paid and start the draft immediately. Continue?')) return;
+    if (!(await showConfirm({ title: 'Force-start the draft?', description: 'All pending payments will be marked as paid and the draft will begin immediately.', confirmLabel: 'Force start', variant: 'warning' }))) return;
     try {
       await api.post(`/admin/leagues/${id}/force-start`);
       navigate(`/league/${id}/draft`);
@@ -525,7 +527,7 @@ export default function LeagueHome() {
             }}
             className="text-amber-500 hover:text-amber-300 text-lg leading-none transition-colors ml-1"
             aria-label="Dismiss"
-          >×</button>
+          ><X size={14} /></button>
         </div>
       )}
 
@@ -534,14 +536,14 @@ export default function LeagueHome() {
         <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/30 text-green-400 rounded-xl px-4 py-3 mb-6 text-sm font-medium">
           <span className="text-lg">✅</span>
           <span>Payment confirmed — you're officially in! Invite your crew and get ready to draft.</span>
-          <button onClick={() => setSearchParams({})} className="ml-auto text-green-600 hover:text-green-400 transition-colors text-lg leading-none">×</button>
+          <button onClick={() => setSearchParams({})} className="ml-auto text-green-600 hover:text-green-400 transition-colors text-lg leading-none"><X size={14} /></button>
         </div>
       )}
       {paymentResult === 'cancelled' && (
         <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 rounded-xl px-4 py-3 mb-6 text-sm font-medium">
           <span className="text-lg">⚠️</span>
           <span>Payment was cancelled. You can complete it below when you're ready.</span>
-          <button onClick={() => setSearchParams({})} className="ml-auto text-yellow-600 hover:text-yellow-400 transition-colors text-lg leading-none">×</button>
+          <button onClick={() => setSearchParams({})} className="ml-auto text-yellow-600 hover:text-yellow-400 transition-colors text-lg leading-none"><X size={14} /></button>
         </div>
       )}
 
@@ -1632,9 +1634,7 @@ export default function LeagueHome() {
               </div>
               {!editSaving && (
                 <button onClick={() => setEditOpen(false)}
-                  className="text-gray-500 hover:text-white transition-colors text-xl leading-none">
-                  ×
-                </button>
+                  className="text-gray-500 hover:text-white transition-colors text-xl leading-none"><X size={14} /></button>
               )}
             </div>
 

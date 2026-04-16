@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import BallLoader from '../components/BallLoader';
 import { showToast } from '../components/ui/Toast';
+import { showConfirm } from '../components/ui/ConfirmDialog';
 
 const TABS = ['Leagues', 'Users', 'Players', 'Financials', 'Dev Tools'];
 
@@ -78,7 +80,7 @@ function LeaguesTab() {
   };
 
   const startDraft = async (leagueId) => {
-    if (!confirm('Force-start draft for this league?')) return;
+    if (!(await showConfirm({ title: 'Force-start draft?', description: 'This will start the draft immediately even if not all members have joined.', confirmLabel: 'Start draft', variant: 'warning' }))) return;
     setBusy(leagueId + '-start');
     try {
       await api.post(`/superadmin/leagues/${leagueId}/start-draft`);
@@ -92,7 +94,7 @@ function LeaguesTab() {
   };
 
   const deleteLeague = async (leagueId, name) => {
-    if (!confirm(`DELETE league "${name}" and all its data? This cannot be undone.`)) return;
+    if (!(await showConfirm({ title: `Delete "${name}"?`, description: 'All picks, payments, chat, and draft history will be permanently removed. This cannot be undone.', confirmLabel: 'Delete league', variant: 'destructive' }))) return;
     setBusy(leagueId + '-del');
     try {
       await api.delete(`/superadmin/leagues/${leagueId}`);
@@ -180,7 +182,7 @@ function LeaguesTab() {
         <div className="w-80 flex-shrink-0 bg-gray-800 rounded-lg p-4 overflow-auto">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-white truncate">{selected.name}</h3>
-            <button onClick={() => { setSelected(null); setDetail(null); }} className="text-gray-400 hover:text-white text-lg leading-none">&times;</button>
+            <button onClick={() => { setSelected(null); setDetail(null); }} className="text-gray-400 hover:text-white text-lg leading-none"><X size={14} /></button>
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
@@ -311,7 +313,7 @@ function UsersTab() {
   useEffect(() => { load(); }, [load]);
 
   const deleteUser = async (user) => {
-    if (!confirm(`Are you sure you want to delete @${user.username}? This cannot be undone.`)) return;
+    if (!(await showConfirm({ title: `Delete @${user.username}?`, description: 'User account, leagues, and all associated data will be removed. This cannot be undone.', confirmLabel: 'Delete user', variant: 'destructive' }))) return;
     setBusy(user.id);
     try {
       await api.delete(`/superadmin/users/${user.id}`);
@@ -325,7 +327,7 @@ function UsersTab() {
 
   const toggleBan = async (user) => {
     const banning = user.role !== 'banned';
-    if (!confirm(`${banning ? 'Ban' : 'Unban'} ${user.username}?`)) return;
+    if (!(await showConfirm({ title: `${banning ? 'Ban' : 'Unban'} @${user.username}?`, description: banning ? 'User will lose access and cannot log in until unbanned.' : 'User will regain access immediately.', confirmLabel: banning ? 'Ban user' : 'Unban user', variant: banning ? 'destructive' : 'warning' }))) return;
     setBusy(user.id);
     try {
       await api.put(`/superadmin/users/${user.id}/ban`, { banned: banning });
@@ -524,7 +526,7 @@ function PlayersTab() {
   };
 
   const deletePlayer = async (p) => {
-    if (!confirm(`Delete ${p.name} from ${p.team}? This removes all their draft picks too.`)) return;
+    if (!(await showConfirm({ title: `Delete ${p.name}?`, description: `Removes ${p.name} from ${p.team} and wipes all their draft picks. This cannot be undone.`, confirmLabel: 'Delete player', variant: 'destructive' }))) return;
     setBusy(p.id);
     try {
       await api.delete(`/superadmin/players/${p.id}`);
@@ -569,7 +571,7 @@ function PlayersTab() {
   };
 
   const setupTestLeague = async () => {
-    if (!window.confirm('This will DELETE all existing leagues and create a fresh "Test Draft 2026" with 9 bots. Continue?')) return;
+    if (!(await showConfirm({ title: 'Reset to test state?', description: 'Deletes all existing leagues and creates a fresh "Test Draft 2026" with 9 bots.', confirmLabel: 'Reset and seed', variant: 'destructive' }))) return;
     setSetupLoading(true);
     setSetupMsg('');
     try {
@@ -898,7 +900,7 @@ function DevToolsTab() {
   };
 
   const deleteSandbox = async (id, name) => {
-    if (!window.confirm(`Delete sandbox "${name}"? This cannot be undone.`)) return;
+    if (!(await showConfirm({ title: `Delete sandbox "${name}"?`, description: 'All sandbox data will be permanently removed. This cannot be undone.', confirmLabel: 'Delete sandbox', variant: 'destructive' }))) return;
     setDeleting(id);
     try {
       await api.delete(`/superadmin/sandbox/${id}`);

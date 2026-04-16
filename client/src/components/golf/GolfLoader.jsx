@@ -55,14 +55,25 @@ export default function GolfLoader({ fullScreen = false, message }) {
 
       {/* Ball + shadow stack */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          fontSize: 64,
-          lineHeight: 1,
-          display: 'block',
-          animation: 'ballBounce 0.72s ease-in-out infinite',
-        }}>
-          ⛳
-        </div>
+        <svg
+          viewBox="0 0 64 64"
+          style={{ width: 54, height: 54, display: 'block', animation: 'ballBounce 0.72s ease-in-out infinite' }}
+          aria-hidden="true"
+        >
+          <defs>
+            <radialGradient id="gball-shade" cx="38%" cy="32%" r="65%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="70%" stopColor="#f3f4f6" />
+              <stop offset="100%" stopColor="#d1d5db" />
+            </radialGradient>
+          </defs>
+          <circle cx="32" cy="32" r="30" fill="url(#gball-shade)" stroke="#9ca3af" strokeWidth="1" />
+          {[
+            [22,18],[36,14],[47,26],[18,30],[30,28],[41,38],[24,40],[37,48],[48,44]
+          ].map(([x,y],i) => (
+            <circle key={i} cx={x} cy={y} r="2" fill="#9ca3af" opacity="0.7" />
+          ))}
+        </svg>
         <div style={{
           width: 44,
           height: 10,
