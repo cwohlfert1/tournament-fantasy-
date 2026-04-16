@@ -22,6 +22,13 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
+// Socket.io reference — injected from index.js
+let _io = null;
+function setIo(io) { _io = io; }
+function emit(leagueId, event, data) {
+  if (_io) _io.to(`golf_draft_${leagueId}`).emit(event, data);
+}
+
 // ── Snake draft order ────────────────────────────────────────────────────────
 // Round 1: pick 1→N (ascending draft_order)
 // Round 2: pick N→1 (descending)
@@ -207,6 +214,9 @@ router.post('/:leagueId/pick', authMiddleware, async (req, res) => {
       username: req.user.username,
     };
 
+    // Broadcast to all clients in the draft room
+    emit(leagueId, 'golf_draft_pick', { pick, nextPickUserId: nextPicker?.user_id || null, draftComplete });
+
     res.json({ pick, nextPickUserId: nextPicker?.user_id || null, draftComplete });
   } catch (err) {
     console.error('[golf-draft] pick error:', err);
@@ -246,6 +256,8 @@ router.post('/:leagueId/start', authMiddleware, async (req, res) => {
       req.params.leagueId
     );
 
+    emit(req.params.leagueId, 'golf_draft_started', { leagueId: req.params.leagueId });
+
     res.json({ ok: true, message: 'Draft started' });
   } catch (err) {
     console.error('[golf-draft] start error:', err);
@@ -283,4 +295,4 @@ async function bridgeDraftToPoolPicks(leagueId, tournamentId) {
   console.log(`[golf-draft] Bridged ${draftPicks.length} draft picks → pool_picks for league ${leagueId}`);
 }
 
-module.exports = { router, getGolfDraftState, getCurrentPicker, bridgeDraftToPoolPicks };
+module.exports = { router, getGolfDraftState, getCurrentPicker, bridgeDraftToPoolPicks, setIo };
