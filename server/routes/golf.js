@@ -395,6 +395,58 @@ router.post('/leagues', authMiddleware, async (req, res) => {
     const memberId = uuidv4();
     await db.run(`INSERT INTO golf_league_members (id, golf_league_id, user_id, team_name, season_budget) VALUES (?, ?, ?, ?, ?)`, memberId, id, req.user.id, team_name, parseInt(salary_cap) || 2400);
 
+    // Auto-populate pool_tier_players from the tournament field so the picks
+    // UI has players immediately — without this, a brand-new league shows
+    // "no players" until the next DataGolf sync cycle (~10 min).
+    if ((fmt === 'pool' || fmt === 'salary_cap') && poolTournamentIdFinal) {
+      try {
+        let tiersArr = typeof pool_tiers === 'string' ? JSON.parse(pool_tiers) : (pool_tiers || []);
+        if (!tiersArr.length && fmt === 'salary_cap') {
+          tiersArr = [{ tier: 1, odds_min: '', odds_max: '', picks: parseInt(starters_count) || 6 }];
+        }
+        if (tiersArr.length > 0) {
+          const fieldPlayers = await db.all(`
+            SELECT gp.id, gp.name, gp.world_ranking, gp.country,
+                   COALESCE(ptp_existing.odds_display, NULL) AS odds_display,
+                   COALESCE(ptp_existing.odds_decimal, NULL) AS odds_decimal
+            FROM golf_tournament_fields gtf
+            JOIN golf_players gp ON gp.id = gtf.player_id
+            LEFT JOIN pool_tier_players ptp_existing ON ptp_existing.player_id = gp.id AND ptp_existing.tournament_id = ?
+            WHERE gtf.tournament_id = ?
+          `, poolTournamentIdFinal, poolTournamentIdFinal);
+
+          const { _oddsToDecimal, _rankToOdds, _getTierHelpers } = require('./golf-pool');
+          const helpers = _getTierHelpers ? _getTierHelpers() : {};
+          const rankToOdds = helpers._rankToOdds || ((r) => ({ odds_display: `${Math.max(1, Math.round(r * 2.5))}:1`, odds_decimal: Math.max(2, r * 2.5) }));
+          const assignToTier = (dec, tiers) => {
+            for (const t of tiers) {
+              const lo = parseFloat(t.odds_min) || 0;
+              const hi = parseFloat(t.odds_max) || 99999;
+              if (dec >= lo && dec <= hi) return t.tier;
+            }
+            return tiers[tiers.length - 1]?.tier || 1;
+          };
+
+          await db.transaction(async (tx) => {
+            for (const p of fieldPlayers) {
+              const gen = (!p.odds_display || !p.odds_decimal) ? rankToOdds(p.world_ranking) : null;
+              const oddsDisp = p.odds_display || gen?.odds_display || `${p.world_ranking || 999}:1`;
+              const oddsDec  = p.odds_decimal || gen?.odds_decimal || (p.world_ranking || 999);
+              const tierNum  = assignToTier(oddsDec, tiersArr);
+              await tx.run(`
+                INSERT OR IGNORE INTO pool_tier_players
+                  (id, league_id, tournament_id, player_id, player_name, tier_number, odds_display, odds_decimal, world_ranking, salary, country)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+              `, uuidv4(), id, poolTournamentIdFinal, p.id, p.name, tierNum, oddsDisp, oddsDec, p.world_ranking, p.country);
+            }
+          });
+          console.log(`[league-create] auto-seeded ${fieldPlayers.length} players for "${name}" (${fmt})`);
+        }
+      } catch (e) {
+        console.error(`[league-create] auto-seed failed for "${name}":`, e.message);
+      }
+    }
+
     // Initialize auction budget for commissioner if TourneyRun
     if (fmt === 'tourneyrun') {
       try {
