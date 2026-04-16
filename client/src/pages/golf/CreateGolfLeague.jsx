@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Flag, DollarSign, Trophy, Settings, Check, Zap, X } from 'lucide-react';
+import { Flag, DollarSign, Trophy, Settings, Check, Zap, X, Users } from 'lucide-react';
 import api from '../../api';
 import { useDocTitle } from '../../hooks/useDocTitle';
 import { isMastersPromoActive, POOL_TIERS } from '../../utils/poolPricing';
@@ -32,6 +32,18 @@ const FORMATS = [
     description: 'Build a roster under a budget. Each player has a price based on betting odds. Stay under the cap — top score wins.',
     activeBorder: 'border-blue-500/50',
     activeBg: 'bg-blue-500/5',
+  },
+  {
+    key: 'draft',
+    Icon: Users,
+    iconBg: 'bg-purple-500/10',
+    iconColor: 'text-purple-400',
+    title: 'Snake Draft',
+    badge: 'Competitive',
+    badgeColor: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    description: 'Take turns drafting golfers in snake order. Each player goes to one team only — best for competitive groups of 4–12.',
+    activeBorder: 'border-purple-500/50',
+    activeBg: 'bg-purple-500/5',
   },
   {
     key: 'tourneyrun',
@@ -630,8 +642,9 @@ export default function CreateGolfLeague() {
     setFormat(f);
     setForm(prev => ({
       ...prev,
-      max_teams: (f === 'pool' || f === 'salary_cap' || f === 'draft') ? 20 : 8,
+      max_teams: f === 'draft' ? 12 : (f === 'pool' || f === 'salary_cap') ? 20 : 8,
       ...(f === 'pool' ? { pool_tier: 'standard', comm_pro_price: 12.99 } : {}),
+      ...(f === 'draft' ? { pool_tier: 'standard', comm_pro_price: 12.99 } : {}),
     }));
   }
 
@@ -640,8 +653,8 @@ export default function CreateGolfLeague() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (format === 'pool' && !form.pool_tournament_id) {
-      setError('Please select a tournament for this pool.');
+    if ((format === 'pool' || format === 'draft') && !form.pool_tournament_id) {
+      setError('Please select a tournament.');
       return;
     }
     const hasBuyIn = parseFloat(form.buy_in_amount) > 0;
@@ -749,7 +762,7 @@ export default function CreateGolfLeague() {
               <input
                 type="text"
                 className="input text-base"
-                placeholder={format === 'salary_cap' ? 'Salary Cap Golf 2026' : format === 'pool' ? 'Golf Pool 2026' : 'Golf Degens 2026'}
+                placeholder={format === 'salary_cap' ? 'Salary Cap Golf 2026' : format === 'draft' ? 'Golf Draft 2026' : format === 'pool' ? 'Golf Pool 2026' : 'Golf Degens 2026'}
                 value={form.name}
                 onChange={e => set('name', e.target.value)}
                 required
@@ -950,6 +963,65 @@ export default function CreateGolfLeague() {
                   onChange={v => { set('pool_tiers', v); setTiersAutoBalanced(false); }}
                   fieldPlayers={fieldPlayers}
                 />
+              </div>
+
+            </div>
+          </Card>
+          </div>
+        )}
+
+        {/* ── 3. League Settings — DRAFT ── */}
+        {format === 'draft' && (
+          <div className="animate-format">
+          <Card>
+            <CardHeader icon={Settings} title="🐍 Snake Draft Settings" />
+            <div className="space-y-5">
+
+              {/* Tournament Picker */}
+              <div>
+                <label className="label mb-1.5">Which tournament is this draft for? *</label>
+                <Select
+                  value={form.pool_tournament_id}
+                  onChange={v => set('pool_tournament_id', v)}
+                  options={tournaments.map(t => ({
+                    value: t.id,
+                    label: `${t.name}${t.start_date ? ` · ${new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}${t.is_major ? ' (Major)' : ''}`,
+                  }))}
+                  placeholder="— Select a tournament —"
+                  fullWidth
+                />
+              </div>
+
+              {/* Max Teams */}
+              <div>
+                <label className="label mb-2.5">Number of Teams</label>
+                <PillSelector
+                  options={[4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => ({ value: n, label: String(n) }))}
+                  value={form.max_teams}
+                  onChange={v => set('max_teams', v)}
+                />
+                <p className="text-gray-600 text-xs mt-2">
+                  Snake drafts work best with 4–12 teams. Each golfer goes to one team only.
+                </p>
+              </div>
+
+              {/* Picks Per Team */}
+              <div>
+                <label className="label mb-2.5">Players Per Team</label>
+                <PillSelector
+                  options={[4, 5, 6, 7, 8].map(n => ({ value: n, label: String(n) }))}
+                  value={form.picks_per_team || 7}
+                  onChange={v => set('picks_per_team', v)}
+                />
+                <p className="text-gray-600 text-xs mt-2">
+                  Total draft picks: {(form.max_teams || 12) * (form.picks_per_team || 7)} picks across {Math.ceil((form.picks_per_team || 7))} rounds of snake draft.
+                </p>
+              </div>
+
+              {/* Scoring Style */}
+              <div>
+                <label className="label mb-1">Scoring Style</label>
+                <ScoringStyleSelector value={form.scoring_style} onChange={v => set('scoring_style', v)} />
               </div>
 
             </div>
