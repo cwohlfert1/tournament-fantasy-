@@ -17,6 +17,7 @@
 
 const db = require('./db'); // raw SQLite — synchronous, used for both reads and writes
 const https = require('https');
+const { computeLockTime } = require('./golfPoolLockService');
 
 const ESPN_LEADERBOARD =
   'https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard';
@@ -82,17 +83,32 @@ function applyDateBasedHeal() {
     changes.push({ id: t.id, from: 'completed', to: 'scheduled', reason: 'future_event' });
   }
 
-  // 1b. scheduled → active (tournament window has begun)
-  const startingNow = db.prepare(`
-    SELECT id, name FROM golf_tournaments
+  // 1b. scheduled → active (tournament has actually started).
+  //
+  // OLD BUG: `date(start_date) <= date(today)` in UTC flipped RBC Heritage
+  // to 'active' at 00:00 UTC on its start date — which is 8pm ET the
+  // previous evening. The tournament didn't tee off until Thursday 7am ET,
+  // so the leaderboard showed LIVE for ~11 hours before any golf was played.
+  //
+  // FIX: compare against computeLockTime(start_date) — the canonical
+  // "picks lock / tournament begins" timestamp (Thursday ~8am ET). A
+  // tournament is only 'active' once that wall-clock moment has passed
+  // AND the end_date hasn't been crossed yet.
+  const nowMs = Date.now();
+  const pending = db.prepare(`
+    SELECT id, name, start_date, end_date FROM golf_tournaments
     WHERE status = 'scheduled'
-      AND date(start_date) <= date(?)
-      AND date(end_date)   >= date(?)
-  `).all(today, today);
-  for (const t of startingNow) {
-    db.prepare("UPDATE golf_tournaments SET status = 'active' WHERE id = ?").run(t.id);
-    logChange('scheduled→active', `${t.name} (start_date<=today<=end_date)`);
-    changes.push({ id: t.id, from: 'scheduled', to: 'active', reason: 'in_window' });
+      AND date(end_date) >= date(?)
+  `).all(today);
+  for (const t of pending) {
+    try {
+      const lockMs = computeLockTime(t.start_date).getTime();
+      if (nowMs >= lockMs) {
+        db.prepare("UPDATE golf_tournaments SET status = 'active' WHERE id = ?").run(t.id);
+        logChange('scheduled→active', `${t.name} (lock time passed)`);
+        changes.push({ id: t.id, from: 'scheduled', to: 'active', reason: 'lock_passed' });
+      }
+    } catch (_) { /* bad date — skip */ }
   }
 
   // 1c. active → completed (end date has passed)
