@@ -8,6 +8,7 @@ import GolfLoader from './components/golf/GolfLoader';
 import BossMode from './components/BossMode';
 import FloatingChat from './components/FloatingChat';
 import SindariusWidget from './components/SindariusWidget';
+import ToastContainer from './components/ui/Toast';
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
@@ -128,6 +129,7 @@ export default function App() {
           <BossMode />
           <FloatingChat />
           <SindariusWidget />
+          <ToastContainer />
           <Routes>
             {/* ── Hub root ── */}
             <Route path="/" element={<HubLanding />} />

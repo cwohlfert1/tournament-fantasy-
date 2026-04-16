@@ -10,6 +10,7 @@ import { teamEmoji, playerAvatarStyle } from '../teamEmojis';
 import TrashTalkTab from './TrashTalkTab';
 import LiveGamesBanner from '../components/LiveGamesBanner';
 import SindariusTab from '../components/SindariusTab';
+import { showToast } from '../components/ui/Toast';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
@@ -83,7 +84,7 @@ function SmartDraftBanner({ leagueId }) {
       const res = await api.post('/payments/smart-draft-checkout', { leagueId });
       window.location.href = res.data.url;
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not start checkout');
+      showToast.error(err.response?.data?.error || 'Could not start checkout');
       setLoading(false);
     }
   };
@@ -313,7 +314,7 @@ export default function LeagueHome() {
       setMembers(res.data.members.map((m, i) => ({ ...m, draft_order: i + 1 })));
       await fetchData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to randomize draft order');
+      showToast.error(err.response?.data?.error || 'Failed to randomize draft order');
     } finally {
       setRandomizing(false);
     }
@@ -325,7 +326,7 @@ export default function LeagueHome() {
       await api.post(`/admin/leagues/${id}/start-draft`);
       navigate(`/league/${id}/draft`);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to start draft');
+      showToast.error(err.response?.data?.error || 'Failed to start draft');
       setStarting(false);
     }
   };
@@ -342,7 +343,7 @@ export default function LeagueHome() {
       await api.post(`/admin/leagues/${id}/force-start`);
       navigate(`/league/${id}/draft`);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to force-start draft');
+      showToast.error(err.response?.data?.error || 'Failed to force-start draft');
     }
   };
 
@@ -354,7 +355,7 @@ export default function LeagueHome() {
       setPopulateResult(res.data);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to populate test league');
+      showToast.error(err.response?.data?.error || 'Failed to populate test league');
     } finally {
       setPopulateLoading(false);
     }
@@ -434,7 +435,7 @@ export default function LeagueHome() {
         window.location.href = res.data.url;
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to start payment');
+      showToast.error(err.response?.data?.error || 'Failed to start payment');
       setEntryPayLoading(false);
     }
   };

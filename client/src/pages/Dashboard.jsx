@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
+import { showToast } from '../components/ui/Toast';
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS = {
@@ -209,7 +210,7 @@ export default function Dashboard() {
       const res = await api.post('/admin/create-test-league');
       navigate(`/league/${res.data.leagueId}/leaderboard`);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to create test league');
+      showToast.error(err.response?.data?.error || 'Failed to create test league');
       setCreatingTestLeague(false);
     }
   };

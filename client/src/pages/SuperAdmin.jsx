@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import BallLoader from '../components/BallLoader';
+import { showToast } from '../components/ui/Toast';
 
 const TABS = ['Leagues', 'Users', 'Players', 'Financials', 'Dev Tools'];
 
@@ -84,7 +85,7 @@ function LeaguesTab() {
       await load();
       if (selected?.id === leagueId) openDetail(leagues.find(l => l.id === leagueId) || selected);
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -99,7 +100,7 @@ function LeaguesTab() {
       setDetail(null);
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -129,7 +130,7 @@ function LeaguesTab() {
       await load();
       openDetail({ ...selected, ...editForm });
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -316,7 +317,7 @@ function UsersTab() {
       await api.delete(`/superadmin/users/${user.id}`);
       setUsers(prev => prev.filter(u => u.id !== user.id));
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to delete user');
+      showToast.error(e.response?.data?.error || 'Failed to delete user');
     } finally {
       setBusy('');
     }
@@ -330,22 +331,22 @@ function UsersTab() {
       await api.put(`/superadmin/users/${user.id}/ban`, { banned: banning });
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
   };
 
   const resetPassword = async () => {
-    if (!newPw || newPw.length < 6) return alert('Password must be at least 6 characters');
+    if (!newPw || newPw.length < 6) return showToast.warning('Password must be at least 6 characters');
     setBusy('pw');
     try {
       await api.put(`/superadmin/users/${pwModal.id}/reset-password`, { password: newPw });
       setPwModal(null);
       setNewPw('');
-      alert(`Password for ${pwModal.username} reset successfully`);
+      showToast.success(`Password for ${pwModal.username} reset successfully`);
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -516,7 +517,7 @@ function PlayersTab() {
       setEditPlayer(null);
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -529,7 +530,7 @@ function PlayersTab() {
       await api.delete(`/superadmin/players/${p.id}`);
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -547,7 +548,7 @@ function PlayersTab() {
       setAddForm({ name: '', team: '', position: '', seed: '', region: '', season_ppg: '' });
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed');
+      showToast.error(e.response?.data?.error || 'Failed');
     } finally {
       setBusy('');
     }
@@ -903,7 +904,7 @@ function DevToolsTab() {
       await api.delete(`/superadmin/sandbox/${id}`);
       setSandboxes(prev => prev.filter(s => s.id !== id));
     } catch (e) {
-      alert(e.response?.data?.error || 'Delete failed');
+      showToast.error(e.response?.data?.error || 'Delete failed');
     } finally {
       setDeleting(null);
     }

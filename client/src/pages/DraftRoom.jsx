@@ -7,6 +7,7 @@ import TeamAvatar from '../components/TeamAvatar';
 import { useDocTitle } from '../hooks/useDocTitle';
 import BallLoader from '../components/BallLoader';
 import { teamEmoji, teamColor, playerAvatarStyle, shortTeamName } from '../utils/teamBranding';
+import { showToast } from '../components/ui/Toast';
 
 // ─── Position styling (complete Tailwind strings — no dynamic construction) ──
 
@@ -1096,7 +1097,7 @@ export default function DraftRoom() {
       const res = await api.post('/payments/smart-draft-checkout', { leagueId });
       window.location.href = res.data.url;
     } catch (err) {
-      alert(err.response?.data?.error || 'Could not start checkout');
+      showToast.error(err.response?.data?.error || 'Could not start checkout');
       setSdCheckoutLoading(false);
     }
   };

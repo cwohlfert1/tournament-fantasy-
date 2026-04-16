@@ -6,6 +6,7 @@ import GolfPaymentModal from '../../../components/golf/GolfPaymentModal';
 import ReinviteFromPastLeague from '../../../components/golf/ReinviteFromPastLeague';
 import { POOL_TIERS } from '../../../utils/poolPricing';
 import { parseSheetRows } from '../../../utils/importHelpers';
+import { showToast } from '../../../components/ui/Toast';
 
 // ── Email copy modal — proper "Copy All" UX (replaces window.prompt fallback)
 // Mobile users got a useless OK/Cancel dialog before. Now they get a textarea
@@ -568,7 +569,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
     setRemindingSending(true);
     try {
       const r = await api.post(`/golf/commissioner/${leagueId}/unpaid/remind`, { confirm });
-      alert(`Reminders sent to ${r.data.sent} unpaid member${r.data.sent !== 1 ? 's' : ''}`);
+      showToast.success(`Reminders sent to ${r.data.sent} unpaid member${r.data.sent !== 1 ? 's' : ''}`);
       fetchUnpaid();
     } catch (err) {
       const data = err.response?.data;
@@ -580,7 +581,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         );
         if (ok) { setRemindingSending(false); return sendPayReminders({ confirm: true }); }
       } else {
-        alert(data?.error || 'Failed to send reminders');
+        showToast.error(data?.error || 'Failed to send reminders');
       }
     }
     setRemindingSending(false);
@@ -599,7 +600,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         document.body.appendChild(a); a.click(); a.remove();
         window.URL.revokeObjectURL(url);
       })
-      .catch(err => alert(err.response?.data?.error || 'Failed to download CSV'));
+      .catch(err => showToast.error(err.response?.data?.error || 'Failed to download CSV'));
   }
   function downloadUnpaidCsv()  { downloadCsv(`/golf/commissioner/${leagueId}/unpaid/csv`,   `unpaid-${leagueId}.csv`); }
   function downloadEntriesCsv() { downloadCsv(`/golf/commissioner/${leagueId}/entries/csv`,  `entries-${leagueId}.csv`); }
@@ -612,7 +613,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   function copyEntryEmails() {
     api.get(`/golf/commissioner/${leagueId}/entries/emails`)
       .then(r => setEmailModal({ emails: r.data?.emails || '', count: r.data?.count || 0 }))
-      .catch(err => alert(err.response?.data?.error || 'Failed to fetch emails'));
+      .catch(err => showToast.error(err.response?.data?.error || 'Failed to fetch emails'));
   }
 
   // ── "Send from TourneyRun" — platform-sent blast (Option 2) ───────────────
@@ -622,7 +623,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
   const [blastResult, setBlastResult] = useState(null);
   async function sendCommissionerBlast({ confirm = false } = {}) {
     if (!blastSubject.trim() || !blastBody.trim()) {
-      alert('Both subject and message are required');
+      showToast.warning('Both subject and message are required');
       return;
     }
     setBlasting(true);
@@ -643,7 +644,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         );
         if (ok) { setBlasting(false); return sendCommissionerBlast({ confirm: true }); }
       } else {
-        alert(data?.error || 'Failed to send');
+        showToast.error(data?.error || 'Failed to send');
       }
     }
     setBlasting(false);
@@ -877,7 +878,7 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
         setSwapping(null);
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Swap failed');
+      showToast.error(err.response?.data?.error || 'Swap failed');
     }
     setSwapLoading(false);
   }
@@ -895,10 +896,10 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
           .then(r => { setPoolStandings(r.data.standings || []); if (r.data.entry_paid) setPaidMap(prev => ({ ...prev, ...r.data.entry_paid })); })
           .catch(() => {});
       } else {
-        alert('Delete failed — entry not found');
+        showToast.error('Delete failed — entry not found');
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Delete failed');
+      showToast.error(err.response?.data?.error || 'Delete failed');
     }
     setDeleteLoading(false);
   }

@@ -6,6 +6,7 @@ import api from '../../../api';
 import GolfLoader from '../../../components/golf/GolfLoader';
 import PlayerAvatar from '../../../components/golf/PlayerAvatar';
 import { tierAccent } from '../../../utils/golfTierColors';
+import { showToast } from '../../../components/ui/Toast';
 
 const ROSTER_TIER_COLORS = {
   1: { bg: 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'rgba(245,158,11,0.3)', accent: '#f59e0b', label: '#fbbf24' },
@@ -527,7 +528,7 @@ export default function PoolRosterTab({ leagueId, league }) {
       setEditingTeamName(null);
       await load(entryNumber);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to save team name');
+      showToast.error(err.response?.data?.error || 'Failed to save team name');
     }
     setTeamNameSaving(false);
   }

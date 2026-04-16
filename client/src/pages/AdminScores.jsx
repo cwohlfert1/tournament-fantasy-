@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import BallLoader from '../components/BallLoader';
+import { showToast } from '../components/ui/Toast';
 
 const ROUNDS = [
   'First Round', 'Second Round', 'Round of 16', 'Top 8', 'Semifinals', 'Championship'
@@ -86,7 +87,7 @@ export default function AdminScores() {
       setGames(prev => [res.data.game, ...prev]);
       setGameForm({ ...gameForm, team1: '', team2: '' });
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to create game');
+      showToast.error(err.response?.data?.error || 'Failed to create game');
     }
   };
 
@@ -117,7 +118,7 @@ export default function AdminScores() {
       setGames(gamesRes.data.games);
       setSelectedGame(null);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to save stats');
+      showToast.error(err.response?.data?.error || 'Failed to save stats');
     }
   };
 
@@ -129,7 +130,7 @@ export default function AdminScores() {
   };
 
   const submitQuickResult = async () => {
-    if (!quickWinner) { alert('Please select a winner'); return; }
+    if (!quickWinner) { showToast.warning('Please select a winner'); return; }
     setQuickSaving(true);
     try {
       await api.put(`/admin/games/${quickResultGame.id}/result`, {
@@ -143,7 +144,7 @@ export default function AdminScores() {
       setTeams(teamsRes.data.teams);
       setQuickResultGame(null);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to save result');
+      showToast.error(err.response?.data?.error || 'Failed to save result');
     } finally {
       setQuickSaving(false);
     }
@@ -158,7 +159,7 @@ export default function AdminScores() {
       const gamesRes = await api.get('/admin/games');
       setGames(gamesRes.data.games);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to generate schedule');
+      showToast.error(err.response?.data?.error || 'Failed to generate schedule');
     } finally {
       setGenerating(false);
     }
@@ -178,7 +179,7 @@ export default function AdminScores() {
         t.team === teamName ? { ...t, is_eliminated: !currentStatus ? 1 : 0 } : t
       ));
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update team');
+      showToast.error(err.response?.data?.error || 'Failed to update team');
     }
   };
 

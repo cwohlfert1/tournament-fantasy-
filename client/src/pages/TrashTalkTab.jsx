@@ -4,6 +4,7 @@ import api from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import TeamAvatar from '../components/TeamAvatar';
 import GiphyPicker from '../components/GiphyPicker';
+import { showToast } from '../components/ui/Toast';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
@@ -368,7 +369,7 @@ export default function TrashTalkTab({ leagueId, isCommissioner }) {
         await api.delete(`/wall/posts/${postId}`);
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Delete failed');
+      showToast.error(err.response?.data?.error || 'Delete failed');
     }
   };
 
