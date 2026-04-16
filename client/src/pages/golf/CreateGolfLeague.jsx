@@ -1131,6 +1131,27 @@ export default function CreateGolfLeague() {
             <CardHeader icon={Settings} title="⚙️ Salary Cap Settings" />
             <div className="space-y-5">
 
+              {/* Tournament Picker */}
+              <div>
+                <label className="label mb-1.5">Which tournament is this for?</label>
+                <Select
+                  value={form.pool_tournament_id}
+                  onChange={v => set('pool_tournament_id', v)}
+                  options={tournaments.map(t => ({
+                    value: t.id,
+                    label: `${t.name}${t.start_date ? ` · ${new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}${t.is_major ? ' (Major)' : ''}`,
+                  }))}
+                  placeholder="— Select a tournament (optional) —"
+                  fullWidth
+                />
+                {tournaments.length === 0 && (
+                  <p className="text-gray-600 text-xs mt-1.5">Loading tournaments…</p>
+                )}
+                <p className="text-gray-600 text-xs mt-1.5">
+                  Optional — links the league to a specific tournament for standings and scores.
+                </p>
+              </div>
+
               {/* Max Teams */}
               <div>
                 <label className="label mb-2.5">Max Teams</label>
