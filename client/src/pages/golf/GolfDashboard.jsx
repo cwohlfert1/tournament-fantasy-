@@ -24,9 +24,10 @@ const ACTIVE_STATUSES = new Set(['active', 'lobby', 'draft', 'draft_pending', 'd
 // ── Format pills config ────────────────────────────────────────────────────────
 
 const FORMAT_META = {
-  pool:       { label: '⛳ Pool',       pill: 'bg-green-500/15 border-green-500/30 text-green-400',  duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400',  bar: 'bg-green-500'  },
-  dk:         { label: '💰 Salary Cap',  pill: 'bg-blue-500/15 border-blue-500/30 text-blue-400',    duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400',  bar: 'bg-blue-500'   },
-  tourneyrun: { label: '🏆 TourneyRun', pill: 'bg-teal-500/15 border-teal-500/30 text-teal-400',   duration: 'Season Long',    dPill: 'bg-gray-700/60 border-gray-700 text-gray-400',         bar: 'bg-teal-500'   },
+  pool:        { label: '⛳ Pool',        pill: 'bg-green-500/15 border-green-500/30 text-green-400', duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-green-500'  },
+  salary_cap:  { label: '💰 Salary Cap',  pill: 'bg-blue-500/15 border-blue-500/30 text-blue-400',   duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-blue-500'   },
+  dk:          { label: '💰 Salary Cap',  pill: 'bg-blue-500/15 border-blue-500/30 text-blue-400',   duration: 'Per Tournament', dPill: 'bg-amber-500/15 border-amber-500/30 text-amber-400', bar: 'bg-blue-500'   },
+  tourneyrun:  { label: '🏆 TourneyRun',  pill: 'bg-teal-500/15 border-teal-500/30 text-teal-400',  duration: 'Season Long',    dPill: 'bg-gray-700/60 border-gray-700 text-gray-400',       bar: 'bg-teal-500'   },
 };
 function getMeta(fmt) { return FORMAT_META[fmt] || FORMAT_META.tourneyrun; }
 
@@ -142,7 +143,7 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
   const isComm = league.commissioner_id === userId;
   const meta   = getMeta(league.format_type);
 
-  const isPool = league.format_type === 'pool';
+  const isPool = league.format_type === 'pool' || league.format_type === 'salary_cap';
   const poolTs  = isPool ? league.pool_tournament_status : null;
 
   // Standings rank for active/completed pool leagues
@@ -206,7 +207,7 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
         </div>
 
         {/* Pool tournament line */}
-        {league.format_type === 'pool' && (
+        {isPool && (
           <p className={`text-xs -mt-1 ${hasTourn ? 'text-gray-400' : 'text-gray-600'}`}>
             {tournLine}
           </p>
@@ -244,7 +245,8 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
           {/* Pool picks CTA */}
           {isPool && !past && picksStatus && (() => {
             const { submitted, picks_locked } = picksStatus;
-            const target = `/golf/league/${league.id}?tab=roster`;
+            const picksTab = league.format_type === 'salary_cap' ? 'picks' : 'roster';
+            const target = `/golf/league/${league.id}?tab=${picksTab}`;
             if (picks_locked) return (
               <button
                 onClick={e => { e.preventDefault(); navigate(target); }}
@@ -379,7 +381,7 @@ export default function GolfDashboard() {
 
   const isActiveLeague = l => {
     // Pool leagues tied to completed tournaments go to "past"
-    if (l.format_type === 'pool' && l.pool_tournament_status === 'completed') return false;
+    if ((l.format_type === 'pool' || l.format_type === 'salary_cap') && l.pool_tournament_status === 'completed') return false;
     // Already-active statuses (lobby, draft, active, etc.)
     if (ACTIVE_STATUSES.has(l.status)) return true;
     // Include pending_payment pool leagues whose tournament starts within 7 days
