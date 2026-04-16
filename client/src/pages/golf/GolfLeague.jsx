@@ -244,7 +244,17 @@ export default function GolfLeague() {
                   return <Link to={`/golf/league/${id}?tab=${defaultPicksTab}`} className={ctaClass}>✓ View/Edit Picks <ChevronRight className="w-4 h-4" /></Link>;
                 return <Link to={`/golf/league/${id}/picks`} className={ctaClass}>Make My Picks <ChevronRight className="w-4 h-4" /></Link>;
               })()
-            : (league.draft_status !== 'completed' && (
+            : league.format_type === 'draft' && league.draft_status !== 'completed'
+              ? (
+                <Link
+                  to={`/golf/league/${id}/draft-room`}
+                  className="inline-flex items-center gap-2 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg text-sm shrink-0"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', boxShadow: '0 6px 20px rgba(124,58,237,0.25)' }}
+                >
+                  {league.draft_status === 'drafting' ? '🐍 Join Draft' : isComm ? '🐍 Start Draft' : '🐍 Draft Lobby'} <ChevronRight className="w-4 h-4" />
+                </Link>
+              )
+              : (league.draft_status !== 'completed' && league.format_type === 'tourneyrun' && (
                 <Link
                   to={`/golf/league/${id}/draft`}
                   className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0"

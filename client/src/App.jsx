@@ -88,6 +88,7 @@ import CreateGolfLeague from './pages/golf/CreateGolfLeague';
 import JoinGolfLeague from './pages/golf/JoinGolfLeague';
 import GolfLeague from './pages/golf/GolfLeague';
 import GolfDraft from './pages/golf/GolfDraft';
+import GolfDraftRoom from './pages/golf/GolfDraftRoom';
 import GolfAuctionDraft from './pages/golf/GolfAuctionDraft';
 import GolfScoreEntry from './pages/golf/GolfScoreEntry';
 import GolfStrategy from './pages/golf/GolfStrategy';
@@ -200,6 +201,7 @@ export default function App() {
               <Route path="/golf/register" element={<Navigate to="/register" replace />} />
               <Route path="/golf/league/:id" element={<ProtectedRoute><GolfLeague /></ProtectedRoute>} />
               <Route path="/golf/league/:id/draft" element={<ProtectedRoute><GolfDraft /></ProtectedRoute>} />
+              <Route path="/golf/league/:id/draft-room" element={<ProtectedRoute><GolfDraftRoom /></ProtectedRoute>} />
               <Route path="/golf/league/:id/auction" element={<ProtectedRoute><GolfAuctionDraft /></ProtectedRoute>} />
               <Route path="/golf/league/:id/scores" element={<ProtectedRoute><GolfScoreEntry /></ProtectedRoute>} />
               <Route path="/golf/league/:id/settings" element={<ProtectedRoute><GolfLeagueSettings /></ProtectedRoute>} />
