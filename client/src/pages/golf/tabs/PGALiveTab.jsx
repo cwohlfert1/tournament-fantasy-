@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Flag } from 'lucide-react';
+import { Flag, ChevronRight } from 'lucide-react';
 import api from '../../../api';
 import Select from '../../../components/ui/Select';
 
@@ -248,16 +248,16 @@ export default function PGALiveTab({ leagueId, league }) {
         )}
 
         {/* Desktop column headers */}
-        <div className="hidden sm:grid" style={{ gridTemplateColumns: isPreTournament ? '44px 1fr 1fr' : '44px 1fr 36px 32px 32px 32px 32px 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
-          {(isPreTournament ? ['#', 'Player', 'Tee Time'] : ['Pos', 'Player', 'Thru', 'R1', 'R2', 'R3', 'R4', 'Total', 'Today']).map((h, i) => (
-            <div key={h} style={{ textAlign: isPreTournament ? (i === 2 ? 'right' : 'left') : (i >= 2 ? 'center' : 'left'), color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
+        <div className="hidden sm:grid" style={{ gridTemplateColumns: isPreTournament ? '44px 1fr 1fr' : '44px 1fr 36px 32px 32px 32px 32px 48px 44px 16px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
+          {(isPreTournament ? ['#', 'Player', 'Tee Time'] : ['Pos', 'Player', 'Thru', 'R1', 'R2', 'R3', 'R4', 'Total', 'Today', '']).map((h, i) => (
+            <div key={`${h}-${i}`} style={{ textAlign: isPreTournament ? (i === 2 ? 'right' : 'left') : (i >= 2 ? 'center' : 'left'), color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
           ))}
         </div>
 
         {/* Mobile column headers */}
-        <div className="grid sm:hidden" style={{ gridTemplateColumns: isPreTournament ? '32px 1fr 1fr' : '44px 1fr 48px 44px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
-          {(isPreTournament ? ['#', 'Player', 'Tee Time'] : ['Pos', 'Player', 'Total', 'Today']).map((h, i) => (
-            <div key={h} style={{ textAlign: isPreTournament ? (i === 2 ? 'right' : 'left') : (i >= 2 ? 'center' : 'left'), color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
+        <div className="grid sm:hidden" style={{ gridTemplateColumns: isPreTournament ? '32px 1fr 1fr' : '44px 1fr 48px 44px 16px', gap: 0, padding: '8px 14px', borderBottom: '1px solid #1f2937' }}>
+          {(isPreTournament ? ['#', 'Player', 'Tee Time'] : ['Pos', 'Player', 'Total', 'Today', '']).map((h, i) => (
+            <div key={`${h}-${i}`} style={{ textAlign: isPreTournament ? (i === 2 ? 'right' : 'left') : (i >= 2 ? 'center' : 'left'), color: '#374151', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</div>
           ))}
         </div>
 
@@ -334,7 +334,7 @@ export default function PGALiveTab({ leagueId, league }) {
               <button
                 className="hidden sm:grid"
                 onClick={isPreTournament ? undefined : toggleRow}
-                style={{ width: '100%', gridTemplateColumns: isPreTournament ? '44px 1fr 1fr' : '44px 1fr 36px 32px 32px 32px 32px 48px 44px', gap: 0, padding: '9px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: isPreTournament ? 'default' : 'pointer', textAlign: 'left' }}
+                style={{ width: '100%', gridTemplateColumns: isPreTournament ? '44px 1fr 1fr' : '44px 1fr 36px 32px 32px 32px 32px 48px 44px 16px', gap: 0, padding: '9px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: isPreTournament ? 'default' : 'pointer', textAlign: 'left' }}
                 onMouseEnter={e => { if (!isPreTournament) e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.05)' : 'rgba(255,255,255,0.02)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = myPick ? 'rgba(0,232,122,0.025)' : 'transparent'; }}
               >
@@ -355,6 +355,7 @@ export default function PGALiveTab({ leagueId, league }) {
                   })}
                   {totalCell}
                   {todayCell}
+                  <ChevronRight size={12} style={{ color: '#4b5563', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', justifySelf: 'center' }} />
                 </>)}
               </button>
 
@@ -362,7 +363,7 @@ export default function PGALiveTab({ leagueId, league }) {
               <button
                 className="grid sm:hidden"
                 onClick={isPreTournament ? undefined : toggleRow}
-                style={{ width: '100%', gridTemplateColumns: isPreTournament ? '32px 1fr 1fr' : '44px 1fr 48px 44px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: isPreTournament ? 'default' : 'pointer', textAlign: 'left' }}
+                style={{ width: '100%', gridTemplateColumns: isPreTournament ? '32px 1fr 1fr' : '44px 1fr 48px 44px 16px', gap: 0, padding: '10px 14px', alignItems: 'center', background: 'transparent', border: 'none', cursor: isPreTournament ? 'default' : 'pointer', textAlign: 'left' }}
               >
                 {posCell}
                 {playerCell}
@@ -373,6 +374,7 @@ export default function PGALiveTab({ leagueId, league }) {
                 ) : (<>
                   {totalCell}
                   {todayCell}
+                  <ChevronRight size={12} style={{ color: '#4b5563', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', justifySelf: 'center' }} />
                 </>)}
               </button>
 
