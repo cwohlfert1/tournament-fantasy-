@@ -631,6 +631,12 @@ async function runAutoSync() {
       // ── Round completion email detection (ESPN period-based) ────────────
       // ESPN currentPeriod tells us exactly which round is active/complete.
       // Independent of name matching — works even if some players have no scores.
+      //
+      // GUARD: ESPN can return currentPeriod >= 2 for tournaments that are
+      // still STATUS_SCHEDULED (not yet started). That falsely triggered the
+      // R1 email for RBC Heritage the day *before* the tournament began.
+      // Only trust period when the tournament is actually in progress (or
+      // already completed — catches the late-final transition).
       const tournAfter = await db.get('SELECT * FROM golf_tournaments WHERE id = ?', tournament.id);
       const isFinal = tournAfter.status === 'completed' && statusBefore !== 'completed';
       const period = result.currentPeriod || 0;
@@ -638,7 +644,10 @@ async function runAutoSync() {
       const roundStatus = result.espnStatusName || '';
       // Also detect final for tournaments already marked completed (missed the transition)
       const isAlreadyComplete = tournAfter.status === 'completed';
-      if (period > 0 || isFinal || isAlreadyComplete) {
+      const isScheduled = tournAfter.status === 'scheduled' || roundStatus === 'STATUS_SCHEDULED';
+      if (isScheduled && !isFinal && !isAlreadyComplete) {
+        // Tournament hasn't started — ignore any period value ESPN reports.
+      } else if (period > 0 || isFinal || isAlreadyComplete) {
         const isPlayComplete = roundStatus === 'STATUS_PLAY_COMPLETE';
         const completedRounds = [];
         if (period >= 2 || (period === 1 && isPlayComplete) || isAlreadyComplete) completedRounds.push(1);
