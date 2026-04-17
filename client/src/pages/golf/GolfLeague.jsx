@@ -40,9 +40,15 @@ import SalaryCapPicksTab from './tabs/SalaryCapPicksTab';
 function getTabs(league, isComm, hideOverview = false) {
   const isPool = league?.format_type === 'pool' || league?.format_type === 'salary_cap' || league?.format_type === 'draft';
   const isSalaryCap = league?.format_type === 'salary_cap';
+  const isDraft = league?.format_type === 'draft';
+  const draftDone = isDraft && league?.draft_status === 'completed';
   const base = [];
   if (!hideOverview) base.push({ key: 'overview', label: 'Overview' });
-  if (isSalaryCap) {
+  // Draft shows roster tab only after draft completes (pool_picks bridged).
+  // Before that, the draft room CTA is the primary action — no picks tab.
+  if (isDraft) {
+    if (draftDone) base.push({ key: 'roster', label: 'My Picks' });
+  } else if (isSalaryCap) {
     base.push({ key: 'picks', label: 'My Picks' });
   } else {
     base.push({ key: 'roster', label: isPool ? 'My Picks' : 'Roster' });
@@ -195,7 +201,7 @@ export default function GolfLeague() {
 
   // If the URL tab is 'overview' but it's hidden, fall through to picks.
   // salary_cap uses 'picks' tab; pool uses 'roster' — both show the user's lineup.
-  const defaultPicksTab = league.format_type === 'salary_cap' ? 'picks' : 'roster';
+  const defaultPicksTab = league.format_type === 'salary_cap' ? 'picks' : league.format_type === 'draft' ? 'standings' : 'roster';
   const effectiveTab = tab === 'overview' && shouldHideOverview ? defaultPicksTab : tab;
 
   function setTab(t) {
