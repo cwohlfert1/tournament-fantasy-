@@ -644,7 +644,7 @@ export default function CreateGolfLeague() {
       ...prev,
       max_teams: f === 'draft' ? 12 : (f === 'pool' || f === 'salary_cap') ? 20 : 8,
       ...(f === 'pool' ? { pool_tier: 'standard', comm_pro_price: 12.99 } : {}),
-      ...(f === 'draft' ? { pool_tier: 'standard', comm_pro_price: 12.99 } : {}),
+      ...(f === 'draft' ? { pool_tier: 'standard', comm_pro_price: 19.99 } : {}),
     }));
   }
 
@@ -1503,7 +1503,11 @@ export default function CreateGolfLeague() {
         {(() => {
           const period = format === 'tourneyrun' ? '/season' : '/tournament';
           let price, promoPrice, priceLabel;
-          if (format === 'pool') {
+          if (format === 'draft') {
+            price = 19.99;
+            promoPrice = 19.99; // no promo on draft
+            priceLabel = `$19.99${period}`;
+          } else if (format === 'pool') {
             const tier = POOL_TIERS.find(t => t.maxTeams === form.max_teams && t.tier === form.pool_tier) || POOL_TIERS[0];
             price = tier.price;
             promoPrice = tier.promoPrice;

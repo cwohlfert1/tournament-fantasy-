@@ -249,15 +249,22 @@ router.post('/payments/create-checkout-session', authMiddleware, async (req, res
     let baseAmount, lineItemName;
     if (type === 'comm_pro') {
       if (!leagueId) return res.status(400).json({ error: 'leagueId required for pool creation' });
-      const league = await db.get('SELECT name, max_teams FROM golf_leagues WHERE id = ?', leagueId);
+      const league = await db.get('SELECT name, max_teams, format_type FROM golf_leagues WHERE id = ?', leagueId);
       if (!league) return res.status(404).json({ error: 'League not found' });
-      const { amount, label } = getPriceForMaxTeams(league.max_teams || 20);
-      baseAmount   = amount;
-      lineItemName = `TourneyRun Pool · ${label} — ${league.name}`;
-      // Masters launch promo: 25% off pools created before April 10 2026
-      if (new Date() < MASTERS_PROMO_END) {
-        baseAmount   = Math.round(baseAmount * 0.75 * 100) / 100;
-        lineItemName += ' (Masters Launch Price)';
+
+      // Snake draft: flat $19.99 regardless of team count or tournament
+      if (league.format_type === 'draft') {
+        baseAmount   = 19.99;
+        lineItemName = `TourneyRun Snake Draft — ${league.name}`;
+      } else {
+        const { amount, label } = getPriceForMaxTeams(league.max_teams || 20);
+        baseAmount   = amount;
+        lineItemName = `TourneyRun Pool · ${label} — ${league.name}`;
+        // Masters launch promo: 25% off pools created before April 10 2026
+        if (new Date() < MASTERS_PROMO_END) {
+          baseAmount   = Math.round(baseAmount * 0.75 * 100) / 100;
+          lineItemName += ' (Masters Launch Price)';
+        }
       }
     } else {
       baseAmount   = AMOUNTS[type];
