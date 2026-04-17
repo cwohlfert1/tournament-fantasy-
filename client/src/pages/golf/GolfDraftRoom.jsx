@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, Crown, Users, Timer, Shield, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Clock, Crown, Users, Timer, Shield, ChevronRight, ListOrdered, LayoutGrid, Star, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import socket, { connectSocket } from '../../socket';
@@ -491,6 +491,7 @@ export default function GolfDraftRoom() {
   const [starting, setStarting] = useState(false);
   const [timerSecs, setTimerSecs] = useState(0);
   const prevIsMyTurn = useRef(false);
+  const [mobilePanel, setMobilePanel] = useState('players'); // 'players' | 'board' | 'queue' | 'myteam'
 
   // Queue: persisted to localStorage (survives page reload)
   const [queue, setQueue] = useState(() => {
@@ -659,9 +660,8 @@ export default function GolfDraftRoom() {
       {/* Live pick ticker */}
       <PickTicker picks={picks} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }} className="draft-layout">
-        <style>{`@media (max-width: 768px) { .draft-layout { grid-template-columns: 1fr !important; } }`}</style>
-
+      {/* Desktop: two-panel grid. Mobile: single panel controlled by bottom nav */}
+      <div className="hidden lg:grid" style={{ gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
         <div>
           <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
             <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Draft Board</div>
@@ -672,9 +672,71 @@ export default function GolfDraftRoom() {
             <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
           </div>
         </div>
-
         <div>
           <MyRoster picks={picks} userId={user?.id} totalRounds={totalRounds} />
+        </div>
+      </div>
+
+      {/* Mobile panels — one visible at a time, controlled by bottom nav */}
+      <div className="lg:hidden" style={{ paddingBottom: 72 }}>
+        {mobilePanel === 'players' && (
+          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
+            <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
+          </div>
+        )}
+        {mobilePanel === 'board' && (
+          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
+            <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Draft Board</div>
+            <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={currentPick} />
+          </div>
+        )}
+        {mobilePanel === 'queue' && (
+          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
+            <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
+          </div>
+        )}
+        {mobilePanel === 'myteam' && (
+          <div style={{ minHeight: '60vh' }}>
+            <MyRoster picks={picks} userId={user?.id} totalRounds={totalRounds} />
+          </div>
+        )}
+      </div>
+
+      {/* Mobile bottom nav */}
+      <div className="fixed bottom-0 inset-x-0 z-50 lg:hidden" style={{ background: '#0f1923', borderTop: '1px solid rgba(255,255,255,0.08)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div style={{ display: 'flex', alignItems: 'stretch' }}>
+          {[
+            { id: 'players', Icon: ListOrdered, label: 'Players' },
+            { id: 'board',   Icon: LayoutGrid,  label: 'Board' },
+            { id: 'queue',   Icon: Star,         label: 'Queue' },
+            { id: 'myteam',  Icon: User,         label: 'My Team' },
+          ].map(t => {
+            const isActive = mobilePanel === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setMobilePanel(t.id)}
+                style={{
+                  position: 'relative',
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '10px 0 8px', gap: 3, background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: isActive ? '#a78bfa' : '#4b5563', transition: 'color 0.15s',
+                }}
+              >
+                <t.Icon size={18} />
+                <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t.label}</span>
+                {t.id === 'players' && isMyTurn && (
+                  <span style={{ position: 'absolute', top: 6, right: '22%', width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 0 2px #0f1923', animation: 'pulse 1.5s infinite' }} />
+                )}
+                {t.id === 'queue' && queue.length > 0 && (
+                  <span style={{ position: 'absolute', top: 4, right: '18%', minWidth: 14, height: 14, borderRadius: 999, background: '#fbbf24', color: '#000', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', boxShadow: '0 0 0 2px #0f1923' }}>
+                    {queue.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
