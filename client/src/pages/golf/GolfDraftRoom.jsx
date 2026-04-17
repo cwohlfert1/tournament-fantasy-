@@ -22,6 +22,69 @@ import { showToast } from '../../components/ui/Toast';
 import { showConfirm } from '../../components/ui/ConfirmDialog';
 import Select from '../../components/ui/Select';
 
+// ── Web Audio: golf chime (clean two-tone, G5→C6) ────────────────────────────
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+function playTurnChime() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    // Two ascending notes: G5 (784Hz) → C6 (1047Hz), sine wave, soft
+    [784, 1047].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12, now + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.3);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + i * 0.15);
+      osc.stop(now + i * 0.15 + 0.35);
+    });
+  } catch (_) {}
+}
+
+// ── Pick Ticker ──────────────────────────────────────────────────────────────
+function PickTicker({ picks }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.scrollLeft = ref.current.scrollWidth;
+  }, [picks.length]);
+  if (picks.length === 0) return null;
+  const recent = picks.slice(-8);
+  return (
+    <div ref={ref} style={{
+      display: 'flex', gap: 8, overflowX: 'auto', padding: '8px 0', marginBottom: 10,
+      scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+    }}>
+      <style>{`.pick-ticker::-webkit-scrollbar { display: none; }`}</style>
+      {recent.map(p => (
+        <div key={p.pick_number} className="pick-ticker" style={{
+          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+          background: p.auto_pick ? 'rgba(245,158,11,0.08)' : 'rgba(139,92,246,0.08)',
+          border: `1px solid ${p.auto_pick ? 'rgba(245,158,11,0.2)' : 'rgba(139,92,246,0.2)'}`,
+          borderRadius: 8, padding: '5px 10px',
+        }}>
+          <span style={{ color: '#6b7280', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>#{p.pick_number}</span>
+          <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={20} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#d1d5db', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>
+              {flipName(p.player_name)?.split(' ').pop()}
+            </div>
+            <div style={{ color: '#4b5563', fontSize: 9 }}>
+              {p.username}{p.auto_pick ? ' (auto)' : ''}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function flipName(name) {
   if (!name) return name;
   if (name.includes(',')) {
@@ -427,7 +490,16 @@ export default function GolfDraftRoom() {
   const [picking, setPicking] = useState(false);
   const [starting, setStarting] = useState(false);
   const [timerSecs, setTimerSecs] = useState(0);
-  const [queue, setQueue] = useState([]); // local pre-ranked player IDs
+  const prevIsMyTurn = useRef(false);
+
+  // Queue: persisted to localStorage (survives page reload)
+  const [queue, setQueue] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`dq_${id}_${user?.id}`) || '[]'); }
+    catch { return []; }
+  });
+  useEffect(() => {
+    if (user?.id) localStorage.setItem(`dq_${id}_${user.id}`, JSON.stringify(queue));
+  }, [queue, id, user?.id]);
 
   function addToQueue(playerId) {
     setQueue(prev => prev.includes(playerId) ? prev : [...prev, playerId]);
@@ -488,6 +560,12 @@ export default function GolfDraftRoom() {
   const { league, members, picks, available, currentPick, currentPicker, totalPicks, totalRounds, draftComplete, numTeams } = state;
   const isComm = league.commissioner_id === user?.id;
   const isMyTurn = currentPicker?.user_id === user?.id;
+
+  // Sound: chime when it becomes your turn (false→true transition only)
+  useEffect(() => {
+    if (isMyTurn && !prevIsMyTurn.current) playTurnChime();
+    prevIsMyTurn.current = isMyTurn;
+  }, [isMyTurn]);
   const currentRound = Math.ceil((currentPick || 1) / numTeams);
 
   async function handlePick(playerId) {
@@ -577,6 +655,9 @@ export default function GolfDraftRoom() {
       </div>
 
       <ClockBanner picker={currentPicker} isMe={isMyTurn} pickNumber={currentPick} totalPicks={totalPicks} round={currentRound} timerSecs={timerSecs} />
+
+      {/* Live pick ticker */}
+      <PickTicker picks={picks} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }} className="draft-layout">
         <style>{`@media (max-width: 768px) { .draft-layout { grid-template-columns: 1fr !important; } }`}</style>
