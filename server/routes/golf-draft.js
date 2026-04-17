@@ -59,11 +59,11 @@ async function getGolfDraftState(leagueId) {
            gtf.espn_player_id
     FROM golf_draft_picks gdp
     JOIN golf_players gp ON gdp.player_id = gp.id
-    LEFT JOIN pool_tier_players ptp ON ptp.league_id = gdp.league_id
+    LEFT JOIN pool_tier_players ptp ON ptp.league_id = gdp.golf_league_id
       AND ptp.tournament_id = ? AND ptp.player_id = gdp.player_id
     LEFT JOIN golf_tournament_fields gtf ON gtf.tournament_id = ?
       AND gtf.player_id = gdp.player_id
-    WHERE gdp.league_id = ?
+    WHERE gdp.golf_league_id = ?
     ORDER BY gdp.pick_number
   `, league.pool_tournament_id, league.pool_tournament_id, leagueId);
 
@@ -161,7 +161,7 @@ router.post('/:leagueId/pick', authMiddleware, async (req, res) => {
     if (!player) return res.status(404).json({ error: 'Player not found' });
 
     const alreadyPicked = await db.get(
-      'SELECT id FROM golf_draft_picks WHERE league_id = ? AND player_id = ?',
+      'SELECT id FROM golf_draft_picks WHERE golf_league_id = ? AND player_id = ?',
       leagueId, player_id
     );
     if (alreadyPicked) return res.status(409).json({ error: 'Player already drafted' });
@@ -170,7 +170,7 @@ router.post('/:leagueId/pick', authMiddleware, async (req, res) => {
     const pickId = uuidv4();
 
     await db.run(`
-      INSERT INTO golf_draft_picks (id, league_id, user_id, player_id, pick_number, round)
+      INSERT INTO golf_draft_picks (id, golf_league_id, user_id, player_id, pick_number, round)
       VALUES (?, ?, ?, ?, ?, ?)
     `, pickId, leagueId, req.user.id, player_id, currentPick, round);
 
@@ -238,7 +238,7 @@ router.post('/:leagueId/start', authMiddleware, async (req, res) => {
       'SELECT id, user_id FROM golf_league_members WHERE golf_league_id = ?',
       req.params.leagueId
     );
-    if (members.length < 2) return res.status(400).json({ error: 'Need at least 2 members to start draft' });
+    if (members.length < 1) return res.status(400).json({ error: 'Need at least 1 member to start draft' });
 
     // Randomize draft order if not already set
     if (!league.draft_order_randomized) {
@@ -271,7 +271,7 @@ router.post('/:leagueId/start', authMiddleware, async (req, res) => {
 async function bridgeDraftToPoolPicks(leagueId, tournamentId) {
   if (!tournamentId) return;
   const draftPicks = await db.all(
-    'SELECT * FROM golf_draft_picks WHERE league_id = ? ORDER BY pick_number',
+    'SELECT * FROM golf_draft_picks WHERE golf_league_id = ? ORDER BY pick_number',
     leagueId
   );
   if (!draftPicks.length) return;
@@ -294,5 +294,85 @@ async function bridgeDraftToPoolPicks(leagueId, tournamentId) {
   });
   console.log(`[golf-draft] Bridged ${draftPicks.length} draft picks → pool_picks for league ${leagueId}`);
 }
+
+// ── POST /golf/draft/:leagueId/override-pick ─────────────────────────────────
+// Commissioner can swap a player's pick for any available player.
+// Logged with timestamp + reason. Affects future score syncs only.
+router.post('/:leagueId/override-pick', authMiddleware, async (req, res) => {
+  try {
+    const { user_id, old_player_id, new_player_id, reason } = req.body;
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (!reason || reason.trim().length < 3) return res.status(400).json({ error: 'A reason is required (min 3 characters)' });
+
+    // Verify old pick exists
+    const oldPick = await db.get(
+      'SELECT * FROM golf_draft_picks WHERE golf_league_id = ? AND user_id = ? AND player_id = ?',
+      req.params.leagueId, user_id, old_player_id
+    );
+    if (!oldPick) return res.status(404).json({ error: 'Original pick not found' });
+
+    // Verify new player isn't already drafted by someone else
+    const conflict = await db.get(
+      'SELECT id FROM golf_draft_picks WHERE golf_league_id = ? AND player_id = ? AND user_id != ?',
+      req.params.leagueId, new_player_id, user_id
+    );
+    if (conflict) return res.status(409).json({ error: 'That player is already drafted by another team' });
+
+    // Swap in draft_picks
+    await db.run(
+      'UPDATE golf_draft_picks SET player_id = ?, override_reason = ?, override_at = datetime(\'now\'), override_by = ? WHERE id = ?',
+      new_player_id, reason.trim(), req.user.id, oldPick.id
+    );
+
+    // Also swap in pool_picks if draft is completed and bridge has run
+    if (league.draft_status === 'completed' && league.pool_tournament_id) {
+      await db.run(
+        'UPDATE pool_picks SET player_id = ?, player_name = (SELECT name FROM golf_players WHERE id = ?) WHERE league_id = ? AND tournament_id = ? AND user_id = ? AND player_id = ?',
+        new_player_id, new_player_id, req.params.leagueId, league.pool_tournament_id, user_id, old_player_id
+      );
+    }
+
+    // Log it
+    console.log(`[golf-draft] OVERRIDE: league=${req.params.leagueId} user=${user_id} ${old_player_id}→${new_player_id} reason="${reason}" by=${req.user.username}`);
+
+    res.json({ ok: true, message: 'Pick overridden' });
+  } catch (err) {
+    console.error('[golf-draft] override error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PATCH /golf/draft/:leagueId/time ─────────────────────────────────────────
+// Commissioner can update draft_start_time up until 10 minutes before the
+// scheduled time. After that window, the field is locked.
+router.patch('/:leagueId/time', authMiddleware, async (req, res) => {
+  try {
+    const league = await db.get('SELECT * FROM golf_leagues WHERE id = ?', req.params.leagueId);
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    if (league.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (league.draft_status === 'drafting' || league.draft_status === 'completed') {
+      return res.status(400).json({ error: 'Cannot change time — draft already started or completed' });
+    }
+
+    const { draft_start_time } = req.body;
+    if (!draft_start_time) return res.status(400).json({ error: 'draft_start_time required' });
+
+    // Enforce 10-minute lock window on current scheduled time
+    if (league.draft_start_time) {
+      const msUntil = new Date(league.draft_start_time) - Date.now();
+      if (msUntil > 0 && msUntil < 10 * 60 * 1000) {
+        return res.status(400).json({ error: 'Cannot change draft time within 10 minutes of the scheduled start' });
+      }
+    }
+
+    await db.run('UPDATE golf_leagues SET draft_start_time = ? WHERE id = ?', draft_start_time, req.params.leagueId);
+    res.json({ ok: true, draft_start_time });
+  } catch (err) {
+    console.error('[golf-draft] time update error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 module.exports = { router, getGolfDraftState, getCurrentPicker, bridgeDraftToPoolPicks, setIo };

@@ -3084,4 +3084,9 @@ try { db.exec(`ALTER TABLE golf_leagues ADD COLUMN missed_cut_rule TEXT DEFAULT 
 try { db.exec(`ALTER TABLE golf_leagues ADD COLUMN missed_cut_penalty INTEGER DEFAULT 8`); } catch (_) {}
 try { db.exec(`ALTER TABLE golf_tournaments ADD COLUMN no_cut INTEGER DEFAULT 0`); } catch (_) {}
 
+// Override columns for commissioner pick corrections
+try { db.exec('ALTER TABLE golf_draft_picks ADD COLUMN override_reason TEXT DEFAULT NULL'); } catch (_) {}
+try { db.exec('ALTER TABLE golf_draft_picks ADD COLUMN override_at DATETIME DEFAULT NULL'); } catch (_) {}
+try { db.exec('ALTER TABLE golf_draft_picks ADD COLUMN override_by TEXT DEFAULT NULL'); } catch (_) {}
+
 module.exports = db;

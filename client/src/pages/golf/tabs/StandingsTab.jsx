@@ -161,8 +161,8 @@ const LeaderboardRow = memo(function LeaderboardRow({
           <div style={{ color: '#4b5563', fontSize: 10 }}>{isTotalStrokes ? '' : 'pts'}</div>
           {/* Tiebreaker — show on tied teams during active tournament */}
           {s.tiebreaker_score != null && hasScores && rankInfo.tied && (
-            <div style={{ fontSize: 9, color: '#6366f1', fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
-              Tiebreaker: {s.tiebreaker_score > 0 ? '+' : ''}{s.tiebreaker_score}
+            <div style={{ fontSize: 9, color: '#6b7280', fontWeight: 500, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
+              TB: {s.tiebreaker_score > 0 ? '+' : ''}{s.tiebreaker_score}
             </div>
           )}
           {/* Tiebreaker proximity — show after tournament completes (winning_score known) */}

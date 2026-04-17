@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../../api';
+import PlayerAvatar from '../../../components/golf/PlayerAvatar';
 
 const TIER_COLORS = {
   1: { label: '#fbbf24', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
@@ -72,8 +73,10 @@ export default function OwnershipTab({ leagueId }) {
       if (!map[key]) {
         map[key] = {
           player_name: pick.player_name,
+          player_id: pick.player_id,
           tier_number: pick.tier_number,
           country: pick.country,
+          espn_player_id: pick.espn_player_id,
           count: 0,
         };
       }
@@ -115,8 +118,8 @@ export default function OwnershipTab({ leagueId }) {
 
               {/* Player name + bar */}
               <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={28} />
                   <span style={{ color: '#f1f5f9', fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {flipName(p.player_name)}
                   </span>
