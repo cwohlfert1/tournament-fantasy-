@@ -215,17 +215,22 @@ export default function GolfLeague() {
             <h1 className="text-3xl font-bold text-white break-words">{league.name}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {isComm && <Badge color="blue">Commissioner</Badge>}
-              {isPool
-                ? (() => {
-                    const ts = league.pool_tournament_status;
-                    if (ts === 'active')    return <Badge color="green"><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mr-1" />Live</Badge>;
-                    if (ts === 'completed') return <Badge color="gray">Complete</Badge>;
-                    if (league.picks_locked) return <Badge color="yellow">Picks Locked</Badge>;
-                    return <Badge color="green">Picks Open</Badge>;
-                  })()
-                : league.draft_status === 'completed'
-                    ? <Badge color="green">Season Active</Badge>
-                    : null
+              {(() => {
+                // Draft-specific badges
+                if (league.format_type === 'draft') {
+                  if (league.draft_status === 'drafting') return <Badge color="purple"><span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse mr-1" />Draft Live</Badge>;
+                  if (league.draft_status === 'pending') return <Badge color="purple">Draft Pending</Badge>;
+                }
+                // Pool/salary_cap badges
+                if (isPool) {
+                  const ts = league.pool_tournament_status;
+                  if (ts === 'active')    return <Badge color="green"><span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mr-1" />Live</Badge>;
+                  if (ts === 'completed') return <Badge color="gray">Complete</Badge>;
+                  if (league.picks_locked) return <Badge color="yellow">Picks Locked</Badge>;
+                  return <Badge color="green">Picks Open</Badge>;
+                }
+                return league.draft_status === 'completed' ? <Badge color="green">Season Active</Badge> : null;
+              })()
               }
             </div>
           </div>

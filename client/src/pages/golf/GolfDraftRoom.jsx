@@ -1,21 +1,17 @@
 /**
  * GolfDraftRoom — real-time snake draft room for golf pools.
  *
- * Core flow:
- *   1. Commissioner clicks "Start Draft" → draft_status = 'drafting'
- *   2. Players take turns picking golfers in snake order
- *   3. "On the clock" indicator + countdown timer
- *   4. Available players sorted by odds (favorites first)
- *   5. Draft board shows all picks in grid layout
- *   6. When complete → pool_picks populated → scoring works
+ * States: Pre-draft lobby → Active draft → Draft complete
  *
- * Socket events (via golf_draft room):
- *   - golf_draft_pick: { pick, nextPickUserId, draftComplete }
- *   - golf_draft_started: { leagueId }
+ * S1.1: Draft time picker (commissioner edits via PATCH /golf/draft/:id/time)
+ * S1.2: Commissioner override panel (POST /golf/draft/:id/override-pick)
+ * S1.3: Draft-specific badges (pending/live/complete)
+ * S1.4: Draft results tab (read-only board after completion)
+ * S1.5: Pick timer with countdown + auto-pick on timeout
  */
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, Crown, Search, Check, Lock, Users } from 'lucide-react';
+import { ArrowLeft, Clock, Crown, Users, Timer, Shield, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api';
 import socket, { connectSocket } from '../../socket';
@@ -23,6 +19,8 @@ import GolfLoader from '../../components/golf/GolfLoader';
 import PlayerAvatar from '../../components/golf/PlayerAvatar';
 import Alert from '../../components/ui/Alert';
 import { showToast } from '../../components/ui/Toast';
+import { showConfirm } from '../../components/ui/ConfirmDialog';
+import Select from '../../components/ui/Select';
 
 function flipName(name) {
   if (!name) return name;
@@ -33,18 +31,44 @@ function flipName(name) {
   return name;
 }
 
+// ── Pick Countdown Timer (S1.5) ──────────────────────────────────────────────
+function PickCountdown({ secondsRemaining }) {
+  const [secs, setSecs] = useState(secondsRemaining);
+  useEffect(() => { setSecs(secondsRemaining); }, [secondsRemaining]);
+  useEffect(() => {
+    if (secs <= 0) return;
+    const id = setInterval(() => setSecs(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [secs > 0]); // eslint-disable-line
+  const pct = secondsRemaining > 0 ? (secs / secondsRemaining) * 100 : 0;
+  const urgent = secs <= 10;
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <Timer size={14} style={{ color: urgent ? '#ef4444' : '#a78bfa' }} />
+      <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: urgent ? '#ef4444' : '#a78bfa', borderRadius: 999, transition: 'width 1s linear' }} />
+      </div>
+      <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, color: urgent ? '#ef4444' : '#e5e7eb', minWidth: 36 }}>
+        {m}:{String(s).padStart(2, '0')}
+      </span>
+    </div>
+  );
+}
+
 // ── On-the-clock banner ──────────────────────────────────────────────────────
-function ClockBanner({ picker, isMe, pickNumber, totalPicks, round }) {
+function ClockBanner({ picker, isMe, pickNumber, totalPicks, round, timerSecs }) {
   return (
     <div style={{
       background: isMe ? 'rgba(34,197,94,0.12)' : 'rgba(139,92,246,0.08)',
       border: `1px solid ${isMe ? 'rgba(34,197,94,0.4)' : 'rgba(139,92,246,0.3)'}`,
       borderRadius: 14, padding: '14px 18px', marginBottom: 14,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: timerSecs > 0 ? 10 : 0 }}>
         <div>
           <div style={{ color: isMe ? '#4ade80' : '#c4b5fd', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
-            {isMe ? 'You are on the clock' : 'On the clock'}
+            {isMe ? 'Your pick' : 'On the clock'}
           </div>
           <div style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>
             {isMe ? 'Make your pick!' : `${picker?.username || 'Waiting...'}`}
@@ -55,15 +79,15 @@ function ClockBanner({ picker, isMe, pickNumber, totalPicks, round }) {
           <div style={{ color: '#6b7280', fontSize: 11 }}>Round {round}</div>
         </div>
       </div>
+      {timerSecs > 0 && <PickCountdown secondsRemaining={timerSecs} />}
     </div>
   );
 }
 
-// ── Draft board grid ─────────────────────────────────────────────────────────
+// ── Draft Board Grid ─────────────────────────────────────────────────────────
 function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
-  const currentRound = Math.ceil((currentPick || 1) / numTeams);
   return (
-    <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+    <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: numTeams * 100 }}>
         <thead>
           <tr>
@@ -78,15 +102,15 @@ function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
         <tbody>
           {Array.from({ length: totalRounds }, (_, ri) => {
             const round = ri + 1;
-            const isSnakeReverse = round % 2 === 0;
-            const orderedMembers = isSnakeReverse ? [...members].reverse() : members;
-            const isActiveRound = round === currentRound;
+            const isReverse = round % 2 === 0;
+            const ordered = isReverse ? [...members].reverse() : members;
+            const isActive = round === Math.ceil((currentPick || 1) / numTeams);
             return (
-              <tr key={round} style={{ background: isActiveRound ? 'rgba(139,92,246,0.05)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <tr key={round} style={{ background: isActive ? 'rgba(139,92,246,0.05)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <td style={{ padding: '6px 8px', color: '#4b5563', fontWeight: 700, fontSize: 10, position: 'sticky', left: 0, background: '#111827', zIndex: 1 }}>
-                  {round} <span style={{ color: '#374151', fontSize: 8 }}>{isSnakeReverse ? '←' : '→'}</span>
+                  {round} <span style={{ color: '#374151', fontSize: 8 }}>{isReverse ? '←' : '→'}</span>
                 </td>
-                {orderedMembers.map((m, ci) => {
+                {ordered.map((m, ci) => {
                   const pickNum = (round - 1) * numTeams + ci + 1;
                   const pick = picks.find(p => p.pick_number === pickNum);
                   const isCurrent = pickNum === currentPick;
@@ -100,9 +124,10 @@ function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
                       {pick ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                           <PlayerAvatar name={pick.player_name} tier={pick.tier_number} espnPlayerId={pick.espn_player_id} size={24} />
-                          <span style={{ color: '#d1d5db', fontSize: 10, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
+                          <span style={{ color: pick.auto_pick ? '#f59e0b' : '#d1d5db', fontSize: 10, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
                             {flipName(pick.player_name)?.split(' ').pop()}
                           </span>
+                          {pick.override_reason && <span style={{ fontSize: 8, color: '#f59e0b' }}>edited</span>}
                         </div>
                       ) : isCurrent ? (
                         <Clock size={14} style={{ color: '#a78bfa', margin: '0 auto' }} />
@@ -119,7 +144,7 @@ function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
   );
 }
 
-// ── Available players list ───────────────────────────────────────────────────
+// ── Available Players List ───────────────────────────────────────────────────
 function AvailablePlayersList({ players, onPick, isMyTurn, picking }) {
   const [search, setSearch] = useState('');
   const q = search.trim().toLowerCase();
@@ -128,51 +153,22 @@ function AvailablePlayersList({ players, onPick, isMyTurn, picking }) {
   return (
     <div>
       <div style={{ marginBottom: 10 }}>
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search available players…"
-          style={{
-            width: '100%', background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
-            padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none',
-          }}
-        />
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search available players…"
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none' }} />
       </div>
       <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-        {filtered.length === 0 && (
-          <p style={{ color: '#4b5563', textAlign: 'center', padding: 24, fontSize: 13 }}>No players available</p>
-        )}
+        {filtered.length === 0 && <p style={{ color: '#4b5563', textAlign: 'center', padding: 24, fontSize: 13 }}>No players available</p>}
         {filtered.map(p => (
-          <button
-            key={p.player_id}
-            type="button"
-            disabled={!isMyTurn || picking}
-            onClick={() => onPick(p.player_id)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)',
-              background: 'transparent', border: 'none', textAlign: 'left',
-              cursor: isMyTurn && !picking ? 'pointer' : 'default',
-              opacity: isMyTurn ? 1 : 0.5,
-              transition: 'background 0.1s',
-            }}
+          <button key={p.player_id} type="button" disabled={!isMyTurn || picking} onClick={() => onPick(p.player_id)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'transparent', border: 'none', textAlign: 'left', cursor: isMyTurn && !picking ? 'pointer' : 'default', opacity: isMyTurn ? 1 : 0.5, transition: 'background 0.1s' }}
             onMouseEnter={e => { if (isMyTurn) e.currentTarget.style.background = 'rgba(139,92,246,0.06)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-          >
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
             <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={32} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {flipName(p.player_name)}
-              </div>
-              <div style={{ color: '#6b7280', fontSize: 11 }}>
-                {p.odds_display || '—'}{p.world_ranking ? ` · #${p.world_ranking}` : ''}
-              </div>
+              <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{flipName(p.player_name)}</div>
+              <div style={{ color: '#6b7280', fontSize: 11 }}>{p.odds_display || '—'}{p.world_ranking ? ` · #${p.world_ranking}` : ''}</div>
             </div>
-            {isMyTurn && !picking && (
-              <div style={{ color: '#a78bfa', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>Draft</div>
-            )}
+            {isMyTurn && !picking && <div style={{ color: '#a78bfa', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>Draft</div>}
           </button>
         ))}
       </div>
@@ -180,14 +176,12 @@ function AvailablePlayersList({ players, onPick, isMyTurn, picking }) {
   );
 }
 
-// ── My roster sidebar ────────────────────────────────────────────────────────
+// ── My Roster ────────────────────────────────────────────────────────────────
 function MyRoster({ picks, userId, totalRounds }) {
   const myPicks = picks.filter(p => p.user_id === userId);
   return (
     <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
-      <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-        My Team ({myPicks.length}/{totalRounds})
-      </div>
+      <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>My Team ({myPicks.length}/{totalRounds})</div>
       {myPicks.length === 0 ? (
         <p style={{ color: '#4b5563', fontSize: 12 }}>No picks yet</p>
       ) : (
@@ -196,11 +190,10 @@ function MyRoster({ picks, userId, totalRounds }) {
             <div key={p.player_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={24} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {flipName(p.player_name)}
-                </div>
+                <div style={{ color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{flipName(p.player_name)}</div>
               </div>
               <span style={{ color: '#6b7280', fontSize: 10, flexShrink: 0 }}>Rd {p.round}</span>
+              {p.override_reason && <span style={{ fontSize: 8, color: '#f59e0b', fontWeight: 700 }}>edited</span>}
             </div>
           ))}
         </div>
@@ -209,17 +202,140 @@ function MyRoster({ picks, userId, totalRounds }) {
   );
 }
 
-// ── Pre-draft lobby ──────────────────────────────────────────────────────────
-function PreDraftLobby({ league, members, isComm, onStart, starting }) {
+// ── Commissioner Override Panel (S1.2) ───────────────────────────────────────
+function OverridePanel({ leagueId, members, picks, available, onDone }) {
+  const [userId, setUserId] = useState('');
+  const [oldPlayerId, setOldPlayerId] = useState('');
+  const [newPlayerId, setNewPlayerId] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const userPicks = picks.filter(p => p.user_id === userId);
+  const allDraftedIds = new Set(picks.map(p => p.player_id));
+
+  async function handleOverride() {
+    if (!userId || !oldPlayerId || !newPlayerId || reason.trim().length < 3) return;
+    const ok = await showConfirm({
+      title: 'Override this pick?',
+      description: `This swap will be logged and visible to you as commissioner. The player's score will update on the next sync cycle.`,
+      confirmLabel: 'Override pick',
+      variant: 'warning',
+    });
+    if (!ok) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/golf/draft/${leagueId}/override-pick`, { user_id: userId, old_player_id: oldPlayerId, new_player_id: newPlayerId, reason: reason.trim() });
+      showToast.success('Pick overridden');
+      setOldPlayerId(''); setNewPlayerId(''); setReason('');
+      onDone();
+    } catch (err) {
+      showToast.error(err.response?.data?.error || 'Override failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 12, padding: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Shield size={14} style={{ color: '#f59e0b' }} />
+        <span style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Commissioner Override</span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Select value={userId} onChange={setUserId} placeholder="Select team" fullWidth size="sm"
+          options={members.map(m => ({ value: m.user_id, label: m.team_name || m.username }))} />
+
+        {userId && (
+          <Select value={oldPlayerId} onChange={setOldPlayerId} placeholder="Player to replace" fullWidth size="sm"
+            options={userPicks.map(p => ({ value: p.player_id, label: `${flipName(p.player_name)} (Rd ${p.round})` }))} />
+        )}
+
+        {oldPlayerId && (
+          <Select value={newPlayerId} onChange={setNewPlayerId} placeholder="Replacement player" fullWidth size="sm"
+            options={(available || []).filter(p => !allDraftedIds.has(p.player_id) || p.player_id === oldPlayerId).map(p => ({
+              value: p.player_id, label: `${flipName(p.player_name)} — ${p.odds_display || '?'}`,
+            }))} />
+        )}
+
+        <input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason for override (required)"
+          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 12, outline: 'none' }} />
+
+        <button type="button" disabled={submitting || !userId || !oldPlayerId || !newPlayerId || reason.trim().length < 3} onClick={handleOverride}
+          style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24', opacity: submitting ? 0.5 : 1 }}>
+          {submitting ? 'Overriding…' : 'Override Pick'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Draft Time Picker (S1.1) ─────────────────────────────────────────────────
+function DraftTimePicker({ league, leagueId, onSaved }) {
+  const current = league.draft_start_time ? new Date(league.draft_start_time) : null;
+  const [value, setValue] = useState(current ? current.toISOString().slice(0, 16) : '');
+  const [saving, setSaving] = useState(false);
+
+  const isLocked = current && (current - Date.now()) < 10 * 60 * 1000 && (current - Date.now()) > 0;
+
+  async function save() {
+    if (!value) return;
+    setSaving(true);
+    try {
+      await api.patch(`/golf/draft/${leagueId}/time`, { draft_start_time: new Date(value).toISOString() });
+      showToast.success('Draft time updated');
+      onSaved();
+    } catch (err) {
+      showToast.error(err.response?.data?.error || 'Failed to update time');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+      <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+        Draft Time {isLocked && <span style={{ color: '#f59e0b', marginLeft: 6 }}>🔒 Locked (within 10 min)</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="datetime-local"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          disabled={isLocked}
+          style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none' }}
+        />
+        <button type="button" onClick={save} disabled={saving || isLocked || !value}
+          style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.4)', color: '#a78bfa', cursor: 'pointer', opacity: saving || isLocked ? 0.5 : 1 }}>
+          {saving ? 'Saving…' : 'Set'}
+        </button>
+      </div>
+      {current && !isLocked && (
+        <p style={{ color: '#6b7280', fontSize: 11, marginTop: 6 }}>
+          Currently: {current.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Pre-Draft Lobby ──────────────────────────────────────────────────────────
+function PreDraftLobby({ league, members, isComm, onStart, starting, leagueId, onRefresh }) {
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', textAlign: 'center' }}>
       <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
         <Users size={26} style={{ color: '#a78bfa' }} />
       </div>
       <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Snake Draft Lobby</h2>
-      <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 24 }}>
-        {members.length} of {league.max_teams} teams joined. {isComm ? 'Start the draft when ready.' : 'Waiting for commissioner to start the draft.'}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#c4b5fd', marginBottom: 16 }}>
+        Draft Pending
+      </div>
+      <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 20 }}>
+        {members.length} team{members.length !== 1 ? 's' : ''} joined. {isComm ? 'Set a draft time or start when ready.' : 'Waiting for commissioner to start the draft.'}
       </p>
+
+      {/* S1.1: Draft time picker */}
+      {isComm && <DraftTimePicker league={league} leagueId={leagueId} onSaved={onRefresh} />}
 
       <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 14, marginBottom: 20, textAlign: 'left' }}>
         <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Teams</div>
@@ -233,18 +349,9 @@ function PreDraftLobby({ league, members, isComm, onStart, starting }) {
       </div>
 
       {isComm && (
-        <button
-          onClick={onStart}
-          disabled={starting || members.length < 2}
-          style={{
-            width: '100%', padding: '14px 24px', borderRadius: 12,
-            background: starting || members.length < 2 ? '#374151' : 'linear-gradient(135deg, #7c3aed, #6d28d9)',
-            color: '#fff', fontWeight: 700, fontSize: 15, border: 'none',
-            cursor: starting || members.length < 2 ? 'not-allowed' : 'pointer',
-            boxShadow: '0 6px 20px rgba(124,58,237,0.25)',
-          }}
-        >
-          {starting ? 'Starting…' : `Start Draft (${members.length} teams)`}
+        <button onClick={onStart} disabled={starting || members.length < 1}
+          style={{ width: '100%', padding: '14px 24px', borderRadius: 12, background: starting ? '#374151' : 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: starting ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(124,58,237,0.25)' }}>
+          {starting ? 'Starting…' : `Start Draft Now (${members.length} team${members.length !== 1 ? 's' : ''})`}
         </button>
       )}
     </div>
@@ -260,7 +367,7 @@ export default function GolfDraftRoom() {
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState(false);
   const [starting, setStarting] = useState(false);
-  const boardRef = useRef(null);
+  const [timerSecs, setTimerSecs] = useState(0);
 
   async function loadState() {
     try {
@@ -275,7 +382,7 @@ export default function GolfDraftRoom() {
 
   useEffect(() => { loadState(); }, [id]);
 
-  // Socket: real-time draft events
+  // Socket events
   useEffect(() => {
     if (!user) return;
     const token = localStorage.getItem('token');
@@ -284,24 +391,20 @@ export default function GolfDraftRoom() {
     socket.emit('join_golf_draft', { leagueId: id, token });
 
     socket.on('golf_draft_pick', (data) => {
-      // Reload full state on each pick for simplicity
       loadState();
       if (data.pick?.username) {
-        showToast.info(`${data.pick.username} drafted ${flipName(data.pick.player_name)}`);
+        const label = data.pick.auto_pick ? '(auto)' : '';
+        showToast.info(`${data.pick.username} drafted ${flipName(data.pick.player_name)} ${label}`);
       }
-      if (data.draftComplete) {
-        showToast.success('Draft complete! Picks have been locked in.');
-      }
+      if (data.draftComplete) showToast.success('Draft complete!');
     });
-
-    socket.on('golf_draft_started', () => {
-      showToast.info('The draft has started!');
-      loadState();
-    });
+    socket.on('golf_draft_started', () => { showToast.info('Draft started!'); loadState(); });
+    socket.on('golf_draft_timer', ({ secondsRemaining }) => { setTimerSecs(secondsRemaining); });
 
     return () => {
       socket.off('golf_draft_pick');
       socket.off('golf_draft_started');
+      socket.off('golf_draft_timer');
     };
   }, [id, user]);
 
@@ -323,12 +426,8 @@ export default function GolfDraftRoom() {
   async function handlePick(playerId) {
     setPicking(true);
     try {
-      const r = await api.post(`/golf/draft/${id}/pick`, { player_id: playerId });
-      // Socket will handle state refresh, but optimistic update too
+      await api.post(`/golf/draft/${id}/pick`, { player_id: playerId });
       loadState();
-      if (r.data.draftComplete) {
-        showToast.success('Draft complete!');
-      }
     } catch (err) {
       showToast.error(err.response?.data?.error || 'Pick failed');
     } finally {
@@ -349,38 +448,50 @@ export default function GolfDraftRoom() {
     }
   }
 
-  // Pre-draft lobby
+  // ── Pre-draft lobby ──
   if (league.draft_status === 'pending') {
     return (
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
         <Link to={`/golf/league/${id}`} style={{ color: '#6b7280', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 20 }}>
           <ArrowLeft size={14} /> Back to league
         </Link>
-        <PreDraftLobby league={league} members={members} isComm={isComm} onStart={handleStart} starting={starting} />
+        <PreDraftLobby league={league} members={members} isComm={isComm} onStart={handleStart} starting={starting} leagueId={id} onRefresh={loadState} />
       </div>
     );
   }
 
-  // Draft complete
+  // ── Draft complete (S1.4: read-only draft board) ──
   if (draftComplete) {
     return (
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
         <Link to={`/golf/league/${id}?tab=standings`} style={{ color: '#6b7280', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 20 }}>
           <ArrowLeft size={14} /> Back to standings
         </Link>
-        <Alert variant="success" title="Draft complete!" style={{ marginBottom: 16 }}>
-          All {totalPicks} picks are locked in. Scores will update automatically once the tournament begins.
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#4ade80', marginBottom: 14 }}>
+          Draft Complete
+        </div>
+        <Alert variant="success" title="All picks are in!" style={{ marginBottom: 16 }}>
+          {totalPicks} picks across {totalRounds} rounds. Scores update automatically when the tournament begins.
         </Alert>
-        <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={totalPicks + 1} />
+        <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
+          <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Full Draft Board</div>
+          <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={totalPicks + 1} />
+        </div>
         <MyRoster picks={picks} userId={user?.id} totalRounds={totalRounds} />
+
+        {/* S1.2: Commissioner override (post-draft corrections) */}
+        {isComm && (
+          <div style={{ marginTop: 16 }}>
+            <OverridePanel leagueId={id} members={members} picks={picks} available={available} onDone={loadState} />
+          </div>
+        )}
       </div>
     );
   }
 
-  // Active draft
+  // ── Active draft ──
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '16px' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <Link to={`/golf/league/${id}`} style={{ color: '#6b7280', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -388,40 +499,32 @@ export default function GolfDraftRoom() {
           </Link>
           <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginTop: 2 }}>Snake Draft</h1>
         </div>
-        <div style={{ color: '#6b7280', fontSize: 12 }}>
-          {league.pool_tournament_name || 'Tournament'} · {numTeams} teams · {totalRounds} rounds
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700, color: '#4ade80' }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', animation: 'pulse 1.5s infinite' }} /> LIVE
+          </span>
+          <span style={{ color: '#6b7280', fontSize: 12 }}>
+            {numTeams} teams · Rd {currentRound}/{totalRounds}
+          </span>
         </div>
       </div>
 
-      {/* On-the-clock */}
-      <ClockBanner
-        picker={currentPicker}
-        isMe={isMyTurn}
-        pickNumber={currentPick}
-        totalPicks={totalPicks}
-        round={currentRound}
-      />
+      <ClockBanner picker={currentPicker} isMe={isMyTurn} pickNumber={currentPick} totalPicks={totalPicks} round={currentRound} timerSecs={timerSecs} />
 
-      {/* Main layout: board + sidebar */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }} className="draft-layout">
         <style>{`@media (max-width: 768px) { .draft-layout { grid-template-columns: 1fr !important; } }`}</style>
 
-        {/* Left: Draft board + available players */}
         <div>
           <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
             <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Draft Board</div>
             <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={currentPick} />
           </div>
-
           <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
-            <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-              Available Players ({available.length})
-            </div>
+            <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Available Players ({available.length})</div>
             <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} />
           </div>
         </div>
 
-        {/* Right: My roster */}
         <div>
           <MyRoster picks={picks} userId={user?.id} totalRounds={totalRounds} />
         </div>

@@ -21,10 +21,11 @@ const db = require('../db/index');
 const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
+const { scheduleAutoPick, cancelTimer, setIo: setTimerIo } = require('../golfDraftTimer');
 
 // Socket.io reference — injected from index.js
 let _io = null;
-function setIo(io) { _io = io; }
+function setIo(io) { _io = io; setTimerIo(io); }
 function emit(leagueId, event, data) {
   if (_io) _io.to(`golf_draft_${leagueId}`).emit(event, data);
 }
@@ -217,6 +218,9 @@ router.post('/:leagueId/pick', authMiddleware, async (req, res) => {
     // Broadcast to all clients in the draft room
     emit(leagueId, 'golf_draft_pick', { pick, nextPickUserId: nextPicker?.user_id || null, draftComplete });
 
+    // Schedule next pick's timer (or cancel if complete)
+    if (draftComplete) { cancelTimer(leagueId); } else { scheduleAutoPick(leagueId); }
+
     res.json({ pick, nextPickUserId: nextPicker?.user_id || null, draftComplete });
   } catch (err) {
     console.error('[golf-draft] pick error:', err);
@@ -257,6 +261,9 @@ router.post('/:leagueId/start', authMiddleware, async (req, res) => {
     );
 
     emit(req.params.leagueId, 'golf_draft_started', { leagueId: req.params.leagueId });
+
+    // Start the pick timer for the first pick
+    scheduleAutoPick(req.params.leagueId);
 
     res.json({ ok: true, message: 'Draft started' });
   } catch (err) {

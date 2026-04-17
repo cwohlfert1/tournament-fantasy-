@@ -152,19 +152,28 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
   const myRank      = myStanding?.rank;
   const totalTeams  = standingsData?.standings?.length;
   const showRank    = myRank != null && isPool && (poolTs === 'active' || poolTs === 'completed');
+  const isDraft = league.format_type === 'draft';
+  const draftLive = isDraft && league.draft_status === 'drafting';
+  const draftPending = isDraft && league.draft_status === 'pending';
   const statusLabel = past ? 'Completed'
+    : draftLive ? 'Draft Live'
+    : draftPending ? 'Draft Pending'
     : isPool
       ? (poolTs === 'active' ? 'Live' : poolTs === 'completed' ? 'Complete' : league.picks_locked ? 'Picks Locked' : 'Picks Open')
       : (league.draft_status === 'completed' ? 'Season Active' : 'Draft Pending');
   const statusColor = past ? 'text-gray-500'
+    : draftLive ? 'text-purple-400'
+    : draftPending ? 'text-purple-400'
     : isPool
       ? (poolTs === 'active' ? 'text-green-400' : poolTs === 'completed' ? 'text-gray-500' : league.picks_locked ? 'text-yellow-400' : 'text-green-400')
       : (league.draft_status === 'completed' ? 'text-green-400' : 'text-blue-400');
   const statusDot   = past ? 'bg-gray-600'
+    : draftLive ? 'bg-purple-400'
+    : draftPending ? 'bg-purple-400'
     : isPool
       ? (poolTs === 'active' ? 'bg-green-400' : poolTs === 'completed' ? 'bg-gray-600' : league.picks_locked ? 'bg-yellow-400' : 'bg-green-400')
       : (league.draft_status === 'completed' ? 'bg-green-400' : 'bg-blue-400');
-  const statusPulse = !past && ((isPool && poolTs === 'active') || (!isPool && league.draft_status === 'completed'));
+  const statusPulse = !past && ((isPool && poolTs === 'active') || draftLive || (!isPool && league.draft_status === 'completed'));
 
   // Pool tournament line
   const hasTourn    = !!league.pool_tournament_name;
