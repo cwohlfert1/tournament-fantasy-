@@ -144,34 +144,93 @@ function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
   );
 }
 
-// ── Available Players List ───────────────────────────────────────────────────
-function AvailablePlayersList({ players, onPick, isMyTurn, picking }) {
+// ── Available Players List + Queue ────────────────────────────────────────────
+function AvailablePlayersList({ players, onPick, isMyTurn, picking, queue, onAddToQueue, onRemoveFromQueue }) {
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('available'); // 'available' | 'queue'
   const q = search.trim().toLowerCase();
   const filtered = q ? players.filter(p => flipName(p.player_name)?.toLowerCase().includes(q)) : players;
+  const queueSet = new Set(queue);
+  const queuePlayers = queue.map(id => players.find(p => p.player_id === id)).filter(Boolean);
 
   return (
     <div>
-      <div style={{ marginBottom: 10 }}>
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search available players…"
-          style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none' }} />
-      </div>
-      <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-        {filtered.length === 0 && <p style={{ color: '#4b5563', textAlign: 'center', padding: 24, fontSize: 13 }}>No players available</p>}
-        {filtered.map(p => (
-          <button key={p.player_id} type="button" disabled={!isMyTurn || picking} onClick={() => onPick(p.player_id)}
-            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'transparent', border: 'none', textAlign: 'left', cursor: isMyTurn && !picking ? 'pointer' : 'default', opacity: isMyTurn ? 1 : 0.5, transition: 'background 0.1s' }}
-            onMouseEnter={e => { if (isMyTurn) e.currentTarget.style.background = 'rgba(139,92,246,0.06)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-            <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={32} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{flipName(p.player_name)}</div>
-              <div style={{ color: '#6b7280', fontSize: 11 }}>{p.odds_display || '—'}{p.world_ranking ? ` · #${p.world_ranking}` : ''}</div>
-            </div>
-            {isMyTurn && !picking && <div style={{ color: '#a78bfa', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>Draft</div>}
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 2, marginBottom: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 2 }}>
+        {[['available', `Available (${players.length})`], ['queue', `My Queue (${queuePlayers.length})`]].map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setTab(k)}
+            style={{ flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', background: tab === k ? 'rgba(139,92,246,0.2)' : 'transparent', color: tab === k ? '#c4b5fd' : '#6b7280', transition: 'all 0.15s' }}>
+            {label}
           </button>
         ))}
       </div>
+
+      {tab === 'available' && (
+        <>
+          <div style={{ marginBottom: 10 }}>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search available players…"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 13, outline: 'none' }} />
+          </div>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {filtered.length === 0 && <p style={{ color: '#4b5563', textAlign: 'center', padding: 24, fontSize: 13 }}>No players available</p>}
+            {filtered.map(p => {
+              const inQueue = queueSet.has(p.player_id);
+              return (
+                <div key={p.player_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={32} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{flipName(p.player_name)}</div>
+                    <div style={{ color: '#6b7280', fontSize: 11 }}>{p.odds_display || '—'}{p.world_ranking ? ` · #${p.world_ranking}` : ''}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button type="button" onClick={() => inQueue ? onRemoveFromQueue(p.player_id) : onAddToQueue(p.player_id)}
+                      style={{ padding: '4px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, border: 'none', cursor: 'pointer', background: inQueue ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.06)', color: inQueue ? '#fbbf24' : '#6b7280' }}>
+                      {inQueue ? '★ Queued' : '+ Queue'}
+                    </button>
+                    {isMyTurn && !picking && (
+                      <button type="button" onClick={() => onPick(p.player_id)}
+                        style={{ padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', background: 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}>
+                        Draft
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {tab === 'queue' && (
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {queuePlayers.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: '#4b5563', fontSize: 13 }}>
+              <p style={{ marginBottom: 4 }}>No players queued</p>
+              <p style={{ fontSize: 11 }}>Add players from the Available tab to pre-rank your picks.</p>
+            </div>
+          )}
+          {queuePlayers.map((p, i) => (
+            <div key={p.player_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <span style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, width: 20, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+              <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={28} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{flipName(p.player_name)}</div>
+                <div style={{ color: '#6b7280', fontSize: 11 }}>{p.odds_display || '—'}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                {i > 0 && <button type="button" onClick={() => onRemoveFromQueue(p.player_id) || onAddToQueue(p.player_id)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 14, padding: 2 }}>↑</button>}
+                <button type="button" onClick={() => onRemoveFromQueue(p.player_id)}
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, padding: 2 }}>✕</button>
+              </div>
+            </div>
+          ))}
+          {queuePlayers.length > 0 && (
+            <p style={{ color: '#6b7280', fontSize: 11, padding: '10px 10px 4px', textAlign: 'center' }}>
+              When it's your turn, the top queued player still available will be suggested first.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -368,6 +427,14 @@ export default function GolfDraftRoom() {
   const [picking, setPicking] = useState(false);
   const [starting, setStarting] = useState(false);
   const [timerSecs, setTimerSecs] = useState(0);
+  const [queue, setQueue] = useState([]); // local pre-ranked player IDs
+
+  function addToQueue(playerId) {
+    setQueue(prev => prev.includes(playerId) ? prev : [...prev, playerId]);
+  }
+  function removeFromQueue(playerId) {
+    setQueue(prev => prev.filter(id => id !== playerId));
+  }
 
   async function loadState() {
     try {
@@ -521,7 +588,7 @@ export default function GolfDraftRoom() {
           </div>
           <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
             <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Available Players ({available.length})</div>
-            <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} />
+            <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
           </div>
         </div>
 
