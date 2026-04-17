@@ -90,11 +90,43 @@ async function getGolfDraftState(leagueId) {
   const currentPicker = currentPick <= totalPicks ? getCurrentPicker(currentPick, numTeams, members) : null;
   const draftComplete = currentPick > totalPicks || league.draft_status === 'completed';
 
+  // Recent form: last 3 tournament finishes per player (for player card modal)
+  const recentForm = {};
+  if (league.pool_tournament_id) {
+    const allPlayerIds = available.map(p => p.player_id);
+    if (allPlayerIds.length > 0) {
+      const formRows = await db.all(`
+        SELECT gs.player_id, gt.name AS tournament_name,
+               gs.round1, gs.round2, gs.round3, gs.round4,
+               gs.finish_position, gs.made_cut
+        FROM golf_scores gs
+        JOIN golf_tournaments gt ON gt.id = gs.tournament_id
+        WHERE gs.player_id IN (${allPlayerIds.map(() => '?').join(',')})
+          AND gs.tournament_id != ?
+          AND (gs.round1 IS NOT NULL OR gs.finish_position IS NOT NULL)
+        ORDER BY gt.start_date DESC
+      `, ...allPlayerIds, league.pool_tournament_id);
+      for (const r of formRows) {
+        if (!recentForm[r.player_id]) recentForm[r.player_id] = [];
+        if (recentForm[r.player_id].length < 3) {
+          const total = [r.round1, r.round2, r.round3, r.round4].filter(v => v != null).reduce((s, v) => s + v, 0);
+          recentForm[r.player_id].push({
+            tournament: r.tournament_name,
+            finish: r.finish_position,
+            total,
+            made_cut: r.made_cut,
+          });
+        }
+      }
+    }
+  }
+
   return {
     league,
     members,
     picks,
     available: available.filter(p => !draftedIds.has(p.player_id)),
+    recentForm,
     currentPick,
     currentPicker,
     totalPicks,
