@@ -75,8 +75,9 @@ function PickTicker({ picks }) {
             <div style={{ color: '#d1d5db', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>
               {flipName(p.player_name)?.split(' ').pop()}
             </div>
-            <div style={{ color: '#4b5563', fontSize: 9 }}>
-              {p.username}{p.auto_pick ? ' (auto)' : ''}
+            <div style={{ color: '#4b5563', fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}>
+              {p.username}
+              {p.auto_pick && <Timer size={8} style={{ color: '#f59e0b' }} />}
             </div>
           </div>
         </div>
@@ -154,7 +155,7 @@ function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: numTeams * 100 }}>
         <thead>
           <tr>
-            <th style={{ padding: '6px 8px', color: '#4b5563', fontSize: 10, fontWeight: 700, textAlign: 'left', position: 'sticky', left: 0, background: '#111827', zIndex: 1 }}>Rd</th>
+            <th style={{ padding: '6px 8px', color: '#4b5563', fontSize: 10, fontWeight: 700, textAlign: 'left', position: 'sticky', left: 0, background: '#0a1a0f', zIndex: 1 }}>Rd</th>
             {members.map(m => (
               <th key={m.user_id} style={{ padding: '6px 8px', color: '#9ca3af', fontSize: 10, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {m.team_name || m.username}
@@ -170,7 +171,7 @@ function DraftBoard({ members, picks, numTeams, totalRounds, currentPick }) {
             const isActive = round === Math.ceil((currentPick || 1) / numTeams);
             return (
               <tr key={round} style={{ background: isActive ? 'rgba(139,92,246,0.05)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <td style={{ padding: '6px 8px', color: '#4b5563', fontWeight: 700, fontSize: 10, position: 'sticky', left: 0, background: '#111827', zIndex: 1 }}>
+                <td style={{ padding: '6px 8px', color: '#4b5563', fontWeight: 700, fontSize: 10, position: 'sticky', left: 0, background: '#0a1a0f', zIndex: 1 }}>
                   {round} <span style={{ color: '#374151', fontSize: 8 }}>{isReverse ? '←' : '→'}</span>
                 </td>
                 {ordered.map((m, ci) => {
@@ -252,7 +253,7 @@ function AvailablePlayersList({ players, onPick, isMyTurn, picking, queue, onAdd
                     </button>
                     {isMyTurn && !picking && (
                       <button type="button" onClick={() => onPick(p.player_id)}
-                        style={{ padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', background: 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}>
+                        style={{ padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', background: 'rgba(34,197,94,0.2)', color: '#4ade80' }}>
                         Draft
                       </button>
                     )}
@@ -302,8 +303,8 @@ function AvailablePlayersList({ players, onPick, isMyTurn, picking, queue, onAdd
 function MyRoster({ picks, userId, totalRounds }) {
   const myPicks = picks.filter(p => p.user_id === userId);
   return (
-    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' }}>
-      <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>My Team ({myPicks.length}/{totalRounds})</div>
+    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderLeft: '3px solid #22c55e', borderRadius: 12, padding: '12px 14px' }}>
+      <div style={{ color: '#4ade80', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>My Team ({myPicks.length}/{totalRounds})</div>
       {myPicks.length === 0 ? (
         <p style={{ color: '#4b5563', fontSize: 12 }}>No picks yet</p>
       ) : (
@@ -619,7 +620,7 @@ export default function GolfDraftRoom() {
         <Alert variant="success" title="All picks are in!" style={{ marginBottom: 16 }}>
           {totalPicks} picks across {totalRounds} rounds. Scores update automatically when the tournament begins.
         </Alert>
-        <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
+        <div style={{ background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 16 }}>
           <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Full Draft Board</div>
           <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={totalPicks + 1} />
         </div>
@@ -663,11 +664,11 @@ export default function GolfDraftRoom() {
       {/* Desktop: two-panel grid. Mobile: single panel controlled by bottom nav */}
       <div className="hidden lg:grid" style={{ gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
         <div>
-          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
+          <div style={{ background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, marginBottom: 14 }}>
             <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Draft Board</div>
             <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={currentPick} />
           </div>
-          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
+          <div style={{ background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14 }}>
             <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Available Players ({available.length})</div>
             <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
           </div>
@@ -680,19 +681,40 @@ export default function GolfDraftRoom() {
       {/* Mobile panels — one visible at a time, controlled by bottom nav */}
       <div className="lg:hidden" style={{ paddingBottom: 72 }}>
         {mobilePanel === 'players' && (
-          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
+          <div style={{ background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
             <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
           </div>
         )}
         {mobilePanel === 'board' && (
-          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
+          <div style={{ background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
             <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Draft Board</div>
             <DraftBoard members={members} picks={picks} numTeams={numTeams} totalRounds={totalRounds} currentPick={currentPick} />
           </div>
         )}
         {mobilePanel === 'queue' && (
-          <div style={{ background: '#111827', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
-            <AvailablePlayersList players={available} onPick={handlePick} isMyTurn={isMyTurn} picking={picking} queue={queue} onAddToQueue={addToQueue} onRemoveFromQueue={removeFromQueue} />
+          <div style={{ background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 14, minHeight: '60vh' }}>
+            {/* Force queue sub-tab open — dedicated queue view on mobile */}
+            <div style={{ color: '#fbbf24', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              My Queue ({queue.filter(id => available.some(p => p.player_id === id)).length} available)
+            </div>
+            {queue.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: '#4b5563', fontSize: 13 }}>
+                <p style={{ marginBottom: 4 }}>No players queued</p>
+                <p style={{ fontSize: 11 }}>Go to Players tab → tap "+ Queue" to pre-rank your picks.</p>
+              </div>
+            ) : (
+              queue.map(id => available.find(p => p.player_id === id)).filter(Boolean).map((p, i) => (
+                <div key={p.player_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, width: 20, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+                  <PlayerAvatar name={p.player_name} tier={p.tier_number} espnPlayerId={p.espn_player_id} size={28} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{flipName(p.player_name)}</div>
+                    <div style={{ color: '#6b7280', fontSize: 11 }}>{p.odds_display || '—'}</div>
+                  </div>
+                  <button type="button" onClick={() => removeFromQueue(p.player_id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, padding: 4 }}>✕</button>
+                </div>
+              ))
+            )}
           </div>
         )}
         {mobilePanel === 'myteam' && (
@@ -703,7 +725,7 @@ export default function GolfDraftRoom() {
       </div>
 
       {/* Mobile bottom nav */}
-      <div className="fixed bottom-0 inset-x-0 z-50 lg:hidden" style={{ background: '#0f1923', borderTop: '1px solid rgba(255,255,255,0.08)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="fixed bottom-0 inset-x-0 z-50 lg:hidden" style={{ background: '#0a1a0f', borderTop: `1px solid ${isMyTurn ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'}`, boxShadow: isMyTurn ? '0 -4px 20px rgba(34,197,94,0.15)' : 'none', paddingBottom: 'env(safe-area-inset-bottom)', transition: 'border-color 0.3s, box-shadow 0.3s' }}>
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
           {[
             { id: 'players', Icon: ListOrdered, label: 'Players' },
@@ -727,10 +749,10 @@ export default function GolfDraftRoom() {
                 <t.Icon size={18} />
                 <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t.label}</span>
                 {t.id === 'players' && isMyTurn && (
-                  <span style={{ position: 'absolute', top: 6, right: '22%', width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 0 2px #0f1923', animation: 'pulse 1.5s infinite' }} />
+                  <span style={{ position: 'absolute', top: 6, right: '22%', width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 0 2px #0a1a0f', animation: 'pulse 1.5s infinite' }} />
                 )}
                 {t.id === 'queue' && queue.length > 0 && (
-                  <span style={{ position: 'absolute', top: 4, right: '18%', minWidth: 14, height: 14, borderRadius: 999, background: '#fbbf24', color: '#000', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', boxShadow: '0 0 0 2px #0f1923' }}>
+                  <span style={{ position: 'absolute', top: 4, right: '18%', minWidth: 14, height: 14, borderRadius: 999, background: '#fbbf24', color: '#000', fontSize: 8, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', boxShadow: '0 0 0 2px #0a1a0f' }}>
                     {queue.length}
                   </span>
                 )}
