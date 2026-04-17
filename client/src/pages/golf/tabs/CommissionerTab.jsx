@@ -1264,7 +1264,9 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
               ctx={{
                 leagueId, leagueName, league,
                 totalPicks, prizePool, scoringLabel,
-                p1pct, p2pct, p3pct,
+                p1pct: payoutSplits[0]?.pct || 60,
+                p2pct: payoutSplits[1]?.pct || 25,
+                p3pct: payoutSplits[2]?.pct || 15,
                 venmo, zelle, paypal,
                 members, poolStandings,
               }}
