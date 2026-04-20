@@ -116,7 +116,7 @@ function NextTournamentBanner({ tournament }) {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> LIVE NOW
               </span>
             )}
-            {!isLive && tournament.is_major && (
+            {!isLive && !!tournament.is_major && (
               <span className="inline-block bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full">MAJOR</span>
             )}
           </div>
@@ -253,7 +253,14 @@ function LeagueCard({ league, userId, picksStatus, standingsData, past = false }
         {/* CTA row */}
         <div className="mt-auto pt-1">
           {/* Pool picks CTA */}
-          {isPool && !past && picksStatus && (() => {
+          {/* Draft CTA — separate from pool picks */}
+          {isDraft && !past && league.draft_status !== 'completed' && (
+            <button
+              onClick={e => { e.preventDefault(); navigate(`/golf/league/${league.id}/draft-room`); }}
+              style={{ width: '100%', padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6, background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: '#fff', border: 'none', boxShadow: '0 3px 10px rgba(124,58,237,0.2)' }}
+            >🐍 {league.draft_status === 'drafting' ? 'Join Draft' : 'Draft Lobby'}</button>
+          )}
+          {isPool && !isDraft && !past && picksStatus && (() => {
             const { submitted, picks_locked } = picksStatus;
             const picksTab = league.format_type === 'salary_cap' ? 'picks' : 'roster';
             const target = `/golf/league/${league.id}?tab=${picksTab}`;
