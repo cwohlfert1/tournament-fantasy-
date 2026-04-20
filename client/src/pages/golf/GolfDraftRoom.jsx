@@ -665,25 +665,70 @@ function DraftTimePicker({ league, leagueId, onSaved }) {
 }
 
 // ── Pre-Draft Lobby ──────────────────────────────────────────────────────────
+function DraftCountdown({ draftTime }) {
+  const [display, setDisplay] = useState('');
+  const [canEnter, setCanEnter] = useState(false);
+  useEffect(() => {
+    function tick() {
+      if (!draftTime) { setDisplay(''); setCanEnter(true); return; }
+      const diff = new Date(draftTime) - Date.now();
+      if (diff <= 0) { setDisplay('Starting soon…'); setCanEnter(true); return; }
+      setCanEnter(diff <= 30 * 60 * 1000); // 30 min before
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setDisplay(d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [draftTime]);
+  return { display, canEnter };
+}
+
 function PreDraftLobby({ league, members, isComm, onStart, starting, leagueId, onRefresh }) {
+  const { display: countdown, canEnter } = DraftCountdown({ draftTime: league.draft_start_time });
+  const hasDraftTime = !!league.draft_start_time;
+
   return (
     <div style={{ maxWidth: 500, margin: '0 auto', textAlign: 'center' }}>
       <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
         <Users size={26} style={{ color: '#a78bfa' }} />
       </div>
       <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Snake Draft Lobby</h2>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#c4b5fd', marginBottom: 16 }}>
-        Draft Pending
-      </div>
+
+      {/* Countdown to draft */}
+      {hasDraftTime && countdown && (
+        <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 14, padding: '16px 20px', marginBottom: 16 }}>
+          <div style={{ color: '#c4b5fd', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>Draft Starts In</div>
+          <div style={{ color: '#fff', fontSize: 28, fontWeight: 800, fontFamily: 'monospace', letterSpacing: '-0.02em' }}>{countdown}</div>
+          <div style={{ color: '#6b7280', fontSize: 11, marginTop: 4 }}>
+            {new Date(league.draft_start_time).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          </div>
+          {!canEnter && (
+            <p style={{ color: '#4b5563', fontSize: 11, marginTop: 8 }}>Draft room opens 30 minutes before start</p>
+          )}
+        </div>
+      )}
+
+      {!hasDraftTime && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#c4b5fd', marginBottom: 16 }}>
+          No draft time set yet
+        </div>
+      )}
+
       <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 20 }}>
-        {members.length} team{members.length !== 1 ? 's' : ''} joined. {isComm ? 'Set a draft time or start when ready.' : 'Waiting for commissioner to start the draft.'}
+        {members.length} team{members.length !== 1 ? 's' : ''} joined.
+        {isComm ? ' Set a draft time or start when ready.' : hasDraftTime ? '' : ' Waiting for commissioner to schedule the draft.'}
       </p>
 
-      {/* S1.1: Draft time picker */}
+      {/* Draft time picker — commissioner only */}
       {isComm && <DraftTimePicker league={league} leagueId={leagueId} onSaved={onRefresh} />}
 
+      {/* Teams list */}
       <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 14, marginBottom: 20, textAlign: 'left' }}>
-        <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Teams</div>
+        <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Teams ({members.length})</div>
         {members.map((m, i) => (
           <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: i > 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
             <span style={{ color: '#4b5563', fontSize: 11, fontWeight: 700, width: 20 }}>{i + 1}</span>
@@ -693,11 +738,19 @@ function PreDraftLobby({ league, members, isComm, onStart, starting, leagueId, o
         ))}
       </div>
 
+      {/* Commissioner: start draft */}
       {isComm && (
         <button onClick={onStart} disabled={starting || members.length < 1}
           style={{ width: '100%', padding: '14px 24px', borderRadius: 12, background: starting ? '#374151' : 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: starting ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(124,58,237,0.25)' }}>
-          {starting ? 'Starting…' : `Start Draft Now (${members.length} team${members.length !== 1 ? 's' : ''})`}
+          {starting ? 'Starting…' : `🐍 Start Draft Now (${members.length} team${members.length !== 1 ? 's' : ''})`}
         </button>
+      )}
+
+      {/* Non-commissioner: waiting message */}
+      {!isComm && (
+        <p style={{ color: '#4b5563', fontSize: 12, marginTop: 8 }}>
+          {hasDraftTime && canEnter ? 'Draft room is open — waiting for commissioner to start.' : hasDraftTime ? 'Come back when the countdown reaches 30 minutes.' : 'The commissioner will schedule and start the draft.'}
+        </p>
       )}
     </div>
   );

@@ -240,7 +240,7 @@ export default function GolfLeague() {
               }
             </div>
           </div>
-          {(league.format_type === 'pool' || league.format_type === 'salary_cap' || league.format_type === 'draft')
+          {(league.format_type === 'pool' || league.format_type === 'salary_cap') && league.format_type !== 'draft'
             ? (() => {
                 const ts = league.pool_tournament_status;
                 const ctaClass = "inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-green-500/20 text-sm shrink-0";
