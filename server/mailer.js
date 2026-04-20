@@ -604,6 +604,10 @@ module.exports = {
   sendUnpaidReminder,
   sendCommissionerBlast,
   sendReinviteEmail,
+  sendDraftJoinConfirmation,
+  sendDraftTimeSet,
+  sendDraftReminder,
+  sendDraftComplete,
 };
 
 // ── Pay reminder to unpaid member ────────────────────────────────────────────
@@ -741,6 +745,131 @@ ${emailFooter(`tourneyrun.app &middot; ${safePool}`)}
 }
 
 // ── Re-invite from past pool league ──────────────────────────────────────────
+// ── Draft: join confirmation ─────────────────────────────────────────────────
+async function sendDraftJoinConfirmation(toEmail, { username, leagueName, leagueId, tournamentName, draftTime, memberCount, maxTeams }) {
+  const baseUrl = 'https://www.tourneyrun.app';
+  const leagueUrl = `${baseUrl}/golf/league/${leagueId}`;
+  const fmtDraft = draftTime
+    ? new Date(draftTime).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET'
+    : null;
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `🐍 You're in — ${leagueName} Snake Draft`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(139,92,246,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#a78bfa;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Snake Draft</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">You're in, ${username}!</h1>
+        <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">You've joined <span style="color:#ffffff;font-weight:600;">${leagueName}</span>. Get ready for a live snake draft.</p>
+        ${card('Tournament', tournamentName || 'TBD')}
+        ${fmtDraft ? card('Draft Time', fmtDraft) : card('Draft Time', 'Not scheduled yet — your commissioner will set it')}
+        ${card('Teams', `${memberCount}/${maxTeams} joined`)}
+        ${card('How it works', 'Live snake draft — pick golfers in real time. Lowest combined score wins.')}
+        ${ctaButton(leagueUrl, 'View Draft Lobby &rarr;')}
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${leagueName}`)}
+`),
+  });
+}
+
+// ── Draft: time set/changed notification ─────────────────────────────────────
+async function sendDraftTimeSet(toEmail, { username, leagueName, leagueId, tournamentName, draftTime }) {
+  const baseUrl = 'https://www.tourneyrun.app';
+  const leagueUrl = `${baseUrl}/golf/league/${leagueId}`;
+  const fmtDraft = new Date(draftTime).toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `🐍 Draft scheduled — ${leagueName}`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(139,92,246,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#a78bfa;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Draft Scheduled</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Mark your calendar</h1>
+        <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">The snake draft for <span style="color:#ffffff;font-weight:600;">${leagueName}</span> has been scheduled.</p>
+        <div style="background-color:rgba(139,92,246,0.08);border-width:1px;border-style:solid;border-color:rgba(139,92,246,0.25);border-radius:12px;padding-top:20px;padding-right:24px;padding-bottom:20px;padding-left:24px;text-align:center;margin-bottom:20px;">
+          <div style="color:#c4b5fd;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">Draft Time</div>
+          <div style="color:#ffffff;font-size:22px;font-weight:800;">${fmtDraft}</div>
+        </div>
+        ${tournamentName ? card('Tournament', tournamentName) : ''}
+        ${ctaButton(leagueUrl, 'View Draft Lobby &rarr;')}
+        <p style="font-size:12px;color:#4b5563;text-align:center;margin-top:0;margin-bottom:0;">The draft room opens 30 minutes before start time.</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${leagueName}`)}
+`),
+  });
+}
+
+// ── Draft: reminder (24h or 1h before) ───────────────────────────────────────
+async function sendDraftReminder(toEmail, { username, leagueName, leagueId, tournamentName, draftTime, timeLabel }) {
+  const baseUrl = 'https://www.tourneyrun.app';
+  const leagueUrl = `${baseUrl}/golf/league/${leagueId}`;
+  const fmtDraft = new Date(draftTime).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `⏰ Draft starts ${timeLabel} — ${leagueName}`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(245,158,11,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#fbbf24;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Draft Reminder</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:26px;font-weight:700;color:#ffffff;">Your draft starts ${timeLabel}</h1>
+        <p style="font-size:15px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">Don't miss it, ${username}! The <span style="color:#ffffff;font-weight:600;">${leagueName}</span> snake draft is coming up.</p>
+        <div style="background-color:rgba(245,158,11,0.08);border-width:1px;border-style:solid;border-color:rgba(245,158,11,0.25);border-radius:12px;padding-top:20px;padding-right:24px;padding-bottom:20px;padding-left:24px;text-align:center;margin-bottom:20px;">
+          <div style="color:#fbbf24;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">Draft Time</div>
+          <div style="color:#ffffff;font-size:22px;font-weight:800;">${fmtDraft}</div>
+        </div>
+        ${tournamentName ? card('Tournament', tournamentName) : ''}
+        ${ctaButton(leagueUrl + '/draft-room', 'Open Draft Room &rarr;')}
+        <p style="font-size:12px;color:#4b5563;text-align:center;margin-top:0;margin-bottom:0;">If you miss the draft, auto-pick will select players by world ranking.</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${leagueName}`)}
+`),
+  });
+}
+
+// ── Draft: complete — picks summary ──────────────────────────────────────────
+async function sendDraftComplete(toEmail, { username, leagueName, leagueId, tournamentName, picks, totalTeams }) {
+  const baseUrl = 'https://www.tourneyrun.app';
+  const leagueUrl = `${baseUrl}/golf/league/${leagueId}?tab=standings`;
+
+  const pickRows = (picks || []).map((p, i) =>
+    `<tr>
+      <td style="padding-top:8px;padding-right:8px;padding-bottom:8px;padding-left:12px;font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;">Rd ${p.round} · #${p.pick_number}</td>
+      <td style="padding-top:8px;padding-right:12px;padding-bottom:8px;padding-left:8px;font-size:14px;color:#ffffff;font-weight:600;">${p.player_name}</td>
+      <td style="padding-top:8px;padding-right:12px;padding-bottom:8px;padding-left:8px;font-size:12px;color:#4b5563;text-align:right;">${p.odds_display || ''}</td>
+    </tr>`
+  ).join('');
+
+  await sendEmail({
+    from: FROM_GOLF,
+    to: toEmail,
+    subject: `Draft complete — your ${leagueName} roster`,
+    html: emailShell(`
+${emailHeader()}
+      <tr><td style="padding-top:28px;padding-right:32px;padding-bottom:28px;padding-left:32px;background-color:#0f1923;">
+        <div style="display:inline-block;background-color:rgba(34,197,94,0.15);border-radius:6px;padding-top:4px;padding-right:10px;padding-bottom:4px;padding-left:10px;font-size:11px;color:#22c55e;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:16px;">Draft Complete</div>
+        <h1 style="margin-top:0;margin-right:0;margin-bottom:8px;margin-left:0;font-size:24px;font-weight:700;color:#ffffff;">Your team is set</h1>
+        <p style="font-size:14px;color:#9ca3af;line-height:1.6;margin-top:0;margin-right:0;margin-bottom:24px;margin-left:0;">
+          <strong style="color:#ffffff;">${leagueName}</strong> &middot; ${tournamentName || 'Upcoming Tournament'} &middot; ${totalTeams} teams
+        </p>
+        <div style="background-color:#1a2733;border-radius:8px;overflow:hidden;margin-bottom:20px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            <tbody>${pickRows}</tbody>
+          </table>
+        </div>
+        ${ctaButton(leagueUrl, 'View Standings &rarr;')}
+        <p style="font-size:12px;color:#4b5563;text-align:center;margin-top:0;margin-bottom:0;">Good luck, ${username}! Scoring updates every 10 minutes during the tournament.</p>
+      </td></tr>
+${emailFooter(`tourneyrun.app &middot; ${leagueName}`)}
+`),
+  });
+}
+
 async function sendReinviteEmail(toEmail, { firstName, commissionerName, newPoolName, tournamentName, joinUrl }) {
   const name = firstName || 'there';
   const comm = commissionerName || 'A commissioner';

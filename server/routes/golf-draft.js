@@ -217,6 +217,11 @@ router.post('/:leagueId/pick', authMiddleware, async (req, res) => {
       );
       // Bridge: copy draft picks → pool_picks so scoring/standings work
       await bridgeDraftToPoolPicks(leagueId, league.pool_tournament_id);
+
+      // Send draft-complete emails to all participants (async, non-blocking)
+      sendDraftCompleteEmails(leagueId, league).catch(err =>
+        console.error(`[golf-draft] Draft complete email error:`, err.message)
+      );
     } else {
       await db.run('UPDATE golf_leagues SET current_pick = ? WHERE id = ?', nextPick, leagueId);
     }
@@ -407,11 +412,71 @@ router.patch('/:leagueId/time', authMiddleware, async (req, res) => {
     }
 
     await db.run('UPDATE golf_leagues SET draft_start_time = ? WHERE id = ?', draft_start_time, req.params.leagueId);
+
+    // Notify all members about the scheduled draft time
+    const { sendDraftTimeSet } = require('../mailer');
+    const members = await db.all(
+      'SELECT u.email, u.username FROM golf_league_members glm JOIN users u ON u.id = glm.user_id WHERE glm.golf_league_id = ?',
+      req.params.leagueId
+    );
+    const tourn = league.pool_tournament_id
+      ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', league.pool_tournament_id)
+      : null;
+    for (const m of members) {
+      sendDraftTimeSet(m.email, {
+        username: m.username,
+        leagueName: league.name,
+        leagueId: req.params.leagueId,
+        tournamentName: tourn?.name,
+        draftTime: draft_start_time,
+      }).catch(err => console.error(`[golf-draft] Draft time email error for ${m.email}:`, err.message));
+    }
+
     res.json({ ok: true, draft_start_time });
   } catch (err) {
     console.error('[golf-draft] time update error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// ── Draft-complete emails to all participants ─────────────────��──────────────
+async function sendDraftCompleteEmails(leagueId, league) {
+  const { sendDraftComplete } = require('../mailer');
+  const tourn = league.pool_tournament_id
+    ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', league.pool_tournament_id)
+    : null;
+
+  const members = await db.all(
+    'SELECT u.email, u.username, u.id AS user_id FROM golf_league_members glm JOIN users u ON u.id = glm.user_id WHERE glm.golf_league_id = ?',
+    leagueId
+  );
+
+  const allPicks = await db.all(`
+    SELECT gdp.user_id, gdp.pick_number, gdp.round, gp.name AS player_name,
+           ptp.odds_display
+    FROM golf_draft_picks gdp
+    JOIN golf_players gp ON gp.id = gdp.player_id
+    LEFT JOIN pool_tier_players ptp ON ptp.league_id = gdp.golf_league_id AND ptp.player_id = gdp.player_id
+    WHERE gdp.golf_league_id = ?
+    ORDER BY gdp.pick_number ASC
+  `, leagueId);
+
+  for (const m of members) {
+    const myPicks = allPicks.filter(p => p.user_id === m.user_id);
+    try {
+      await sendDraftComplete(m.email, {
+        username: m.username,
+        leagueName: league.name,
+        leagueId,
+        tournamentName: tourn?.name,
+        picks: myPicks,
+        totalTeams: members.length,
+      });
+      console.log(`[golf-draft] Draft complete email sent to ${m.username}`);
+    } catch (err) {
+      console.error(`[golf-draft] Draft complete email failed for ${m.email}:`, err.message);
+    }
+  }
+}
 
 module.exports = { router, getGolfDraftState, getCurrentPicker, bridgeDraftToPoolPicks, setIo };

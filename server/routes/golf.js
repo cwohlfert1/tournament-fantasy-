@@ -511,6 +511,23 @@ router.post('/leagues/join', authMiddleware, async (req, res) => {
       } catch (_) {}
     }
 
+    // Send join confirmation email for draft leagues
+    if (league.format_type === 'draft') {
+      const { sendDraftJoinConfirmation } = require('../mailer');
+      const tourn = league.pool_tournament_id
+        ? await db.get('SELECT name FROM golf_tournaments WHERE id = ?', league.pool_tournament_id)
+        : null;
+      sendDraftJoinConfirmation(req.user.email, {
+        username: req.user.username,
+        leagueName: league.name,
+        leagueId: league.id,
+        tournamentName: tourn?.name || 'TBD',
+        draftTime: league.draft_start_time,
+        memberCount: count.c + 1,
+        maxTeams: league.max_teams,
+      }).catch(err => console.error('[golf] Draft join email error:', err.message));
+    }
+
     res.json({ league_id: league.id, league });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });

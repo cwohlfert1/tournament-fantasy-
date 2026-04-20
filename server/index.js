@@ -564,6 +564,10 @@ setInterval(async () => {
 const { startPoolLockScheduler } = require('./golfPoolLockService');
 startPoolLockScheduler();
 
+// Golf draft reminder scheduler — 24h and 1h reminders before snake drafts
+const { startDraftReminderScheduler } = require('./golfDraftReminderService');
+startDraftReminderScheduler();
+
 // Golf score auto-sync — 10 min intervals Thu–Sun during active tournaments
 const { scheduleAutoSync, backfillCompleted, setIo: setGolfSyncIo } = require('./golfSyncService');
 setGolfSyncIo(io);
