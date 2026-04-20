@@ -17,6 +17,7 @@ import ImportSection   from './commissioner/ImportSection';
 import UnpaidSection   from './commissioner/UnpaidSection';
 import Select from '../../../components/ui/Select';
 import QuickReminders  from './commissioner/QuickReminders';
+import DraftManagement from './commissioner/DraftManagement';
 
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -436,6 +437,11 @@ export default function CommissionerTab({ leagueId, leagueName, members, league 
 
   return (
     <div className="space-y-4">
+      {/* Draft management — draft format only */}
+      {league?.format_type === 'draft' && (
+        <DraftManagement leagueId={leagueId} league={league} members={members} />
+      )}
+
       {/* Unpaid entries banner */}
       {unpaidSummary && unpaidSummary.unpaid > 0 && !unpaidBannerDismissed && league?.buy_in_amount > 0 && (
         <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
