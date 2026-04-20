@@ -961,7 +961,7 @@ let _fieldSyncInterval = null;
 async function runFieldSync() {
   // Find pool leagues with tournaments starting within 7 days
   const upcoming = await db.all(`
-    SELECT DISTINCT gt.id, gt.name FROM golf_tournaments gt
+    SELECT DISTINCT gt.id, gt.name, gt.start_date FROM golf_tournaments gt
     JOIN golf_leagues gl ON gl.pool_tournament_id = gt.id AND gl.format_type IN ('pool', 'salary_cap', 'draft') AND gl.status != 'archived'
     WHERE gt.status IN ('scheduled','active')
       AND date(gt.start_date) <= date('now', '+7 days')

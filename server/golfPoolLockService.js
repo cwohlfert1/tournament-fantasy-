@@ -96,7 +96,7 @@ async function sendLockEmails(league, tourn) {
     const entryNumbers = await db.all(`
       SELECT DISTINCT COALESCE(entry_number, 1) as entry_number
       FROM pool_picks WHERE league_id = ? AND tournament_id = ? AND user_id = ?
-      ORDER BY entry_number ASC
+      ORDER BY 1 ASC
     `, league.id, league.pool_tournament_id, member.user_id);
 
     const entries = [];
