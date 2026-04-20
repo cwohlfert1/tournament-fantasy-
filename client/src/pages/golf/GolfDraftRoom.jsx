@@ -665,15 +665,15 @@ function DraftTimePicker({ league, leagueId, onSaved }) {
 }
 
 // ── Pre-Draft Lobby ──────────────────────────────────────────────────────────
-function DraftCountdown({ draftTime }) {
+function useDraftCountdown(draftTime) {
   const [display, setDisplay] = useState('');
-  const [canEnter, setCanEnter] = useState(false);
+  const [canEnter, setCanEnter] = useState(!draftTime);
   useEffect(() => {
     function tick() {
       if (!draftTime) { setDisplay(''); setCanEnter(true); return; }
       const diff = new Date(draftTime) - Date.now();
       if (diff <= 0) { setDisplay('Starting soon…'); setCanEnter(true); return; }
-      setCanEnter(diff <= 30 * 60 * 1000); // 30 min before
+      setCanEnter(diff <= 30 * 60 * 1000);
       const d = Math.floor(diff / 86400000);
       const h = Math.floor((diff % 86400000) / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -688,7 +688,7 @@ function DraftCountdown({ draftTime }) {
 }
 
 function PreDraftLobby({ league, members, isComm, onStart, starting, leagueId, onRefresh }) {
-  const { display: countdown, canEnter } = DraftCountdown({ draftTime: league.draft_start_time });
+  const { display: countdown, canEnter } = useDraftCountdown(league.draft_start_time);
   const hasDraftTime = !!league.draft_start_time;
 
   return (
