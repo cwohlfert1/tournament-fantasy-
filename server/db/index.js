@@ -231,6 +231,11 @@ function sqliteSqlToPostgres(sql) {
   let pg = sqliteToPostgres(sql); // ? → $N
 
   // ── Date/time functions ────────────────────────────────────────────────
+  // datetime('now', '+60 minutes') → NOW() + INTERVAL '60 minutes'
+  // datetime('now', '-24 hours') → NOW() - INTERVAL '24 hours'
+  // datetime('now', '+1 year') → NOW() + INTERVAL '1 year'
+  pg = pg.replace(/datetime\('now',\s*'([+-])(\d+)\s+(second|minute|hour|day|month|year)s?'\)/gi,
+    (_, sign, n, unit) => `NOW() ${sign === '-' ? '-' : '+'} INTERVAL '${n} ${unit}'`);
   pg = pg.replace(/datetime\('now'\)/gi, 'NOW()');
   pg = pg.replace(/date\('now'\)/gi, 'CURRENT_DATE');
   // date(col, '+N day') → (col)::DATE + INTERVAL 'N day'
@@ -238,6 +243,10 @@ function sqliteSqlToPostgres(sql) {
     (_, col, n, unit) => `(${col.trim()})::DATE + INTERVAL '${n} ${unit}'`);
   // CURRENT_TIMESTAMP is Postgres-compatible but we normalize to NOW()
   pg = pg.replace(/CURRENT_TIMESTAMP/gi, 'NOW()');
+  // SQLite stores dates as TEXT; Postgres needs explicit cast for comparisons.
+  // draft_start_time <= NOW() → (draft_start_time)::TIMESTAMPTZ <= NOW()
+  pg = pg.replace(/(\w+_time)\s*(<=|>=|<|>)\s*(NOW\(\))/gi,
+    (_, col, op, fn) => `(${col})::TIMESTAMPTZ ${op} ${fn}`);
 
   // ── UUID generation ────────────────────────────────────────────────────
   // lower(hex(randomblob(4))) || '-' || ... → gen_random_uuid()::TEXT
