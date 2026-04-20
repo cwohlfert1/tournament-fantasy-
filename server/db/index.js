@@ -237,10 +237,24 @@ function sqliteSqlToPostgres(sql) {
   pg = pg.replace(/datetime\('now',\s*'([+-])(\d+)\s+(second|minute|hour|day|month|year)s?'\)/gi,
     (_, sign, n, unit) => `NOW() ${sign === '-' ? '-' : '+'} INTERVAL '${n} ${unit}'`);
   pg = pg.replace(/datetime\('now'\)/gi, 'NOW()');
+  // date('now', '+7 days') → CURRENT_DATE + INTERVAL '7 day'
+  pg = pg.replace(/date\('now',\s*'([+-])(\d+)\s*(day|month|year)s?'\)/gi,
+    (_, sign, n, unit) => `CURRENT_DATE ${sign === '-' ? '-' : '+'} INTERVAL '${n} ${unit}'`);
   pg = pg.replace(/date\('now'\)/gi, 'CURRENT_DATE');
   // date(col, '+N day') → (col)::DATE + INTERVAL 'N day'
   pg = pg.replace(/date\(([^,]+),\s*'([+-]\d+)\s*(day|month|year)s?'\)/gi,
-    (_, col, n, unit) => `(${col.trim()})::DATE + INTERVAL '${n} ${unit}'`);
+    (_, col, n, unit) => {
+      const c = col.trim();
+      const abs = n.replace(/^[+-]/, '');
+      const sign = n.startsWith('-') ? '-' : '+';
+      return `(${c})::DATE ${sign} INTERVAL '${abs} ${unit}'`;
+    });
+  // date(col) → (col)::DATE — standalone date cast
+  pg = pg.replace(/\bdate\(([^,)]+)\)/gi, (_, col) => {
+    const c = col.trim();
+    if (c === "'now'" || c === 'CURRENT_DATE') return c === "'now'" ? 'CURRENT_DATE' : c;
+    return `(${c})::DATE`;
+  });
   // CURRENT_TIMESTAMP is Postgres-compatible but we normalize to NOW()
   pg = pg.replace(/CURRENT_TIMESTAMP/gi, 'NOW()');
   // SQLite stores dates as TEXT; Postgres needs explicit cast for comparisons.
