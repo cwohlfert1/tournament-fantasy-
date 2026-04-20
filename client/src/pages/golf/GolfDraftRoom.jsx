@@ -177,13 +177,14 @@ function PickAnimation({ lastPick }) {
 
 // ── T1.3: Player Card Modal ─────────────────────────────────────────────────
 function PlayerCardModal({ player, recentForm, onDraft, isMyTurn, picking, onClose }) {
-  if (!player) return null;
-  const form = recentForm?.[player.player_id] || [];
   useEffect(() => {
+    if (!player) return;
     function esc(e) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
+  }, [player, onClose]);
+  if (!player) return null;
+  const form = recentForm?.[player.player_id] || [];
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 360, background: '#0a1a0f', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 16, padding: '24px 20px', boxShadow: '0 24px 60px rgba(0,0,0,0.6)' }}>
@@ -250,13 +251,14 @@ function PlayerCardModal({ player, recentForm, onDraft, isMyTurn, picking, onClo
 
 // ── T1.4: Team Summary Modal ────────────────────────────────────────────────
 function TeamSummaryModal({ member, picks, onClose }) {
-  if (!member) return null;
-  const teamPicks = picks.filter(p => p.user_id === member.user_id).sort((a, b) => a.pick_number - b.pick_number);
   useEffect(() => {
+    if (!member) return;
     function esc(e) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onClose]);
+  }, [member, onClose]);
+  if (!member) return null;
+  const teamPicks = picks.filter(p => p.user_id === member.user_id).sort((a, b) => a.pick_number - b.pick_number);
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, background: '#0a1a0f', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, padding: '20px', boxShadow: '0 24px 60px rgba(0,0,0,0.6)' }}>
