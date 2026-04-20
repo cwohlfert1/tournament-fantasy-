@@ -33,6 +33,11 @@ export default function OverviewTab({ league, members, user, isComm, navigate, p
       { label: 'Weekly Cap',      value: `$${(league.weekly_salary_cap || 50000).toLocaleString()}` },
       { label: 'Starters / Wk',   value: String(league.starters_per_week || league.roster_size || 6) },
     ];
+    if (league.format_type === 'draft') return [
+      { label: 'Members',         value: `${members.length}/${league.max_teams}` },
+      { label: 'Picks Per Team',  value: String(league.picks_per_team || 7) },
+      { label: 'Draft Status',    value: league.draft_status === 'completed' ? 'Complete' : league.draft_status === 'drafting' ? 'Live' : 'Pending' },
+    ];
     // tourneyrun default
     return [
       { label: 'Members',         value: `${members.length}/${league.max_teams}` },
@@ -202,20 +207,18 @@ export default function OverviewTab({ league, members, user, isComm, navigate, p
           )}
           {league.format_type === 'tourneyrun' && league.draft_status !== 'completed' && (
             <>
-              <Button
-                variant="primary"
-                color="green"
-                size="lg"
-                fullWidth
-                className="mb-2"
-                onClick={() => navigate(`/golf/league/${league.id}/draft`)}
-              >
+              <Button variant="primary" color="green" size="lg" fullWidth className="mb-2"
+                onClick={() => navigate(`/golf/league/${league.id}/draft`)}>
                 Go to Draft Room →
               </Button>
-              <p className="text-gray-600 text-xs mb-3 text-center">
-                Draft core players. Flex spots fill via waiver wire.
-              </p>
+              <p className="text-gray-600 text-xs mb-3 text-center">Draft core players. Flex spots fill via waiver wire.</p>
             </>
+          )}
+          {league.format_type === 'draft' && league.draft_status !== 'completed' && (
+            <Button variant="primary" color="purple" size="lg" fullWidth className="mb-2"
+              onClick={() => navigate(`/golf/league/${league.id}/draft-room`)}>
+              🐍 {league.draft_status === 'drafting' ? 'Join Draft Room' : 'Open Draft Lobby'} →
+            </Button>
           )}
           <Button
             variant="outline"
@@ -229,6 +232,51 @@ export default function OverviewTab({ league, members, user, isComm, navigate, p
         </div>
       )}
 
+
+      {/* Snake draft mode: CTA to enter draft room */}
+      {league.format_type === 'draft' && (
+        <div style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 16, padding: 20 }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="w-4 h-4 text-purple-400" />
+            <span className="text-purple-400 font-bold text-sm">Snake Draft</span>
+            {league.draft_status === 'drafting' && (
+              <span className="inline-flex items-center gap-1 bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ml-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" /> LIVE
+              </span>
+            )}
+          </div>
+          <p className="text-gray-400 text-sm mb-1">
+            {league.draft_status === 'completed'
+              ? `Draft complete — ${league.picks_per_team || 7} players per team. Scores update automatically.`
+              : league.draft_status === 'drafting'
+              ? 'Draft is in progress! Join the draft room to make your picks.'
+              : `${members.length} of ${league.max_teams} teams joined. ${isComm ? 'Start the draft when ready.' : 'Waiting for commissioner to start.'}`}
+          </p>
+          {league.pool_tournament_name && <p className="text-gray-600 text-xs mb-4">{league.pool_tournament_name}</p>}
+          {league.draft_status !== 'completed' && (
+            <Button
+              variant="primary"
+              color="purple"
+              size="lg"
+              fullWidth
+              onClick={() => navigate(`/golf/league/${league.id}/draft-room`)}
+            >
+              {league.draft_status === 'drafting' ? '🐍 Join Draft Room →' : isComm ? '🐍 Open Draft Lobby →' : '🐍 View Draft Lobby →'}
+            </Button>
+          )}
+          {league.draft_status === 'completed' && (
+            <Button
+              variant="outline"
+              color="purple"
+              size="lg"
+              fullWidth
+              onClick={() => navigate(`/golf/league/${league.id}/draft-room`)}
+            >
+              View Draft Results →
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Salary cap mode: no draft, direct to picks */}
       {league.format_type === 'salary_cap' && (
