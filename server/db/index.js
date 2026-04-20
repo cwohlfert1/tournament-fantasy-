@@ -244,9 +244,9 @@ function sqliteSqlToPostgres(sql) {
   // CURRENT_TIMESTAMP is Postgres-compatible but we normalize to NOW()
   pg = pg.replace(/CURRENT_TIMESTAMP/gi, 'NOW()');
   // SQLite stores dates as TEXT; Postgres needs explicit cast for comparisons.
-  // draft_start_time <= NOW() → (draft_start_time)::TIMESTAMPTZ <= NOW()
-  pg = pg.replace(/(\w+_time)\s*(<=|>=|<|>)\s*(NOW\(\))/gi,
-    (_, col, op, fn) => `(${col})::TIMESTAMPTZ ${op} ${fn}`);
+  // draft_start_time <= NOW() + INTERVAL '...' → (draft_start_time)::TIMESTAMPTZ <= NOW() + ...
+  pg = pg.replace(/(\w+_(?:time|at|date))\s*(<=|>=|<|>)\s*(NOW\(\)[^)\n]*)/gi,
+    (_, col, op, rhs) => `(${col})::TIMESTAMPTZ ${op} ${rhs}`);
 
   // ── UUID generation ────────────────────────────────────────────────────
   // lower(hex(randomblob(4))) || '-' || ... → gen_random_uuid()::TEXT
