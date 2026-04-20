@@ -826,6 +826,16 @@ export default function GolfDraftRoom() {
     };
   }, [id, user]);
 
+  // Sound: chime when it becomes your turn (false→true transition only)
+  // Must be above early returns to maintain consistent hook count
+  const currentPicker = state?.currentPicker;
+  const isMyTurnForChime = currentPicker?.user_id === user?.id;
+  useEffect(() => {
+    if (!state) return;
+    if (isMyTurnForChime && !prevIsMyTurn.current) playTurnChime();
+    prevIsMyTurn.current = isMyTurnForChime;
+  }, [isMyTurnForChime, state]);
+
   if (loading) return <GolfLoader />;
   if (!state) return (
     <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -836,15 +846,9 @@ export default function GolfDraftRoom() {
     </div>
   );
 
-  const { league, members, picks, available, currentPick, currentPicker, totalPicks, totalRounds, draftComplete, numTeams } = state;
+  const { league, members, picks, available, currentPick, totalPicks, totalRounds, draftComplete, numTeams } = state;
   const isComm = league.commissioner_id === user?.id;
-  const isMyTurn = currentPicker?.user_id === user?.id;
-
-  // Sound: chime when it becomes your turn (false→true transition only)
-  useEffect(() => {
-    if (isMyTurn && !prevIsMyTurn.current) playTurnChime();
-    prevIsMyTurn.current = isMyTurn;
-  }, [isMyTurn]);
+  const isMyTurn = isMyTurnForChime;
   const currentRound = Math.ceil((currentPick || 1) / numTeams);
 
   async function handlePick(playerId) {
