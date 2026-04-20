@@ -24,7 +24,7 @@ router.get('/leagues', superadmin, async (req, res) => {
       LEFT JOIN users u ON l.commissioner_id = u.id
       LEFT JOIN league_members lm ON lm.league_id = l.id
       LEFT JOIN member_payments mp ON mp.league_id = l.id
-      GROUP BY l.id
+      GROUP BY l.id, u.username, u.email
       ORDER BY l.created_at DESC
     `);
     res.json({ leagues });
@@ -49,7 +49,7 @@ router.get('/leagues/:id', superadmin, async (req, res) => {
       LEFT JOIN member_payments mp ON mp.league_id = lm.league_id AND mp.user_id = lm.user_id
       LEFT JOIN draft_picks dp ON dp.league_id = lm.league_id AND dp.user_id = lm.user_id
       WHERE lm.league_id = ?
-      GROUP BY lm.id
+      GROUP BY lm.id, u.username, u.email, mp.status, mp.amount
       ORDER BY lm.draft_order
     `, req.params.id);
 
@@ -162,7 +162,7 @@ router.get('/users', superadmin, async (req, res) => {
         COUNT(DISTINCT lm.league_id) AS league_count
       FROM users u
       LEFT JOIN league_members lm ON lm.user_id = u.id
-      GROUP BY u.id
+      GROUP BY u.id, u.email, u.username, u.role, u.created_at
       ORDER BY u.created_at DESC
     `);
     res.json({ users });

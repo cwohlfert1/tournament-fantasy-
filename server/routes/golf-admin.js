@@ -116,7 +116,7 @@ router.get('/admin/leagues', superadmin, async (req, res) => {
       FROM golf_leagues gl
       LEFT JOIN users u ON u.id = gl.commissioner_id
       LEFT JOIN golf_league_members glm ON glm.golf_league_id = gl.id
-      GROUP BY gl.id
+      GROUP BY gl.id, u.id, u.username, u.email
       ORDER BY gl.created_at DESC
     `);
 
@@ -232,7 +232,7 @@ router.get('/admin/users', superadmin, async (req, res) => {
         SELECT user_id, 1 AS paid FROM golf_season_passes
         WHERE season = '2026' AND paid_at IS NOT NULL
       ) sp ON sp.user_id = u.id
-      GROUP BY u.id
+      GROUP BY u.id, gup.profile_complete, sp.paid, sp.user_id
       ORDER BY u.created_at DESC
     `);
     res.json({ users });
@@ -349,7 +349,7 @@ router.post('/admin/leagues/:id/recover-members', superadmin, async (req, res) =
       FROM pool_picks pp
       LEFT JOIN users u ON u.id = pp.user_id
       WHERE pp.league_id = ?
-      GROUP BY pp.user_id
+      GROUP BY pp.user_id, u.username, u.email
     `, leagueId);
 
     console.log(`[recovery] league ${leagueId}: restored ${restored.length} members`);
@@ -493,7 +493,7 @@ router.get('/admin/financials', superadmin, async (req, res) => {
              SUM(grd.credit_amount) AS credits_earned
       FROM golf_referral_redemptions grd
       JOIN users u ON u.id = grd.referrer_id
-      GROUP BY grd.referrer_id
+      GROUP BY grd.referrer_id, u.username
       ORDER BY referral_count DESC
       LIMIT 10
     `);
@@ -705,7 +705,7 @@ router.get('/admin/analytics', superadmin, async (req, res) => {
       FROM golf_pool_entries gpe
       LEFT JOIN golf_tournaments gt ON gt.id = gpe.tournament_id
       WHERE gpe.paid_at IS NOT NULL
-      GROUP BY gpe.tournament_id
+      GROUP BY gpe.tournament_id, gt.name
       ORDER BY entries DESC
       LIMIT 10
     `);
@@ -1390,7 +1390,7 @@ router.get('/admin/export/users', superadmin, async (req, res) => {
       LEFT JOIN (SELECT user_id, COUNT(*) AS entries FROM golf_pool_entries WHERE paid_at IS NOT NULL GROUP BY user_id) pe ON pe.user_id = u.id
       LEFT JOIN (SELECT commissioner_id, 1 AS paid FROM golf_comm_pro WHERE paid_at IS NOT NULL) cp ON cp.commissioner_id = u.id
       WHERE u.id IN (SELECT DISTINCT user_id FROM golf_league_members)
-      GROUP BY u.id
+      GROUP BY u.id, sp.paid, sp.user_id, pe.entries, pe.user_id, cp.paid, cp.commissioner_id
       ORDER BY u.created_at DESC
     `);
 

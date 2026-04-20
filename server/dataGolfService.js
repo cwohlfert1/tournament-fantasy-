@@ -438,7 +438,7 @@ async function _applyFieldToTournament(tourn, field) {
       SELECT gp.*, tf.odds_display AS tf_od, tf.odds_decimal AS tf_dec
       FROM golf_players gp
       INNER JOIN golf_tournament_fields tf ON tf.player_id = gp.id AND tf.tournament_id = ?
-      GROUP BY gp.id
+      GROUP BY gp.id, tf.odds_display, tf.odds_decimal
       ORDER BY COALESCE(tf.odds_decimal, gp.odds_decimal, 999) ASC
     `, tourn.id);
 
@@ -826,7 +826,7 @@ async function syncDgOddsTiers(tournamentId) {
     FROM golf_tournament_fields tf
     JOIN golf_players gp ON gp.id = tf.player_id
     WHERE tf.tournament_id = ?
-    GROUP BY tf.player_id
+    GROUP BY tf.player_id, gp.datagolf_id, gp.name
   `, tournamentId);
 
   const leagues = await db.all(

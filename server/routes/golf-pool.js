@@ -365,7 +365,6 @@ router.get('/leagues/:id/tier-players', authMiddleware, async (req, res) => {
       LEFT JOIN golf_tournament_fields gtf
         ON gtf.tournament_id = ptp.tournament_id AND gtf.player_id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ? AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
-      GROUP BY ptp.player_id
       ORDER BY ptp.tier_number ASC, ptp.world_ranking ASC
     `, league.id, tid);
 
@@ -716,7 +715,6 @@ router.get('/leagues/:id/my-roster', authMiddleware, async (req, res) => {
       LEFT JOIN golf_players gp ON gp.id = ptp.player_id
       LEFT JOIN golf_tournament_fields gtf ON gtf.tournament_id = ptp.tournament_id AND gtf.player_id = ptp.player_id
       WHERE ptp.league_id = ? AND ptp.tournament_id = ? AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
-      GROUP BY ptp.player_id
       ORDER BY ptp.tier_number ASC, ptp.odds_decimal ASC, ptp.world_ranking ASC
     `, league.id, tid);
 
@@ -1343,7 +1341,7 @@ async function listAllEntries(leagueId, league) {
     LEFT JOIN golf_league_members glm
       ON glm.golf_league_id = pp.league_id AND glm.user_id = pp.user_id
     WHERE pp.league_id = ? AND pp.tournament_id = ?
-    GROUP BY pp.user_id, COALESCE(pp.entry_number, 1)
+    GROUP BY pp.user_id, COALESCE(pp.entry_number, 1), u.username, u.email, u.full_name, glm.team_name
     ORDER BY MIN(pp.submitted_at) ASC
   `, leagueId, tid);
 
@@ -1393,7 +1391,7 @@ async function listUnpaidEntries(leagueId, league) {
     LEFT JOIN golf_league_members glm
       ON glm.golf_league_id = pp.league_id AND glm.user_id = pp.user_id
     WHERE pp.league_id = ? AND pp.tournament_id = ?
-    GROUP BY pp.user_id, COALESCE(pp.entry_number, 1)
+    GROUP BY pp.user_id, COALESCE(pp.entry_number, 1), u.username, u.email, u.full_name, glm.team_name
     ORDER BY MIN(pp.submitted_at) ASC
   `, leagueId, tid);
 

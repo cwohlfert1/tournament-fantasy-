@@ -413,7 +413,7 @@ router.post('/leagues', authMiddleware, async (req, res) => {
             FROM golf_tournament_fields gtf
             JOIN golf_players gp ON gp.id = gtf.player_id
             LEFT JOIN (
-              SELECT player_id, odds_display, odds_decimal
+              SELECT player_id, MAX(odds_display) AS odds_display, MAX(odds_decimal) AS odds_decimal
               FROM pool_tier_players
               WHERE tournament_id = ? AND odds_locked_at IS NOT NULL
               GROUP BY player_id
@@ -520,13 +520,13 @@ router.get('/leagues/my-rosters', authMiddleware, async (req, res) => {
   try {
     const rows = await db.all(`
       SELECT gl.id, gl.picks_locked,
-        CASE WHEN pp.user_id IS NOT NULL THEN 1 ELSE 0 END AS submitted
+        MAX(CASE WHEN pp.user_id IS NOT NULL THEN 1 ELSE 0 END) AS submitted
       FROM golf_leagues gl
       JOIN golf_league_members glm ON glm.golf_league_id = gl.id AND glm.user_id = ?
       LEFT JOIN pool_picks pp ON pp.league_id = gl.id AND pp.user_id = ?
         AND pp.tournament_id = gl.pool_tournament_id
       WHERE gl.format_type IN ('pool', 'salary_cap', 'draft') AND gl.pool_tournament_id IS NOT NULL
-      GROUP BY gl.id
+      GROUP BY gl.id, gl.picks_locked
     `, req.user.id, req.user.id);
     const result = {};
     for (const r of rows) result[r.id] = { submitted: !!r.submitted, picks_locked: !!r.picks_locked };

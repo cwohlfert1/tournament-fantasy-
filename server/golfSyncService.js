@@ -578,7 +578,7 @@ async function pushPoolStandings(tournamentId) {
         LEFT JOIN pool_picks pp ON pp.user_id = glm.user_id AND pp.league_id = glm.golf_league_id AND pp.tournament_id = ?
         LEFT JOIN golf_scores gs ON gs.player_id = pp.player_id AND gs.tournament_id = ?
         WHERE glm.golf_league_id = ?
-        GROUP BY glm.id
+        GROUP BY glm.id, u.username
         ORDER BY total_points DESC
       `, tournamentId, tournamentId, league.id);
 
