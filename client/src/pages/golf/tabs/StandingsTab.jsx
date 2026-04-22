@@ -28,14 +28,15 @@ const toFlag = code => {
 };
 
 function RankBadge({ rank, isTied }) {
+  const label = isTied ? `T${rank}` : String(rank);
   if (rank <= 3) return (
     <div style={{ width: 30, height: 30, borderRadius: '50%', background: `${RANK_COLORS[rank-1]}22`, border: `1.5px solid ${RANK_COLORS[rank-1]}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <Trophy style={{ width: 14, height: 14, color: RANK_COLORS[rank-1] }} />
+      <span style={{ color: RANK_COLORS[rank-1], fontSize: 13, fontWeight: 800 }}>{label}</span>
     </div>
   );
   return (
-    <div style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-      <span style={{ color: '#6b7280', fontSize: 13, fontWeight: 700 }}>{isTied ? `T${rank}` : rank}</span>
+    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <span style={{ color: '#9ca3af', fontSize: 13, fontWeight: 700 }}>{label}</span>
     </div>
   );
 }
@@ -325,30 +326,21 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
     function PoolExpandContent({ picks, dropsLocked }) {
       if (!picks || picks.length === 0) return null;
-      const byTier = {};
-      picks.forEach(p => {
-        const t = p.tier_number || 0;
-        if (!byTier[t]) byTier[t] = [];
-        byTier[t].push(p);
+
+      // Sort all picks by score (best first), not grouped by tier
+      const sorted = [...picks].sort((a, b) => {
+        if (isTotalStrokes) {
+          const aTotal = [a.round1, a.round2, a.round3, a.round4].filter(r => r != null).reduce((s, r) => s + r, 0);
+          const bTotal = [b.round1, b.round2, b.round3, b.round4].filter(r => r != null).reduce((s, r) => s + r, 0);
+          return aTotal - bTotal;
+        }
+        return (b.fantasy_points || 0) - (a.fantasy_points || 0);
       });
 
       return (
         <div style={{ padding: '12px 14px 14px' }}>
-          {Object.entries(byTier).sort(([a], [b]) => a - b).map(([tier, tPicks]) => {
-            const sorted = [...tPicks].sort((a, b) => {
-              if (isTotalStrokes) {
-                const aTotal = [a.round1, a.round2, a.round3, a.round4].filter(r => r != null).reduce((s, r) => s + r, 0);
-                const bTotal = [b.round1, b.round2, b.round3, b.round4].filter(r => r != null).reduce((s, r) => s + r, 0);
-                return aTotal - bTotal;
-              }
-              return (b.fantasy_points || 0) - (a.fantasy_points || 0);
-            });
-            return (
-              <div key={tier} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
-                  {TIER_NAMES[tier] || `Tier ${tier}`}
-                </div>
-                {sorted.map((p, pi) => {
+              {sorted.map((p, pi) => {
+                  const tier = p.tier_number || 0;
                   const isWD = p.round1 == null && p.made_cut === 0 && p.finish_position == null;
                   if (isTotalStrokes) {
                     const rounds = [p.round1, p.round2, p.round3, p.round4].filter(r => r != null);
@@ -363,6 +355,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
                         <span style={{ flex: 1, color: isDropped ? '#6b7280' : '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isDropped ? 'line-through' : 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: 12, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                           {flipName(p.player_name)}
+                          <span style={{ fontSize: 8, fontWeight: 700, color: tierAccent(tier), background: `${tierAccent(tier)}18`, padding: '1px 4px', borderRadius: 3, flexShrink: 0, letterSpacing: '0.04em' }}>T{tier}</span>
                         </span>
                         {isDropped && (dropsLocked
                           ? <span style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', background: 'rgba(107,114,128,0.15)', border: '1px solid rgba(107,114,128,0.3)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>DROPPED</span>
@@ -397,6 +390,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
                       <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
                         <span style={{ fontSize: 12, lineHeight: 1, flexShrink: 0 }}>{toFlag(p.country)}</span>
                         {p.player_name}
+                        <span style={{ fontSize: 8, fontWeight: 700, color: tierAccent(tier), background: `${tierAccent(tier)}18`, padding: '1px 4px', borderRadius: 3, flexShrink: 0, letterSpacing: '0.04em' }}>T{tier}</span>
                       </span>
                       {isWD ? (
                         <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', padding: '1px 5px', borderRadius: 4 }}>WD</span>
@@ -411,9 +405,6 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
                     </div>
                   );
                 })}
-              </div>
-            );
-          })}
         </div>
       );
     }
@@ -478,7 +469,7 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
         <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px 8px 11px', borderBottom: '1px solid #1f2937' }}>
-            <div style={{ width: 30, flexShrink: 0 }} />
+            <div style={{ width: 30, flexShrink: 0, textAlign: 'center', color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>#</div>
             <div style={{ width: 32, flexShrink: 0 }} />
             <div style={{ flex: 1, color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Team</div>
             {hasPrize && <div style={{ minWidth: 44, flexShrink: 0 }} />}

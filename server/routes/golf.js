@@ -476,8 +476,8 @@ router.get('/leagues/preview/:code', async (req, res) => {
   try {
     const league = await db.get(`
       SELECT gl.id, gl.name, gl.format_type, gl.max_teams, gl.buy_in_amount,
-             gl.payout_places, gl.picks_per_team,
-             gl.pool_tournament_id,
+             gl.payout_places, gl.picks_per_team, gl.pool_tiers,
+             gl.pool_tournament_id, gl.scoring_style,
              gt.name AS pool_tournament_name,
              gt.start_date AS pool_tournament_start,
              gt.end_date AS pool_tournament_end,
@@ -488,7 +488,45 @@ router.get('/leagues/preview/:code', async (req, res) => {
       WHERE gl.invite_code = ?
     `, req.params.code.toUpperCase());
     if (!league) return res.status(404).json({ error: 'Invalid invite code' });
-    res.json({ league });
+
+    // Include tier/player preview so guests can browse before signing up
+    let tiers = [];
+    const tid = league.pool_tournament_id;
+    if (tid && (league.format_type === 'pool' || league.format_type === 'salary_cap')) {
+      try {
+        const players = await db.all(`
+          SELECT ptp.player_name, ptp.tier_number, ptp.odds_display, ptp.world_ranking,
+                 COALESCE(ptp.country, gp.country) AS country,
+                 gtf.espn_player_id
+          FROM pool_tier_players ptp
+          LEFT JOIN golf_players gp ON gp.id = ptp.player_id
+          LEFT JOIN golf_tournament_fields gtf
+            ON gtf.tournament_id = ptp.tournament_id AND gtf.player_id = ptp.player_id
+          WHERE ptp.league_id = ? AND ptp.tournament_id = ? AND (ptp.is_withdrawn IS NULL OR ptp.is_withdrawn = 0)
+          ORDER BY ptp.tier_number ASC, ptp.world_ranking ASC
+        `, league.id, tid);
+
+        let tiersConfig = [];
+        try { tiersConfig = JSON.parse(league.pool_tiers || '[]'); } catch (_) {}
+
+        tiers = tiersConfig.map(t => ({
+          tier: t.tier,
+          picks: t.picks,
+          players: players.filter(p => p.tier_number === t.tier).map(p => ({
+            name: p.player_name,
+            odds: p.odds_display,
+            ranking: p.world_ranking,
+            country: p.country,
+            espn_player_id: p.espn_player_id,
+          })),
+        }));
+      } catch (_) {}
+    }
+
+    // Strip pool_tiers JSON from league object (config data, not for display)
+    delete league.pool_tiers;
+
+    res.json({ league, tiers });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 

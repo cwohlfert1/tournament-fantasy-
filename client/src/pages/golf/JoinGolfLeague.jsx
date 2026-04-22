@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Flag, ArrowRight, Users, Calendar } from 'lucide-react';
+import { Flag, ArrowRight, Users, Calendar, ChevronDown, Trophy } from 'lucide-react';
 import api from '../../api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDocTitle } from '../../hooks/useDocTitle';
+import PlayerAvatar from '../../components/golf/PlayerAvatar';
+import { tierAccent } from '../../utils/golfTierColors';
 
 function fmtDateRange(start, end) {
   if (!start) return '';
@@ -28,8 +30,10 @@ export default function JoinGolfLeague() {
 
   const [code, setCode]           = useState(codeFromUrl.toUpperCase());
   const [preview, setPreview]     = useState(null);
+  const [tiers, setTiers]         = useState([]);
   const [previewError, setPreviewError] = useState('');
   const [previewLoading, setPreviewLoading] = useState(!!codeFromUrl);
+  const [openTier, setOpenTier]   = useState(null);
 
   const [teamName, setTeamName]   = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
@@ -49,9 +53,16 @@ export default function JoinGolfLeague() {
     setPreviewLoading(true);
     setPreviewError('');
     api.get(`/golf/leagues/preview/${trimmed}`)
-      .then(r => { setPreview(r.data.league); setPreviewError(''); })
+      .then(r => {
+        setPreview(r.data.league);
+        setTiers(r.data.tiers || []);
+        setPreviewError('');
+        // Auto-open the first tier
+        if (r.data.tiers?.length) setOpenTier(r.data.tiers[0].tier);
+      })
       .catch(err => {
         setPreview(null);
+        setTiers([]);
         setPreviewError(err.response?.status === 404 ? 'Invalid invite code.' : 'Could not load league.');
       })
       .finally(() => setPreviewLoading(false));
@@ -84,7 +95,7 @@ export default function JoinGolfLeague() {
           <Flag className="w-8 h-8 text-green-400" />
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Join a Golf League</h1>
-        <p className="text-gray-400 mt-2">Enter your invite code to see the league details.</p>
+        <p className="text-gray-400 mt-2">Enter your invite code to preview players and join.</p>
       </div>
 
       {/* Invite code input */}
@@ -108,7 +119,7 @@ export default function JoinGolfLeague() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border bg-green-500/15 border-green-500/30 text-green-400 uppercase">
-                {preview.format_type === 'pool' ? '⛳ Pool' : preview.format_type === 'salary_cap' ? '💰 Salary Cap' : '🏆 TourneyRun'}
+                {preview.format_type === 'pool' ? 'Pool' : preview.format_type === 'salary_cap' ? 'Salary Cap' : preview.format_type === 'draft' ? 'Snake Draft' : 'TourneyRun'}
               </span>
               {parseFloat(preview.buy_in_amount) === 0 && (
                 <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border bg-yellow-500/10 border-yellow-500/30 text-yellow-400">FREE</span>
@@ -146,6 +157,71 @@ export default function JoinGolfLeague() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Tier/player preview — browse before signup */}
+          {tiers.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Trophy style={{ width: 14, height: 14, color: '#6b7280' }} />
+                <span style={{ color: '#9ca3af', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Pick {tiers.reduce((sum, t) => sum + (t.picks || 1), 0)} golfers across {tiers.length} tiers
+                </span>
+              </div>
+              {tiers.map(t => {
+                const isOpen = openTier === t.tier;
+                const accent = tierAccent(t.tier);
+                return (
+                  <div key={t.tier} style={{ marginBottom: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenTier(isOpen ? null : t.tier)}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${isOpen ? accent + '44' : 'rgba(255,255,255,0.06)'}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      <span style={{ width: 24, height: 24, borderRadius: 6, background: accent + '22', border: `1px solid ${accent}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: accent, flexShrink: 0 }}>
+                        {t.tier}
+                      </span>
+                      <span style={{ flex: 1, color: '#d1d5db', fontSize: 13, fontWeight: 600 }}>
+                        Tier {t.tier}
+                        <span style={{ color: '#6b7280', fontWeight: 400, marginLeft: 6, fontSize: 11 }}>
+                          {t.players.length} golfers · pick {t.picks || 1}
+                        </span>
+                      </span>
+                      <ChevronDown style={{ width: 14, height: 14, color: '#6b7280', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                    </button>
+                    {isOpen && (
+                      <div style={{ padding: '6px 0 2px', maxHeight: 240, overflowY: 'auto' }}>
+                        {t.players.map((p, pi) => (
+                          <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <PlayerAvatar name={p.name} tier={t.tier} espnPlayerId={p.espn_player_id} size={28} />
+                            <span style={{ flex: 1, color: '#d1d5db', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.name}
+                            </span>
+                            {p.odds && (
+                              <span style={{ color: '#fbbf24', fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                                {p.odds}
+                              </span>
+                            )}
+                            {p.ranking && (
+                              <span style={{ color: '#6b7280', fontSize: 10, flexShrink: 0, minWidth: 28, textAlign: 'right' }}>
+                                #{p.ranking}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Buy-in info */}
+          {parseFloat(preview.buy_in_amount) > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 10, padding: '10px 14px' }}>
+              <span style={{ color: '#fbbf24', fontSize: 13, fontWeight: 700 }}>${preview.buy_in_amount} buy-in</span>
             </div>
           )}
 
