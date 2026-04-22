@@ -54,10 +54,10 @@ function PrizeCard({ prizeTotal, buyIn, memberCount, payoutSplits }) {
   const total  = prizeTotal || (buyIn * memberCount);
   const isOverride = prizeTotal && prizeTotal !== buyIn * memberCount;
   const fmtAmt = n => n >= 1000 ? `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `$${n}`;
-  const ICONS = ['🥇', '🥈', '🥉'];
+  const MEDAL_COLORS = ['#fbbf24', '#d1d5db', '#f97316'];
   const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
   const places = (payoutSplits || []).map((s, i) => ({
-    icon: ICONS[i] || `${i + 1}.`,
+    color: MEDAL_COLORS[i] || '#6b7280',
     label: ordinals[i] || `${i + 1}th`,
     pct: s.pct,
     amt: Math.round(total * s.pct / 100),
@@ -80,9 +80,11 @@ function PrizeCard({ prizeTotal, buyIn, memberCount, payoutSplits }) {
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(places.length, 5)}, 1fr)`, gap: 0 }}>
-        {places.slice(0, 10).map(({ icon, label, pct, amt }, i) => (
+        {places.slice(0, 10).map(({ color, label, pct, amt }, i) => (
           <div key={label} style={{ padding: '12px 14px', borderRight: i < Math.min(places.length, 5) - 1 ? '1px solid rgba(245,158,11,0.1)' : 'none', textAlign: 'center' }}>
-            <div style={{ fontSize: places.length > 5 ? 14 : 18, marginBottom: 4 }}>{icon}</div>
+            <div style={{ width: places.length > 5 ? 20 : 26, height: places.length > 5 ? 20 : 26, borderRadius: '50%', background: `${color}18`, border: `1.5px solid ${color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px', fontSize: places.length > 5 ? 10 : 12, fontWeight: 800, color }}>
+              {i + 1}
+            </div>
             <div style={{ color: '#fff', fontWeight: 800, fontSize: places.length > 5 ? 14 : 16 }}>{fmtAmt(amt)}</div>
             <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>{label} · {pct}%</div>
           </div>
@@ -92,6 +94,13 @@ function PrizeCard({ prizeTotal, buyIn, memberCount, payoutSplits }) {
   );
 }
 
+
+// Top-3 row tints: subtle gradient backgrounds for money positions
+const TOP3_BG = {
+  1: 'linear-gradient(90deg, rgba(251,191,36,0.06) 0%, transparent 60%)',
+  2: 'linear-gradient(90deg, rgba(209,213,219,0.05) 0%, transparent 60%)',
+  3: 'linear-gradient(90deg, rgba(249,115,22,0.05) 0%, transparent 60%)',
+};
 
 const LeaderboardRow = memo(function LeaderboardRow({
   s, rankInfo, expandContent, canExpand,
@@ -104,9 +113,13 @@ const LeaderboardRow = memo(function LeaderboardRow({
   const isOpen = expanded === rowKey;
   const pts    = s.season_points ?? 0;
   const myPrize = hasPrize ? prizeForRank(rankInfo.rank, prizeTotal, payoutSplits) : null;
-  // isTotalStrokes is already the full isStrokeBased() check — pass the right convention
   const ptColor = scoreColor(pts, isTotalStrokes ? 'stroke_play' : 'tourneyrun');
   const isBot  = /^bot[\s_]?\d/i.test(s.username || '');
+  const expandRef = useRef(null);
+
+  const baseBg = isMe
+    ? 'rgba(0,232,122,0.04)'
+    : TOP3_BG[rankInfo.rank] || 'transparent';
 
   return (
     <div ref={el => { rowRefs.current[rowKey] = el; }} style={{ borderLeft: `3px solid ${isMe ? '#22c55e' : 'transparent'}`, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -120,9 +133,9 @@ const LeaderboardRow = memo(function LeaderboardRow({
             rowRefs.current[rowKey]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }, 10);
         }}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 11px 11px', background: isMe ? 'rgba(0,232,122,0.04)' : 'transparent', border: 'none', cursor: canExpand ? 'pointer' : 'default', textAlign: 'left' }}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px 11px 11px', background: baseBg, border: 'none', cursor: canExpand ? 'pointer' : 'default', textAlign: 'left', transition: 'background 0.15s' }}
         onMouseEnter={e => { if (canExpand) e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.07)' : 'rgba(255,255,255,0.03)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = isMe ? 'rgba(0,232,122,0.04)' : 'transparent'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = baseBg; }}
       >
         <RankBadge rank={rankInfo.rank} isTied={rankInfo.tied} />
         <AvatarCircle name={s.team_name} isMe={isMe} />
@@ -160,13 +173,11 @@ const LeaderboardRow = memo(function LeaderboardRow({
               : '—'}
           </div>
           <div style={{ color: '#4b5563', fontSize: 10 }}>{isTotalStrokes ? '' : 'pts'}</div>
-          {/* Tiebreaker — show on tied teams during active tournament */}
           {s.tiebreaker_score != null && hasScores && rankInfo.tied && (
             <div style={{ fontSize: 9, color: '#6b7280', fontWeight: 500, marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
               TB: {s.tiebreaker_score > 0 ? '+' : ''}{s.tiebreaker_score}
             </div>
           )}
-          {/* Tiebreaker proximity — show after tournament completes (winning_score known) */}
           {winningScore != null && s.tiebreaker_score != null && (() => {
             const delta = Math.abs(s.tiebreaker_score - winningScore);
             return (
@@ -177,16 +188,23 @@ const LeaderboardRow = memo(function LeaderboardRow({
           })()}
         </div>
         {canExpand && (
-          <svg style={{ width: 12, height: 12, color: '#4b5563', flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          <svg style={{ width: 16, height: 16, color: '#6b7280', flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         )}
       </button>
-      {isOpen && expandContent && (
-        <div style={{ background: 'rgba(0,0,0,0.25)', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-          {expandContent}
-        </div>
-      )}
+      <div
+        ref={expandRef}
+        style={{
+          overflow: 'hidden',
+          maxHeight: isOpen ? (expandRef.current?.scrollHeight || 600) + 'px' : '0px',
+          transition: 'max-height 0.25s ease',
+          background: 'rgba(0,0,0,0.25)',
+          borderTop: isOpen ? '1px solid rgba(255,255,255,0.04)' : 'none',
+        }}
+      >
+        {expandContent}
+      </div>
     </div>
   );
 });
