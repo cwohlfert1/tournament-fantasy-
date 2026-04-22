@@ -16,6 +16,7 @@
 'use strict';
 
 const db = require('./db'); // raw SQLite — synchronous, used for both reads and writes
+const asyncDb = require('./db/index'); // async abstraction layer (reads/writes Supabase)
 const https = require('https');
 const { computeLockTime } = require('./golfPoolLockService');
 
@@ -240,13 +241,15 @@ async function applyEspnPlayerIdAnchoring({ backfillAll = false } = {}) {
   // backfillAll mode: anchor ANY tournament with espn_event_id + missing IDs.
   // Used once on boot to populate historical pools so roster/standings can show
   // player headshots for past events (Masters, Houston Open, etc.).
+  //
+  // Uses asyncDb (Supabase) so anchored IDs are visible to the standings queries.
   const whereDate = backfillAll
     ? ''
     : `AND date(t.start_date) BETWEEN date('now', '-1 day') AND date('now', '+2 days')`;
   const whereStatus = backfillAll
     ? `AND t.status IN ('scheduled', 'active', 'completed')`
     : `AND t.status IN ('scheduled', 'active')`;
-  const candidates = db.prepare(`
+  const candidates = await asyncDb.all(`
     SELECT t.id, t.name, t.espn_event_id
     FROM golf_tournaments t
     WHERE t.espn_event_id IS NOT NULL
@@ -254,9 +257,9 @@ async function applyEspnPlayerIdAnchoring({ backfillAll = false } = {}) {
       ${whereDate}
       AND EXISTS (
         SELECT 1 FROM golf_tournament_fields f
-        WHERE f.tournament_id = t.id AND f.espn_player_id IS NULL
+        WHERE f.tournament_id = t.id AND (f.espn_player_id IS NULL OR f.espn_player_id = '')
       )
-  `).all();
+  `);
   if (candidates.length === 0) return [];
 
   const { matchPlayerName } = require('./utils/playerNameNorm');
@@ -275,15 +278,12 @@ async function applyEspnPlayerIdAnchoring({ backfillAll = false } = {}) {
       if (competitors.length === 0) continue;
 
       // Build a list of golf_players for the players in this tournament's field
-      const players = db.prepare(`
+      const players = await asyncDb.all(`
         SELECT gp.id, gp.name FROM golf_tournament_fields f
         JOIN golf_players gp ON gp.id = f.player_id
         WHERE f.tournament_id = ?
-      `).all(t.id);
+      `, t.id);
 
-      const upd = db.prepare(
-        'UPDATE golf_tournament_fields SET espn_player_id = ? WHERE tournament_id = ? AND player_id = ? AND (espn_player_id IS NULL OR espn_player_id = \'\')'
-      );
       let updated = 0;
       for (const c of competitors) {
         const dn = c.athlete?.displayName;
@@ -291,7 +291,10 @@ async function applyEspnPlayerIdAnchoring({ backfillAll = false } = {}) {
         if (!dn || !espnId) continue;
         const m = matchPlayerName(dn, players, t.name);
         if (m) {
-          const r = upd.run(String(espnId), t.id, m.id);
+          const r = await asyncDb.run(
+            "UPDATE golf_tournament_fields SET espn_player_id = ? WHERE tournament_id = ? AND player_id = ? AND (espn_player_id IS NULL OR espn_player_id = '')",
+            String(espnId), t.id, m.id
+          );
           if (r.changes > 0) updated++;
         }
       }

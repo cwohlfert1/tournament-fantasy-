@@ -138,7 +138,6 @@ const LeaderboardRow = memo(function LeaderboardRow({
         onMouseLeave={e => { e.currentTarget.style.background = baseBg; }}
       >
         <RankBadge rank={rankInfo.rank} isTied={rankInfo.tied} />
-        <AvatarCircle name={s.team_name} isMe={isMe} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
             <span style={{ color: isMe ? '#22c55e' : '#fff', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -756,7 +755,6 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
         <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px 8px 11px', borderBottom: '1px solid #1f2937' }}>
             <div style={{ width: 30, flexShrink: 0, textAlign: 'center', color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>#</div>
-            <div style={{ width: 32, flexShrink: 0 }} />
             <div style={{ flex: 1, color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Team</div>
             {hasPrize && <div style={{ minWidth: 44, flexShrink: 0 }} />}
             <div style={{ minWidth: 50, textAlign: 'right', color: '#4b5563', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>{isTotalStrokes ? 'Score' : 'Pts'}</div>
