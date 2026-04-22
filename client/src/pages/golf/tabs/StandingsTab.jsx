@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
-import { Flag, Trophy } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import { Flag, Trophy, Eye, BarChart3 } from 'lucide-react';
 import api from '../../../api';
 import PlayerAvatar from '../../../components/golf/PlayerAvatar';
 import GolferStack from '../../../components/golf/GolferStack';
@@ -198,6 +198,215 @@ function prizeForRank(rank, total, payoutSplits) {
   return Math.round(total * split.pct / 100);
 }
 
+// ── Sweat Mode: My Picks Live ────────────────────────────────────────────────
+function SweatView({ liveData, liveLoading, standings, ranks, currentUserId, isTotalStrokes, hasPrize, prizeTotal, payoutSplits, fetchLive }) {
+  if (liveLoading && !liveData) return <div style={{ padding: '40px 0', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>Loading live data...</div>;
+  if (!liveData || !liveData.competitors?.length) return (
+    <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <div style={{ color: '#4b5563', fontSize: 13 }}>Live scoring not available yet. Check back when the tournament is in progress.</div>
+    </div>
+  );
+
+  const competitors = liveData.competitors || [];
+  const myPickNames = new Set((liveData.my_pick_names || []).map(n => n.toLowerCase()));
+
+  // Find my standings entry
+  const myEntry = standings.find(s => s.user_id === currentUserId && (s.entry_number || 1) === 1);
+  const myRankIdx = standings.findIndex(s => s.user_id === currentUserId && (s.entry_number || 1) === 1);
+  const myRank = myRankIdx >= 0 ? ranks[myRankIdx] : null;
+  const myScore = myEntry?.season_points ?? 0;
+  const myPrize = hasPrize && myRank ? prizeForRank(myRank.rank, prizeTotal, payoutSplits) : null;
+
+  // Leader info
+  const leader = standings[0];
+  const leaderScore = leader?.season_points ?? 0;
+  const gap = isTotalStrokes ? myScore - leaderScore : leaderScore - myScore;
+
+  // Match my picks to live ESPN competitors
+  const myPicks = (myEntry?.picks || []).map(pick => {
+    const name = pick.player_name?.toLowerCase() || '';
+    // Match by name — try exact match first, then fuzzy (last name)
+    let live = competitors.find(c => c.name?.toLowerCase() === name);
+    if (!live) {
+      const lastName = name.split(',')[0]?.trim() || name.split(' ').pop();
+      live = competitors.find(c => c.name?.toLowerCase().includes(lastName));
+    }
+    return { ...pick, live };
+  });
+
+  // Sort: active players first (by position), then finished, then cut/WD
+  myPicks.sort((a, b) => {
+    const aActive = a.live && !a.live.isCut && !a.live.isWD && a.live.thru !== null && a.live.thru < 18;
+    const bActive = b.live && !b.live.isCut && !b.live.isWD && b.live.thru !== null && b.live.thru < 18;
+    if (aActive && !bActive) return -1;
+    if (!aActive && bActive) return 1;
+    return (a.live?.sortOrder || 999) - (b.live?.sortOrder || 999);
+  });
+
+  const fmtPar = n => n == null ? '—' : n === 0 ? 'E' : (n > 0 ? '+' : '') + n;
+  const parColor = n => n == null ? '#6b7280' : n < 0 ? '#22c55e' : n > 0 ? '#ef4444' : '#9ca3af';
+
+  // Hole symbols
+  const holeSymbol = (topar) => {
+    if (topar === 'Eagle' || topar === 'Double Eagle' || topar === 'Albatross') return { sym: '◎', color: '#f59e0b' };
+    if (topar === 'Birdie') return { sym: '●', color: '#22c55e' };
+    if (topar === 'Par') return { sym: '·', color: '#4b5563' };
+    if (topar === 'Bogey') return { sym: '□', color: '#ef4444' };
+    return { sym: '■', color: '#dc2626' }; // double+
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* My position summary */}
+      <div style={{ background: '#111827', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: '14px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {myRank && (
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: myRank.rank <= 3 ? `${RANK_COLORS[myRank.rank-1]}22` : 'rgba(255,255,255,0.04)', border: `2px solid ${myRank.rank <= 3 ? RANK_COLORS[myRank.rank-1] : 'rgba(255,255,255,0.1)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: myRank.rank <= 3 ? RANK_COLORS[myRank.rank-1] : '#9ca3af', fontSize: 15, fontWeight: 800 }}>
+                  {myRank.tied ? 'T' : ''}{myRank.rank}
+                </span>
+              </div>
+            )}
+            <div>
+              <div style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>{myEntry?.team_name || 'My Team'}</div>
+              <div style={{ color: '#6b7280', fontSize: 11 }}>
+                {standings.length} teams{myRank?.rank === 1 ? ' · Leading' : gap > 0 && isTotalStrokes ? ` · ${gap} from lead` : ''}
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: parColor(myScore), fontSize: 22, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+              {fmtPar(myScore)}
+            </div>
+            {myPrize && <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 700 }}>${myPrize.toLocaleString()}</div>}
+          </div>
+        </div>
+
+        {/* Gap to positions above/below */}
+        {myRankIdx > 0 && (
+          <div style={{ display: 'flex', gap: 12, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
+            {myRankIdx > 0 && (() => {
+              const above = standings[myRankIdx - 1];
+              const aboveGap = isTotalStrokes ? myScore - (above?.season_points ?? 0) : (above?.season_points ?? 0) - myScore;
+              return (
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>To overtake {above?.team_name?.split(' ')[0]}</div>
+                  <div style={{ color: '#d1d5db', fontSize: 13, fontWeight: 700, marginTop: 2 }}>
+                    {aboveGap === 0 ? 'Tied' : `Need ${Math.abs(aboveGap)} stroke${Math.abs(aboveGap) !== 1 ? 's' : ''}`}
+                  </div>
+                </div>
+              );
+            })()}
+            {myRankIdx < standings.length - 1 && (() => {
+              const below = standings[myRankIdx + 1];
+              const belowGap = isTotalStrokes ? (below?.season_points ?? 0) - myScore : myScore - (below?.season_points ?? 0);
+              return (
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Lead over {below?.team_name?.split(' ')[0]}</div>
+                  <div style={{ color: '#d1d5db', fontSize: 13, fontWeight: 700, marginTop: 2 }}>
+                    {belowGap === 0 ? 'Tied' : `${Math.abs(belowGap)} stroke${Math.abs(belowGap) !== 1 ? 's' : ''}`}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+
+      {/* My picks — live */}
+      {myPicks.map((pick, pi) => {
+        const l = pick.live;
+        const isActive = l && !l.isCut && !l.isWD && l.thru != null && l.thru < 18;
+        const isFinished = l && l.thru === 18;
+        const isCutWd = l?.isCut || l?.isWD;
+
+        // Current round hole-by-hole
+        const currentRoundHoles = l?.rounds?.length > 0 ? l.rounds[l.rounds.length - 1]?.holes || [] : [];
+        const lastHoles = currentRoundHoles.slice(-5);
+
+        return (
+          <div key={pi} style={{ background: '#111827', border: `1px solid ${isActive ? 'rgba(34,197,94,0.15)' : isCutWd ? 'rgba(239,68,68,0.15)' : '#1f2937'}`, borderRadius: 14, overflow: 'hidden' }}>
+            {/* Player header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+              <PlayerAvatar name={pick.player_name} tier={pick.tier_number} espnPlayerId={pick.espn_player_id} size={36} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: isCutWd ? '#6b7280' : '#fff', fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: isCutWd ? 'line-through' : 'none' }}>
+                    {flipName(pick.player_name)}
+                  </span>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: tierAccent(pick.tier_number), background: `${tierAccent(pick.tier_number)}18`, padding: '1px 4px', borderRadius: 3, flexShrink: 0 }}>T{pick.tier_number}</span>
+                </div>
+                <div style={{ color: '#4b5563', fontSize: 11, display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                  {l ? (
+                    <>
+                      <span>{l.posText || '—'}</span>
+                      {isActive && <span style={{ color: '#22c55e' }}>Thru {l.thru}</span>}
+                      {isFinished && <span style={{ color: '#9ca3af' }}>F</span>}
+                      {l.isCut && <span style={{ color: '#ef4444', fontWeight: 700 }}>MC</span>}
+                      {l.isWD && <span style={{ color: '#ef4444', fontWeight: 700 }}>WD</span>}
+                    </>
+                  ) : (
+                    <span>No live data</span>
+                  )}
+                </div>
+              </div>
+              {l && (
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ color: parColor(l.total), fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                    {fmtPar(l.total)}
+                  </div>
+                  {l.today != null && (
+                    <div style={{ color: parColor(l.today), fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      Today: {fmtPar(l.today)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Last holes strip — only for active/finished players */}
+            {lastHoles.length > 0 && !isCutWd && (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#4b5563', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Last {lastHoles.length}</span>
+                <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+                  {lastHoles.map(h => {
+                    const { sym, color } = holeSymbol(h.topar);
+                    return (
+                      <div key={h.hole} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 24 }}>
+                        <span style={{ fontSize: 14, color, lineHeight: 1 }}>{sym}</span>
+                        <span style={{ fontSize: 8, color: '#4b5563', marginTop: 1 }}>{h.hole}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Round scores */}
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {l?.rounds?.map(r => (
+                    <span key={r.round} style={{ fontSize: 10, color: '#6b7280', fontVariantNumeric: 'tabular-nums' }}>
+                      R{r.round}: {r.strokes || '—'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Auto-refresh indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '4px 0' }}>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', animation: 'pulse 2s infinite' }} />
+        <span style={{ color: '#4b5563', fontSize: 10 }}>Auto-refreshing every 60s</span>
+        <button type="button" onClick={fetchLive}
+          style={{ color: '#6b7280', fontSize: 10, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+          Refresh now
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StandingsTab({ leagueId, league, currentUserId }) {
   const [data, setData]           = useState(null);
   const [payouts, setPayouts]     = useState(null); // { net_pool, payouts: [{ place, pct, amount }] }
@@ -205,6 +414,10 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded]   = useState(null);
   const rowRefs = useRef({});
+  const [viewMode, setViewMode]   = useState('leaderboard'); // 'leaderboard' | 'sweat'
+  const [liveData, setLiveData]   = useState(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const liveInterval = useRef(null);
 
   const fetchStandings = (opts = {}) => {
     if (opts.refresh) setRefreshing(true);
@@ -233,6 +446,25 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
       if (myRow) setExpanded(`${currentUserId}_1`);
     }
   }, [data, currentUserId]); // eslint-disable-line
+
+  // Fetch live PGA data when sweat mode is active
+  const fetchLive = useCallback(() => {
+    api.get(`/golf/leagues/${leagueId}/pga-live`)
+      .then(r => setLiveData(r.data))
+      .catch(() => {});
+  }, [leagueId]);
+
+  useEffect(() => {
+    if (viewMode !== 'sweat') {
+      if (liveInterval.current) { clearInterval(liveInterval.current); liveInterval.current = null; }
+      return;
+    }
+    setLiveLoading(true);
+    fetchLive();
+    setLiveLoading(false);
+    liveInterval.current = setInterval(fetchLive, 60_000);
+    return () => { if (liveInterval.current) clearInterval(liveInterval.current); };
+  }, [viewMode, fetchLive]);
 
   // All derived values and hooks must be declared before any early return
   const standings    = data?.standings || [];
@@ -457,6 +689,42 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
         {CompletedBanner}
 
+        {/* View mode toggle — only show during live or completed tournaments with scores */}
+        {(isLive || hasScores) && (
+          <div style={{ display: 'flex', background: '#111827', border: '1px solid #1f2937', borderRadius: 10, padding: 3, gap: 2 }}>
+            {[
+              { key: 'leaderboard', label: 'Leaderboard', icon: BarChart3 },
+              { key: 'sweat', label: 'My Picks Live', icon: Eye },
+            ].map(({ key, label, icon: Icon }) => (
+              <button key={key} type="button" onClick={() => setViewMode(key)}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+                  background: viewMode === key ? 'rgba(34,197,94,0.15)' : 'transparent',
+                  color: viewMode === key ? '#22c55e' : '#6b7280',
+                  border: viewMode === key ? '1px solid rgba(34,197,94,0.3)' : '1px solid transparent',
+                }}>
+                <Icon style={{ width: 14, height: 14 }} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Sweat Mode — My Picks Live */}
+        {viewMode === 'sweat' ? (
+          <SweatView
+            liveData={liveData}
+            liveLoading={liveLoading}
+            standings={standings}
+            ranks={ranks}
+            currentUserId={currentUserId}
+            isTotalStrokes={isTotalStrokes}
+            hasPrize={hasPrize}
+            prizeTotal={prizeTotal}
+            payoutSplits={payoutSplits}
+            fetchLive={fetchLive}
+          />
+        ) : (
+        <>
         {hasPrize && <PrizeCard prizeTotal={prizeTotal} buyIn={league?.buy_in_amount || 0} memberCount={standings.length} payoutSplits={payoutSplits} />}
 
 {isTotalStrokes && dropCount > 0 && (
@@ -497,6 +765,8 @@ export default function StandingsTab({ leagueId, league, currentUserId }) {
 
         {!hasPrize && (
           <p style={{ color: '#374151', fontSize: 11, textAlign: 'center' }}>No buy-in · bragging rights only</p>
+        )}
+        </>
         )}
       </div>
     );

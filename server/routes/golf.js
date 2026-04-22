@@ -900,7 +900,7 @@ router.get('/leagues/:id/pga-live', authMiddleware, async (req, res) => {
 
     // Picks for the current user (pool / salary_cap format)
     let myPickNames = [];
-    if (['pool', 'salary_cap'].includes(league.format_type) && tid) {
+    if (['pool', 'salary_cap', 'draft'].includes(league.format_type) && tid) {
       myPickNames = (await db.all(`
         SELECT pl.name as player_name
         FROM pool_picks pp JOIN golf_players pl ON pl.id = pp.player_id
