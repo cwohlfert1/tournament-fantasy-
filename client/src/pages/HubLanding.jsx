@@ -472,9 +472,10 @@ export default function HubLanding() {
           {/* Center nav — hover-underline, desktop only */}
           <div className="hidden md:flex items-center" style={{ gap: 32 }}>
             {[
-              { to: '/golf',       label: 'Golf',       accent: '#22c55e' },
-              { to: '/basketball', label: 'Basketball', accent: '#ff8c00' },
-              { to: '/golf/faq',   label: 'FAQ',        accent: '#ffffff' },
+              { to: '/golf',             label: 'Golf',       accent: '#22c55e' },
+              { to: '/horses/dashboard', label: 'Horses',     accent: '#2AA6A6' },
+              { to: '/basketball',       label: 'Basketball', accent: '#ff8c00' },
+              { to: '/golf/faq',         label: 'FAQ',        accent: '#ffffff' },
             ].map(({ to, label, accent }) => (
               <Link
                 key={to}
@@ -893,6 +894,51 @@ export default function HubLanding() {
                 </Link>
               </div>
             </div>
+            {/* Horse Racing */}
+            <div className="hub-card-hover" style={{
+              background: 'rgba(255,255,255,0.03)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(42,166,166,0.15)',
+              borderRadius: 24, overflow: 'hidden',
+              boxShadow: '0 0 60px rgba(42,166,166,0.04)',
+            }}>
+              <div style={{ height: 3, background: 'linear-gradient(90deg, #2AA6A6, #36bfbf 50%, transparent)' }} />
+              <div style={{ padding: 'clamp(24px,4vw,36px)' }}>
+                <div style={{ marginBottom: 20 }}>
+                  <span style={{
+                    display: 'inline-block', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    background: 'rgba(42,166,166,0.12)', color: '#5cd4d4', border: '1px solid rgba(42,166,166,0.25)',
+                    padding: '4px 12px', borderRadius: 100, marginBottom: 16,
+                  }}>Kentucky Derby 2026 · Free Beta</span>
+                  <svg viewBox="0 0 384 512" style={{ width: 36, height: 36, marginBottom: 12, display: 'block' }}>
+                    <path fill="#2AA6A6" d="M19 345.5l-10.1 10.1c-4.7 4.7-12.3 4.7-17 0l-5.7-5.7c-4.7-4.7-4.7-12.3 0-17l6.1-6.1c-3.1-6.2-5.1-13.2-5.1-20.5V208c0-34.2 19.1-63.8 47.2-79.1C24.4 112.2 16 91.5 16 68.8 16 30.8 46.8 0 84.8 0c11.8 0 22.9 3 32.6 8.2C125.5 3.1 134.5 0 144 0c44.2 0 80 35.8 80 80v16.2c18.8 15.3 37.6 34.6 37.6 78.4 0 4.1-.3 8.1-.8 12L304 208c12.4 4.4 22.4 13.3 28.2 24.8l38.1 76.2c6.1 12.2 8.8 25.8 7.7 39.4l-4.5 58.4C371.7 429.1 352.5 448 330.2 448H192c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64v-38.5zm64-188.9V306c0 5.5 4.5 10 10 10h2.3c4 0 7.5-2.4 9.1-6l48-112c2.8-6.5-2.1-13.6-9.1-13.6H96.8c-8 0-13.8 7.7-13.8 15.1V156.6zM80 96a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"/>
+                  </svg>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Horse Racing Pools</h3>
+                  <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
+                    Run Derby pools at your party. Random draw, pick win/place/show, or squares. No platform fee for 2026.
+                  </p>
+                </div>
+                <ul style={{ margin: '0 0 28px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {['Random draw — horses assigned at lock', 'Pick Win / Place / Show', '10×10 Squares grid pools', 'Free beta — no platform fee'].map(b => (
+                    <li key={b} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.65)' }}>
+                      <span style={{ color: '#2AA6A6', fontWeight: 800, flexShrink: 0 }}>✓</span>{b}
+                    </li>
+                  ))}
+                </ul>
+                <Link to={user ? '/horses/dashboard' : '/horses/dashboard'}
+                  className="hub-btn-hover"
+                  style={{
+                    display: 'block', textAlign: 'center', textDecoration: 'none',
+                    background: 'linear-gradient(135deg, #2AA6A6, #36bfbf)',
+                    color: '#fff', fontWeight: 800, fontSize: 15,
+                    padding: '14px 0', borderRadius: 14,
+                    boxShadow: '0 8px 32px rgba(42,166,166,0.3)',
+                  }}
+                >
+                  {user ? 'My Derby Pools →' : 'Derby Pools →'}
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1129,6 +1175,7 @@ export default function HubLanding() {
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {[
               { to: '/golf', label: '⛳ Fantasy Golf' },
+              { to: '/horses/dashboard', label: '🐴 Horse Racing' },
               { to: '/basketball', label: '🏀 College Basketball' },
               { to: '/golf/faq', label: 'FAQ' },
               { to: '/golf/strategy', label: 'Strategy' },
