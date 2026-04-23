@@ -69,7 +69,7 @@ export default function JoinHorsesPool() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-6">Join Horse Racing Pool</h1>
+      <h1 className="text-2xl sm:text-3xl font-black text-white mb-6">Join Horse Racing Pool</h1>
 
       {/* Code input */}
       {!urlCode && (
@@ -77,16 +77,16 @@ export default function JoinHorsesPool() {
           <label className="text-sm text-gray-400 mb-1 block">Invite Code</label>
           <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
             placeholder="Enter 8-character code" maxLength={8}
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm w-full font-mono tracking-widest text-center text-lg" />
+            className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm w-full font-mono tracking-widest text-center text-lg" />
         </div>
       )}
 
       {loading && <div className="text-gray-500 text-center py-4">Looking up pool...</div>}
-      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-lg px-3 py-2 mb-4">{error}</div>}
+      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
       {/* Pool preview */}
       {preview && (
-        <div className="border border-gray-700 rounded-lg p-4 mb-6 space-y-3">
+        <div className="border border-gray-800 rounded-2xl p-4 mb-6 space-y-3">
           <h2 className="text-white font-semibold text-lg">{preview.name}</h2>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between"><span className="text-gray-400">Format</span><span className="text-white">{FORMAT_LABELS[preview.format_type] || preview.format_type}</span></div>
@@ -100,18 +100,18 @@ export default function JoinHorsesPool() {
           {/* Auth gate */}
           {!user ? (
             <div className="space-y-2 pt-2">
-              <Link to={`/login?then=${returnUrl}`} className="block w-full text-center bg-horses-500 hover:bg-horses-600 text-white py-2 rounded-lg text-sm">Sign In to Join</Link>
-              <Link to={`/register?then=${returnUrl}`} className="block w-full text-center border border-gray-700 hover:border-gray-600 text-white py-2 rounded-lg text-sm">Create Account</Link>
+              <Link to={`/login?then=${returnUrl}`} className="block w-full text-center bg-horses-500 hover:bg-horses-600 text-white py-2 rounded-2xl text-sm">Sign In to Join</Link>
+              <Link to={`/register?then=${returnUrl}`} className="block w-full text-center border border-gray-800 hover:border-horses-500/40 text-white py-2 rounded-2xl text-sm">Create Account</Link>
             </div>
           ) : (
             <div className="space-y-3 pt-2">
               <div>
                 <label className="text-sm text-gray-400 mb-1 block">Your Display Name</label>
                 <input value={displayName} onChange={e => setDisplayName(e.target.value)}
-                  placeholder="How others will see you" className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm w-full" />
+                  placeholder="How others will see you" className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm w-full" />
               </div>
               <button onClick={handleJoin} disabled={joining || !displayName}
-                className="w-full bg-horses-500 hover:bg-horses-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                className="w-full bg-horses-500 hover:bg-horses-600 text-white py-2 rounded-2xl text-sm font-medium disabled:opacity-50">
                 {joining ? 'Joining...' : Number(preview.entry_fee) > 0 ? `Join & Pay $${preview.entry_fee}` : 'Join Pool'}
               </button>
             </div>

@@ -105,8 +105,8 @@ export default function HorsesAdmin() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-10">
-      <h1 className="text-2xl font-bold text-white">Racing Admin</h1>
-      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-lg px-3 py-2">{error}</div>}
+      <h1 className="text-2xl sm:text-3xl font-black text-white">Racing Admin</h1>
+      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-2xl px-3 py-2">{error}</div>}
 
       {/* ── Events ── */}
       <section>
@@ -116,14 +116,14 @@ export default function HorsesAdmin() {
         </div>
 
         {showEventForm && (
-          <form onSubmit={saveEvent} className="border border-gray-700 rounded-lg p-4 mb-4 space-y-3">
+          <form onSubmit={saveEvent} className="border border-gray-800 rounded-2xl p-4 mb-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <input placeholder="Event name *" value={eventForm.name} onChange={e => setEventForm(p => ({ ...p, name: e.target.value }))} required className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm col-span-2" />
-              <input placeholder="Venue" value={eventForm.venue} onChange={e => setEventForm(p => ({ ...p, venue: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-              <input type="number" placeholder="Field size" value={eventForm.field_size} onChange={e => setEventForm(p => ({ ...p, field_size: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-              <input type="datetime-local" placeholder="Race date" value={eventForm.race_date?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, race_date: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-              <input type="datetime-local" placeholder="Post time" value={eventForm.post_time?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, post_time: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-              <input type="datetime-local" placeholder="Lock time" value={eventForm.default_lock_time?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, default_lock_time: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm col-span-2" />
+              <input placeholder="Event name *" value={eventForm.name} onChange={e => setEventForm(p => ({ ...p, name: e.target.value }))} required className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm col-span-2" />
+              <input placeholder="Venue" value={eventForm.venue} onChange={e => setEventForm(p => ({ ...p, venue: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+              <input type="number" placeholder="Field size" value={eventForm.field_size} onChange={e => setEventForm(p => ({ ...p, field_size: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+              <input type="datetime-local" placeholder="Race date" value={eventForm.race_date?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, race_date: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+              <input type="datetime-local" placeholder="Post time" value={eventForm.post_time?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, post_time: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+              <input type="datetime-local" placeholder="Lock time" value={eventForm.default_lock_time?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, default_lock_time: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm col-span-2" />
             </div>
             <div className="flex gap-2">
               <button type="submit" className="bg-horses-500 hover:bg-horses-600 text-white text-sm px-4 py-2 rounded">{editingEventId ? 'Update' : 'Create'}</button>
@@ -132,7 +132,7 @@ export default function HorsesAdmin() {
           </form>
         )}
 
-        <div className="border border-gray-700 rounded-lg overflow-hidden">
+        <div className="border border-gray-800 rounded-2xl overflow-hidden">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-gray-700 text-gray-400 text-left">
               <th className="px-4 py-2">Name</th><th className="px-4 py-2">Venue</th><th className="px-4 py-2">Race Date</th><th className="px-4 py-2">Post Time</th><th className="px-4 py-2">Status</th><th className="px-4 py-2"></th>
@@ -168,14 +168,14 @@ export default function HorsesAdmin() {
           </div>
 
           {showHorseForm && (
-            <form onSubmit={saveHorse} className="border border-gray-700 rounded-lg p-4 mb-4 space-y-3">
+            <form onSubmit={saveHorse} className="border border-gray-800 rounded-2xl p-4 mb-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <input placeholder="Horse name *" value={horseForm.horse_name} onChange={e => setHorseForm(p => ({ ...p, horse_name: e.target.value }))} required className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-                <input type="number" placeholder="Post position" value={horseForm.post_position} onChange={e => setHorseForm(p => ({ ...p, post_position: e.target.value }))} min="1" max="20" className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-                <input placeholder="Jockey" value={horseForm.jockey_name} onChange={e => setHorseForm(p => ({ ...p, jockey_name: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-                <input placeholder="Trainer" value={horseForm.trainer_name} onChange={e => setHorseForm(p => ({ ...p, trainer_name: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-                <input placeholder="Morning line odds (e.g. 5-1)" value={horseForm.morning_line_odds} onChange={e => setHorseForm(p => ({ ...p, morning_line_odds: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
-                <input placeholder="Silk colors" value={horseForm.silk_colors} onChange={e => setHorseForm(p => ({ ...p, silk_colors: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
+                <input placeholder="Horse name *" value={horseForm.horse_name} onChange={e => setHorseForm(p => ({ ...p, horse_name: e.target.value }))} required className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+                <input type="number" placeholder="Post position" value={horseForm.post_position} onChange={e => setHorseForm(p => ({ ...p, post_position: e.target.value }))} min="1" max="20" className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+                <input placeholder="Jockey" value={horseForm.jockey_name} onChange={e => setHorseForm(p => ({ ...p, jockey_name: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+                <input placeholder="Trainer" value={horseForm.trainer_name} onChange={e => setHorseForm(p => ({ ...p, trainer_name: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+                <input placeholder="Morning line odds (e.g. 5-1)" value={horseForm.morning_line_odds} onChange={e => setHorseForm(p => ({ ...p, morning_line_odds: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
+                <input placeholder="Silk colors" value={horseForm.silk_colors} onChange={e => setHorseForm(p => ({ ...p, silk_colors: e.target.value }))} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm" />
               </div>
               <div className="flex gap-2">
                 <button type="submit" className="bg-horses-500 hover:bg-horses-600 text-white text-sm px-4 py-2 rounded">{editingHorseId ? 'Update' : 'Add'}</button>
@@ -184,7 +184,7 @@ export default function HorsesAdmin() {
             </form>
           )}
 
-          <div className="border border-gray-700 rounded-lg overflow-hidden">
+          <div className="border border-gray-800 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-gray-700 text-gray-400 text-left">
                 <th className="px-3 py-2">PP</th><th className="px-3 py-2">Horse</th><th className="px-3 py-2">Jockey</th><th className="px-3 py-2">Trainer</th><th className="px-3 py-2">ML Odds</th><th className="px-3 py-2">Status</th><th className="px-3 py-2"></th>

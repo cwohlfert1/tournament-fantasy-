@@ -1,16 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { Users, Clock, Trophy } from 'lucide-react';
 import api from '../../api';
 
-const FORMAT_LABELS = {
-  random_draw: 'Random Draw',
-  pick_wps:    'Pick W/P/S',
-  squares:     'Squares',
+const FORMAT_META = {
+  random_draw: { label: 'Random Draw', color: 'horses' },
+  pick_wps:    { label: 'Pick W/P/S', color: 'blue'   },
+  squares:     { label: 'Squares',     color: 'amber'  },
+};
+
+const STATUS_DOT = {
+  open:            'bg-green-400',
+  locked:          'bg-yellow-400',
+  results_entered: 'bg-blue-400',
+  finalized:       'bg-gray-400',
 };
 
 export default function HorsesDashboard() {
-  const { user } = useAuth();
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,28 +28,25 @@ export default function HorsesDashboard() {
   }, []);
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      {/* Free beta banner */}
-      <div className="mb-6 border border-horses-500/30 bg-horses-500/5 rounded-lg px-4 py-3 text-center">
-        <span className="text-horses-300 text-sm">
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Beta banner */}
+      <div className="mb-6 rounded-2xl border border-horses-500/30 bg-horses-500/10 p-4 text-center">
+        <p className="text-sm text-horses-300 font-medium">
           Free beta &mdash; Kentucky Derby 2026. No platform fee.
-        </span>
+        </p>
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">My Racing Pools</h1>
+        <h1 className="text-2xl sm:text-3xl font-black text-white">My Racing Pools</h1>
         <div className="flex gap-3">
-          <Link
-            to="/horses/join"
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2"
-          >
+          <Link to="/horses/join"
+            className="text-sm font-bold text-white border-[1.5px] border-white/20 hover:border-white/50 hover:bg-white/5 rounded-lg px-4 py-2.5 transition-all">
             Join Pool
           </Link>
-          <Link
-            to="/horses/create"
-            className="text-sm text-white bg-horses-500 hover:bg-horses-600 rounded-lg px-4 py-2"
-          >
-            + Create Pool
+          <Link to="/horses/create"
+            className="text-sm font-bold text-[#1a0a10] rounded-lg px-4 py-2.5 transition-all"
+            style={{ background: '#8B1E3F' }}>
+            Create Pool
           </Link>
         </div>
       </div>
@@ -51,35 +54,42 @@ export default function HorsesDashboard() {
       {loading ? (
         <div className="text-center text-gray-500 py-16">Loading...</div>
       ) : pools.length === 0 ? (
-        <div className="text-center py-16 space-y-4">
-          <p className="text-gray-500">You haven't joined any racing pools yet.</p>
-          <div className="flex justify-center gap-3">
-            <Link to="/horses/join" className="text-horses-400 hover:text-horses-300 text-sm underline">Join a pool</Link>
+        <div className="rounded-2xl border border-gray-800 bg-gray-900 p-8 text-center space-y-4">
+          <Trophy size={32} className="mx-auto text-gray-600" />
+          <p className="text-gray-400">You haven't joined any racing pools yet.</p>
+          <div className="flex justify-center gap-4">
+            <Link to="/horses/join" className="text-sm font-bold text-horses-400 hover:text-horses-300">Join a pool</Link>
             <span className="text-gray-700">|</span>
-            <Link to="/horses/create" className="text-horses-400 hover:text-horses-300 text-sm underline">Create one</Link>
+            <Link to="/horses/create" className="text-sm font-bold text-horses-400 hover:text-horses-300">Create one</Link>
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          {pools.map(pool => (
-            <Link
-              key={pool.id}
-              to={`/horses/pool/${pool.id}`}
-              className="block border border-gray-700/50 rounded-lg p-4 hover:border-gray-600 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-white font-semibold">{pool.name}</h3>
-                <span className="text-xs text-gray-400 uppercase tracking-wide">{pool.status}</span>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>{FORMAT_LABELS[pool.format_type] || pool.format_type}</span>
-                <span>{pool.entrant_count || 0} entrants</span>
-                {pool.lock_time && (
-                  <span>Locks {new Date(pool.lock_time).toLocaleDateString()}</span>
-                )}
-              </div>
-            </Link>
-          ))}
+        <div className="space-y-3">
+          {pools.map(pool => {
+            const fmt = FORMAT_META[pool.format_type] || { label: pool.format_type, color: 'gray' };
+            return (
+              <Link key={pool.id} to={`/horses/pool/${pool.id}`}
+                className="block rounded-2xl border border-gray-800 bg-gray-900 p-5 hover:border-horses-500/40 hover:shadow-xl hover:shadow-horses-500/10 hover:-translate-y-0.5 transition-all cursor-pointer">
+                <div className="h-1 w-full rounded-full mb-3" style={{ background: '#8B1E3F' }} />
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-white font-black text-lg truncate">{pool.name}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[pool.status] || 'bg-gray-500'}`} />
+                    <span className="text-xs font-bold text-gray-400">{pool.status}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                  <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border bg-${fmt.color}-500/15 border-${fmt.color}-500/30 text-${fmt.color}-400`}>
+                    {fmt.label}
+                  </span>
+                  <span className="flex items-center gap-1"><Users size={12} /> {pool.entrant_count || 0}</span>
+                  {pool.lock_time && (
+                    <span className="flex items-center gap-1"><Clock size={12} /> {new Date(pool.lock_time).toLocaleDateString()}</span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

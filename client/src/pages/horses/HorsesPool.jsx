@@ -89,8 +89,8 @@ export default function HorsesPool() {
     } finally { setDrawLoading(false); }
   }
 
-  if (loading) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">Loading...</div>;
-  if (!pool) return <div className="max-w-3xl mx-auto px-4 py-16 text-center text-gray-500">Pool not found.</div>;
+  if (loading) return <div className="max-w-4xl mx-auto px-4 py-16 text-center text-gray-500">Loading...</div>;
+  if (!pool) return <div className="max-w-4xl mx-auto px-4 py-16 text-center text-gray-500">Pool not found.</div>;
 
   const lockDate = pool.lock_time ? new Date(pool.lock_time) : null;
   const isLocked = pool.status !== 'open';
@@ -100,9 +100,9 @@ export default function HorsesPool() {
   const payoutStructure = typeof pool.payout_structure === 'string' ? JSON.parse(pool.payout_structure) : pool.payout_structure;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       {/* Pool Header */}
-      <div className="border border-gray-700 rounded-lg p-4">
+      <div className="border border-gray-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-bold text-white">{pool.name}</h1>
           <span className="text-xs text-gray-400 uppercase tracking-wide">{pool.status}</span>
@@ -115,7 +115,7 @@ export default function HorsesPool() {
         </div>
         {pool.status === 'open' && (
           <div className="mt-3 flex items-center gap-2">
-            <input readOnly value={inviteUrl} className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-white text-xs flex-1 font-mono" />
+            <input readOnly value={inviteUrl} className="bg-gray-800 border border-gray-800 rounded-2xl px-3 py-1.5 text-white text-xs flex-1 font-mono" />
             <button onClick={() => { navigator.clipboard.writeText(inviteUrl); }}
               className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded">Copy</button>
           </div>
@@ -138,7 +138,7 @@ export default function HorsesPool() {
           <>
             {pool.status === 'open' && isCommissioner && (
               <button onClick={handleTriggerDraw} disabled={drawLoading}
-                className="mb-3 bg-horses-500 hover:bg-horses-600 text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50">
+                className="mb-3 bg-horses-500 hover:bg-horses-600 text-white text-sm px-4 py-2 rounded-2xl disabled:opacity-50">
                 {drawLoading ? 'Drawing...' : 'Trigger Draw Now'}
               </button>
             )}
@@ -166,7 +166,7 @@ export default function HorsesPool() {
           ) : results.length ? (
             <div className="space-y-1">
               {results.map(r => (
-                <div key={r.finish_position} className="border border-gray-700 rounded-lg p-3 flex items-center gap-3">
+                <div key={r.finish_position} className="border border-gray-800 rounded-2xl p-3 flex items-center gap-3">
                   <span className="text-gray-400 font-mono w-8">{r.finish_position}.</span>
                   <span className="text-white">{r.horse_name}</span>
                 </div>
