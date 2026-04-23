@@ -255,6 +255,15 @@ function GolfBallSVG() {
   );
 }
 
+function HorseHeadSVG() {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" style={{ width: 26, height: 26, flexShrink: 0 }}>
+      <path d="M8 28 C8 28 7 20 10 16 C12 13 14 12 16 10 C17 9 17 7 18 5 C18.5 4 20 3 22 3 C23 3 24 3.5 24 4.5 C24 5.5 23 6 23 7 C23 8 24 9 25 9 C26 9 27 8.5 27.5 8 C28 8 28.5 8.5 28 9.5 C27 11 25 12 23 12 C21 12 19 13 17 15 C15 17 14 20 13 23 C12.5 25 11 28 8 28Z" fill="#8B1E3F" stroke="#e87690" strokeWidth="0.5"/>
+      <circle cx="21" cy="6" r="1" fill="#e87690"/>
+    </svg>
+  );
+}
+
 // ── Unified Navbar ────────────────────────────────────────────────────────────
 //
 // variant="golf"       — always renders the golf nav (used by GolfLayout)
@@ -304,13 +313,13 @@ export default function Navbar({ variant }) {
 
   const handleLogout = () => {
     logout();
-    navigate(isGolf ? '/golf' : '/basketball');
+    navigate(isGolf ? '/golf' : isHorses ? '/horses' : '/basketball');
     setMenuOpen(false);
   };
 
   const isActive = (p) => path === p || path.startsWith(p + '/');
 
-  const adminPath = isGolf ? '/golf/admin' : '/basketball/admin';
+  const adminPath = isGolf ? '/golf/admin' : isHorses ? '/horses/admin' : '/basketball/admin';
 
   const navLinkStyle = (to) => ({
     display: 'inline-flex',
@@ -345,18 +354,18 @@ export default function Navbar({ variant }) {
 
         {/* ── Logo ── */}
         <Link
-          to={isGolf ? '/golf' : '/basketball'}
+          to={isGolf ? '/golf' : isHorses ? '/horses/dashboard' : '/basketball'}
           className="select-none"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
-          {isGolf ? <GolfBallSVG /> : <BasketballSVG />}
+          {isGolf ? <GolfBallSVG /> : isHorses ? <HorseHeadSVG /> : <BasketballSVG />}
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
             <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
               <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span>
               <span style={{ color: theme.runColor, fontWeight: 500 }}>run</span>
             </div>
             <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: theme.subtitleColor, marginTop: 2 }}>
-              {isGolf ? 'Fantasy Golf' : 'Player Pool Fantasy'}
+              {isGolf ? 'Fantasy Golf' : isHorses ? 'Horse Racing' : 'Player Pool Fantasy'}
             </div>
           </div>
         </Link>
@@ -521,7 +530,7 @@ export default function Navbar({ variant }) {
                   key={to}
                   to={to}
                   onClick={() => setMenuOpen(false)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, color: isActive(to) ? (isGolf ? '#4ade80' : '#e5e7eb') : '#d1d5db', textDecoration: 'none', fontSize: 14 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, color: isActive(to) ? (isGolf ? '#4ade80' : isHorses ? '#e87690' : '#e5e7eb') : '#d1d5db', textDecoration: 'none', fontSize: 14 }}
                 >
                   {live && hasLiveGames && (
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f97316', flexShrink: 0, animation: 'pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite' }} />
@@ -538,9 +547,9 @@ export default function Navbar({ variant }) {
                 <Link
                   to={adminPath}
                   onClick={() => setMenuOpen(false)}
-                  style={{ display: 'block', padding: '8px 12px', borderRadius: 8, color: isGolf ? '#4ade80' : '#f59e0b', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
+                  style={{ display: 'block', padding: '8px 12px', borderRadius: 8, color: isGolf ? '#4ade80' : isHorses ? '#e87690' : '#f59e0b', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}
                 >
-                  {isGolf ? 'Golf Admin' : 'Admin'}
+                  {isGolf ? 'Golf Admin' : isHorses ? 'Racing Admin' : 'Admin'}
                 </Link>
               )}
               <button
