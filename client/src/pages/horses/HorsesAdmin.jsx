@@ -5,7 +5,7 @@ import api from '../../api';
 const EMPTY_EVENT = { name: '', venue: '', race_date: '', post_time: '', default_lock_time: '', field_size: 20 };
 const EMPTY_HORSE = { horse_name: '', post_position: '', jockey_name: '', trainer_name: '', morning_line_odds: '', silk_colors: '' };
 
-export default function RacingAdmin() {
+export default function HorsesAdmin() {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -27,7 +27,7 @@ export default function RacingAdmin() {
 
   async function loadEvents() {
     try {
-      const r = await api.get('/racing/events');
+      const r = await api.get('/horses/events');
       const list = r.data.events || [];
       setEvents(list);
       if (list.length && !selectedEventId) setSelectedEventId(list[0].id);
@@ -36,7 +36,7 @@ export default function RacingAdmin() {
 
   async function loadHorses(eventId) {
     try {
-      const r = await api.get(`/racing/events/${eventId}/horses`);
+      const r = await api.get(`/horses/events/${eventId}/horses`);
       setHorses(r.data.horses || []);
     } catch { setError('Failed to load horses'); }
   }
@@ -46,9 +46,9 @@ export default function RacingAdmin() {
     setError('');
     try {
       if (editingEventId) {
-        await api.put(`/racing/events/${editingEventId}`, eventForm);
+        await api.put(`/horses/events/${editingEventId}`, eventForm);
       } else {
-        await api.post('/racing/events', eventForm);
+        await api.post('/horses/events', eventForm);
       }
       setShowEventForm(false);
       setEditingEventId(null);
@@ -63,9 +63,9 @@ export default function RacingAdmin() {
     const payload = { ...horseForm, post_position: horseForm.post_position ? Number(horseForm.post_position) : null };
     try {
       if (editingHorseId) {
-        await api.put(`/racing/horses/${editingHorseId}`, payload);
+        await api.put(`/horses/horses/${editingHorseId}`, payload);
       } else {
-        await api.post(`/racing/events/${selectedEventId}/horses`, payload);
+        await api.post(`/horses/events/${selectedEventId}/horses`, payload);
       }
       setShowHorseForm(false);
       setEditingHorseId(null);
@@ -76,7 +76,7 @@ export default function RacingAdmin() {
 
   async function toggleScratch(horse) {
     try {
-      await api.put(`/racing/horses/${horse.id}`, { status: horse.status === 'active' ? 'scratched' : 'active' });
+      await api.put(`/horses/horses/${horse.id}`, { status: horse.status === 'active' ? 'scratched' : 'active' });
       loadHorses(selectedEventId);
     } catch { setError('Failed to update horse status'); }
   }
@@ -84,7 +84,7 @@ export default function RacingAdmin() {
   async function deleteHorse(horse) {
     if (!confirm(`Delete ${horse.horse_name}? This cannot be undone.`)) return;
     try {
-      await api.delete(`/racing/horses/${horse.id}`);
+      await api.delete(`/horses/horses/${horse.id}`);
       loadHorses(selectedEventId);
     } catch { setError('Failed to delete horse'); }
   }
@@ -112,7 +112,7 @@ export default function RacingAdmin() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">Events</h2>
-          <button onClick={() => { setShowEventForm(true); setEditingEventId(null); setEventForm(EMPTY_EVENT); }} className="text-sm text-racing-400 hover:text-racing-300 underline">+ Create Event</button>
+          <button onClick={() => { setShowEventForm(true); setEditingEventId(null); setEventForm(EMPTY_EVENT); }} className="text-sm text-horses-400 hover:text-horses-300 underline">+ Create Event</button>
         </div>
 
         {showEventForm && (
@@ -126,7 +126,7 @@ export default function RacingAdmin() {
               <input type="datetime-local" placeholder="Lock time" value={eventForm.default_lock_time?.slice(0, 16) || ''} onChange={e => setEventForm(p => ({ ...p, default_lock_time: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm col-span-2" />
             </div>
             <div className="flex gap-2">
-              <button type="submit" className="bg-racing-500 hover:bg-racing-600 text-white text-sm px-4 py-2 rounded">{editingEventId ? 'Update' : 'Create'}</button>
+              <button type="submit" className="bg-horses-500 hover:bg-horses-600 text-white text-sm px-4 py-2 rounded">{editingEventId ? 'Update' : 'Create'}</button>
               <button type="button" onClick={() => { setShowEventForm(false); setEditingEventId(null); }} className="text-gray-400 text-sm px-4 py-2">Cancel</button>
             </div>
           </form>
@@ -145,7 +145,7 @@ export default function RacingAdmin() {
                   <td className="px-4 py-2 text-gray-400">{fmtDate(ev.race_date)}</td>
                   <td className="px-4 py-2 text-gray-400">{fmtDate(ev.post_time)}</td>
                   <td className="px-4 py-2 text-gray-400 uppercase text-xs tracking-wide">{ev.status}</td>
-                  <td className="px-4 py-2"><button onClick={(e) => { e.stopPropagation(); editEvent(ev); }} className="text-racing-400 hover:text-racing-300 text-xs underline">Edit</button></td>
+                  <td className="px-4 py-2"><button onClick={(e) => { e.stopPropagation(); editEvent(ev); }} className="text-horses-400 hover:text-horses-300 text-xs underline">Edit</button></td>
                 </tr>
               ))}
               {events.length === 0 && <tr><td colSpan="6" className="px-4 py-6 text-center text-gray-500">No events yet</td></tr>}
@@ -164,7 +164,7 @@ export default function RacingAdmin() {
                 {events.find(e => e.id === selectedEventId)?.name}
               </span>
             </h2>
-            <button onClick={() => { setShowHorseForm(true); setEditingHorseId(null); setHorseForm(EMPTY_HORSE); }} className="text-sm text-racing-400 hover:text-racing-300 underline">+ Add Horse</button>
+            <button onClick={() => { setShowHorseForm(true); setEditingHorseId(null); setHorseForm(EMPTY_HORSE); }} className="text-sm text-horses-400 hover:text-horses-300 underline">+ Add Horse</button>
           </div>
 
           {showHorseForm && (
@@ -178,7 +178,7 @@ export default function RacingAdmin() {
                 <input placeholder="Silk colors" value={horseForm.silk_colors} onChange={e => setHorseForm(p => ({ ...p, silk_colors: e.target.value }))} className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm" />
               </div>
               <div className="flex gap-2">
-                <button type="submit" className="bg-racing-500 hover:bg-racing-600 text-white text-sm px-4 py-2 rounded">{editingHorseId ? 'Update' : 'Add'}</button>
+                <button type="submit" className="bg-horses-500 hover:bg-horses-600 text-white text-sm px-4 py-2 rounded">{editingHorseId ? 'Update' : 'Add'}</button>
                 <button type="button" onClick={() => { setShowHorseForm(false); setEditingHorseId(null); }} className="text-gray-400 text-sm px-4 py-2">Cancel</button>
               </div>
             </form>
@@ -203,7 +203,7 @@ export default function RacingAdmin() {
                       </button>
                     </td>
                     <td className="px-3 py-2 flex gap-2">
-                      <button onClick={() => editHorse(h)} className="text-racing-400 hover:text-racing-300 text-xs underline">Edit</button>
+                      <button onClick={() => editHorse(h)} className="text-horses-400 hover:text-horses-300 text-xs underline">Edit</button>
                       <button onClick={() => deleteHorse(h)} className="text-red-400 hover:text-red-300 text-xs underline">Del</button>
                     </td>
                   </tr>

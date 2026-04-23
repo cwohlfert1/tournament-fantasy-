@@ -1,4 +1,4 @@
-export default function JoinRacingPool() {
+export default function JoinHorsesPool() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-white mb-4">Join Racing Pool</h1>

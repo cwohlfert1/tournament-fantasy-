@@ -26,7 +26,7 @@ const rateLimit = require('express-rate-limit');
 
 const sqliteDb = require('./db');
 const db = require('./db/index');
-require('./racing-db');
+require('./horses-db');
 const { seedPlayers } = require('./seed');
 const { getDraftState, getCurrentPicker } = require('./routes/draft');
 const { performStartDraft } = require('./draftUtils');
@@ -147,9 +147,9 @@ app.use('/api/golf', require('./routes/golf-payments'));
 app.use('/api/golf', require('./routes/golf-admin'));
 app.use('/api/golf', require('./routes/golf-pool'));
 
-// ── Racing routes ─────────────────────────────────────────────────────────────
-app.use('/api/racing', require('./routes/racing'));
-app.use('/api/racing', require('./routes/racing-payments'));
+// ── Horses routes ─────────────────────────────────────────────────────────────
+app.use('/api/horses', require('./routes/horses'));
+app.use('/api/horses', require('./routes/horses-payments'));
 
 // Serve uploaded avatars
 const path = require('path');

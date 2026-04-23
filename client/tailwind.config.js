@@ -15,7 +15,7 @@ export default {
           800: '#0C447C',
           900: '#092f58',
         },
-        racing: {
+        horses: {
           50: '#fdf2f4',
           100: '#f9d5dc',
           200: '#f2a8b8',

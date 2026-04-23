@@ -1,11 +1,11 @@
 const db = require('./db/index');
 
-// ── Racing Tables (defensive init — idempotent) ──────────────────────────────
-// Tables are created by supabase/migrations/002_horse_racing_schema.sql.
+// ── Horses Tables (defensive init — idempotent) ──────────────────────────────
+// Tables are created by supabase/migrations/003_rename_racing_to_horses.sql.
 // This exec() call is a safety net that ensures tables exist on server startup
 // even if the migration hasn't been applied yet.
 db.exec(`
-  CREATE TABLE IF NOT EXISTS racing_events (
+  CREATE TABLE IF NOT EXISTS horses_events (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
     name TEXT NOT NULL,
     venue TEXT,
@@ -17,9 +17,9 @@ db.exec(`
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
-  CREATE TABLE IF NOT EXISTS racing_horses (
+  CREATE TABLE IF NOT EXISTS horses_horses (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    event_id TEXT NOT NULL REFERENCES racing_events(id),
+    event_id TEXT NOT NULL REFERENCES horses_events(id),
     horse_name TEXT NOT NULL,
     post_position INTEGER,
     jockey_name TEXT,
@@ -29,11 +29,11 @@ db.exec(`
     silk_colors TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
-  CREATE INDEX IF NOT EXISTS idx_racing_horses_event ON racing_horses(event_id);
+  CREATE INDEX IF NOT EXISTS idx_horses_horses_event ON horses_horses(event_id);
 
-  CREATE TABLE IF NOT EXISTS racing_pools (
+  CREATE TABLE IF NOT EXISTS horses_pools (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    event_id TEXT NOT NULL REFERENCES racing_events(id),
+    event_id TEXT NOT NULL REFERENCES horses_events(id),
     commissioner_id TEXT NOT NULL REFERENCES users(id),
     name TEXT NOT NULL,
     format_type TEXT NOT NULL,
@@ -54,65 +54,65 @@ db.exec(`
     payout_idempotency_key TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
-  CREATE INDEX IF NOT EXISTS idx_racing_pools_commissioner ON racing_pools(commissioner_id);
-  CREATE INDEX IF NOT EXISTS idx_racing_pools_event ON racing_pools(event_id);
-  CREATE INDEX IF NOT EXISTS idx_racing_pools_invite ON racing_pools(invite_code);
+  CREATE INDEX IF NOT EXISTS idx_horses_pools_commissioner ON horses_pools(commissioner_id);
+  CREATE INDEX IF NOT EXISTS idx_horses_pools_event ON horses_pools(event_id);
+  CREATE INDEX IF NOT EXISTS idx_horses_pools_invite ON horses_pools(invite_code);
 
-  CREATE TABLE IF NOT EXISTS racing_entries (
+  CREATE TABLE IF NOT EXISTS horses_entries (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    pool_id TEXT NOT NULL REFERENCES racing_pools(id),
+    pool_id TEXT NOT NULL REFERENCES horses_pools(id),
     user_id TEXT NOT NULL REFERENCES users(id),
     display_name TEXT,
     is_paid BOOLEAN DEFAULT FALSE,
-    assigned_horse_id TEXT REFERENCES racing_horses(id),
+    assigned_horse_id TEXT REFERENCES horses_horses(id),
     refund_status TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(pool_id, user_id)
   );
-  CREATE INDEX IF NOT EXISTS idx_racing_entries_pool ON racing_entries(pool_id);
+  CREATE INDEX IF NOT EXISTS idx_horses_entries_pool ON horses_entries(pool_id);
 
-  CREATE TABLE IF NOT EXISTS racing_picks (
+  CREATE TABLE IF NOT EXISTS horses_picks (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    entry_id TEXT NOT NULL REFERENCES racing_entries(id),
+    entry_id TEXT NOT NULL REFERENCES horses_entries(id),
     slot TEXT NOT NULL,
-    horse_id TEXT NOT NULL REFERENCES racing_horses(id),
+    horse_id TEXT NOT NULL REFERENCES horses_horses(id),
     points_earned NUMERIC DEFAULT 0,
     UNIQUE(entry_id, slot)
   );
 
-  CREATE TABLE IF NOT EXISTS racing_squares (
+  CREATE TABLE IF NOT EXISTS horses_squares (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    pool_id TEXT NOT NULL REFERENCES racing_pools(id),
+    pool_id TEXT NOT NULL REFERENCES horses_pools(id),
     row_num INTEGER NOT NULL,
     col_num INTEGER NOT NULL,
-    entry_id TEXT REFERENCES racing_entries(id),
+    entry_id TEXT REFERENCES horses_entries(id),
     row_digit INTEGER,
     col_digit INTEGER,
     UNIQUE(pool_id, row_num, col_num)
   );
-  CREATE INDEX IF NOT EXISTS idx_racing_squares_pool ON racing_squares(pool_id);
+  CREATE INDEX IF NOT EXISTS idx_horses_squares_pool ON horses_squares(pool_id);
 
-  CREATE TABLE IF NOT EXISTS racing_results (
+  CREATE TABLE IF NOT EXISTS horses_results (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    pool_id TEXT NOT NULL REFERENCES racing_pools(id),
+    pool_id TEXT NOT NULL REFERENCES horses_pools(id),
     finish_position INTEGER NOT NULL,
-    horse_id TEXT NOT NULL REFERENCES racing_horses(id),
+    horse_id TEXT NOT NULL REFERENCES horses_horses(id),
     post_position INTEGER,
     is_official BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
   );
 
-  CREATE TABLE IF NOT EXISTS racing_payouts (
+  CREATE TABLE IF NOT EXISTS horses_payouts (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-    pool_id TEXT NOT NULL REFERENCES racing_pools(id),
-    entry_id TEXT NOT NULL REFERENCES racing_entries(id),
+    pool_id TEXT NOT NULL REFERENCES horses_pools(id),
+    entry_id TEXT NOT NULL REFERENCES horses_entries(id),
     payout_type TEXT,
     amount NUMERIC NOT NULL,
     is_split BOOLEAN DEFAULT FALSE,
     split_count INTEGER DEFAULT 1
   );
 `).catch(err => {
-  console.error('[racing-db] Table init error:', err.message);
+  console.error('[horses-db] Table init error:', err.message);
 });
 
 module.exports = db;

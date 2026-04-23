@@ -1,4 +1,4 @@
-export default function CreateRacingPool() {
+export default function CreateHorsesPool() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-white mb-4">Create Racing Pool</h1>

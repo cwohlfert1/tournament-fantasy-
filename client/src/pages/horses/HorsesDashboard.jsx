@@ -9,13 +9,13 @@ const FORMAT_LABELS = {
   squares:     'Squares',
 };
 
-export default function RacingDashboard() {
+export default function HorsesDashboard() {
   const { user } = useAuth();
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/racing/pools')
+    api.get('/horses/pools')
       .then(r => setPools(r.data.pools || []))
       .catch(() => setPools([]))
       .finally(() => setLoading(false));
@@ -24,8 +24,8 @@ export default function RacingDashboard() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       {/* Free beta banner */}
-      <div className="mb-6 border border-racing-500/30 bg-racing-500/5 rounded-lg px-4 py-3 text-center">
-        <span className="text-racing-300 text-sm">
+      <div className="mb-6 border border-horses-500/30 bg-horses-500/5 rounded-lg px-4 py-3 text-center">
+        <span className="text-horses-300 text-sm">
           Free beta &mdash; Kentucky Derby 2026. No platform fee.
         </span>
       </div>
@@ -34,14 +34,14 @@ export default function RacingDashboard() {
         <h1 className="text-2xl font-bold text-white">My Racing Pools</h1>
         <div className="flex gap-3">
           <Link
-            to="/racing/join"
+            to="/horses/join"
             className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2"
           >
             Join Pool
           </Link>
           <Link
-            to="/racing/create"
-            className="text-sm text-white bg-racing-500 hover:bg-racing-600 rounded-lg px-4 py-2"
+            to="/horses/create"
+            className="text-sm text-white bg-horses-500 hover:bg-horses-600 rounded-lg px-4 py-2"
           >
             + Create Pool
           </Link>
@@ -54,9 +54,9 @@ export default function RacingDashboard() {
         <div className="text-center py-16 space-y-4">
           <p className="text-gray-500">You haven't joined any racing pools yet.</p>
           <div className="flex justify-center gap-3">
-            <Link to="/racing/join" className="text-racing-400 hover:text-racing-300 text-sm underline">Join a pool</Link>
+            <Link to="/horses/join" className="text-horses-400 hover:text-horses-300 text-sm underline">Join a pool</Link>
             <span className="text-gray-700">|</span>
-            <Link to="/racing/create" className="text-racing-400 hover:text-racing-300 text-sm underline">Create one</Link>
+            <Link to="/horses/create" className="text-horses-400 hover:text-horses-300 text-sm underline">Create one</Link>
           </div>
         </div>
       ) : (
@@ -64,7 +64,7 @@ export default function RacingDashboard() {
           {pools.map(pool => (
             <Link
               key={pool.id}
-              to={`/racing/pool/${pool.id}`}
+              to={`/horses/pool/${pool.id}`}
               className="block border border-gray-700/50 rounded-lg p-4 hover:border-gray-600 transition-colors"
             >
               <div className="flex items-center justify-between mb-1">
