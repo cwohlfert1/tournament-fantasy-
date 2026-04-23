@@ -4,6 +4,46 @@ const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('../middleware/auth');
 const db = require('../db/index');
 
+// ── Shared helpers ───────────────────────────────────────────────────────────
+
+function fisherYatesShuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+async function executeRandomDraw(poolId) {
+  const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [poolId]);
+  if (!pool || pool.format_type !== 'random_draw' || pool.status !== 'open') {
+    throw new Error('Pool not eligible for draw');
+  }
+
+  const entries = await db.all(
+    'SELECT * FROM horses_entries WHERE pool_id = ? AND is_paid = true AND refund_status IS NULL',
+    [poolId]
+  );
+  if (entries.length === 0) throw new Error('No eligible entries');
+
+  const horses = await db.all(
+    "SELECT * FROM horses_horses WHERE event_id = ? AND status = 'active'",
+    [pool.event_id]
+  );
+  if (horses.length === 0) throw new Error('No active horses');
+
+  fisherYatesShuffle(entries);
+  fisherYatesShuffle(horses);
+
+  for (let i = 0; i < entries.length; i++) {
+    const horse = horses[i % horses.length];
+    await db.run('UPDATE horses_entries SET assigned_horse_id = ? WHERE id = ?', [horse.id, entries[i].id]);
+  }
+
+  await db.run("UPDATE horses_pools SET status = 'locked' WHERE id = ?", [poolId]);
+  return { entries: entries.length, horses: horses.length };
+}
+
 // ── Public routes (no auth) ───────────────────────────────────────────────────
 
 // Pool preview by invite code (section 06)
@@ -154,6 +194,15 @@ router.put('/horses/:id', async (req, res) => {
         status || existing.status, req.params.id
       ]
     );
+    // Scratch-refund: mark assigned entries in locked random_draw pools
+    if (status === 'scratched') {
+      await db.run(`
+        UPDATE horses_entries SET refund_status = 'scratched_refund'
+        WHERE assigned_horse_id = ?
+        AND pool_id IN (SELECT id FROM horses_pools WHERE format_type = 'random_draw' AND status = 'locked')
+      `, [req.params.id]);
+    }
+
     const horse = await db.get('SELECT * FROM horses_horses WHERE id = ?', [req.params.id]);
     res.json({ horse });
   } catch (err) {
@@ -328,8 +377,28 @@ router.put('/pools/:id/settings', async (req, res) => {
 // ── Random Draw ───────────────────────────────────────────────────────────────
 
 router.post('/pools/:id/draw', async (req, res) => {
-  // TODO: section-07 (commissioner only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (pool.format_type !== 'random_draw') return res.status(400).json({ error: 'Not a random draw pool' });
+    if (pool.status !== 'open') return res.status(400).json({ error: 'Pool already locked' });
+
+    const result = await executeRandomDraw(pool.id);
+
+    const assignments = await db.all(`
+      SELECT e.id AS entry_id, e.user_id, e.display_name, e.assigned_horse_id,
+             h.horse_name, h.post_position, h.jockey_name, h.morning_line_odds
+      FROM horses_entries e
+      JOIN horses_horses h ON e.assigned_horse_id = h.id
+      WHERE e.pool_id = ? AND e.assigned_horse_id IS NOT NULL
+    `, [pool.id]);
+
+    res.json({ success: true, assignments, ...result });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/draw error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Pick Win/Place/Show ───────────────────────────────────────────────────────
@@ -389,3 +458,4 @@ router.get('/pools/:id/payouts', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.executeRandomDraw = executeRandomDraw;
