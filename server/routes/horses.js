@@ -8,8 +8,24 @@ const db = require('../db/index');
 
 // Pool preview by invite code (section 06)
 router.get('/pools/preview/:code', async (req, res) => {
-  // TODO: section-06
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const code = req.params.code.toUpperCase();
+    const pool = await db.get(`
+      SELECT p.name, p.format_type, p.entry_fee, p.lock_time, p.status,
+             e.name AS event_name, e.race_date AS event_date,
+             u.username AS commissioner_name
+      FROM horses_pools p
+      JOIN horses_events e ON p.event_id = e.id
+      JOIN users u ON p.commissioner_id = u.id
+      WHERE UPPER(p.invite_code) = ?
+    `, [code]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    const countRow = await db.get('SELECT COUNT(*) as cnt FROM horses_entries WHERE pool_id = (SELECT id FROM horses_pools WHERE UPPER(invite_code) = ?)', [code]);
+    res.json({ pool: { ...pool, entrant_count: countRow?.cnt || 0 } });
+  } catch (err) {
+    console.error('[horses] GET /pools/preview/:code error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch pool preview' });
+  }
 });
 
 // ── All routes below require auth ─────────────────────────────────────────────
@@ -162,13 +178,116 @@ router.delete('/horses/:id', async (req, res) => {
 // ── Pool routes ───────────────────────────────────────────────────────────────
 
 router.get('/pools', async (req, res) => {
-  // TODO: section-05
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pools = await db.all(`
+      SELECT p.*, e.name AS event_name,
+             (SELECT COUNT(*) FROM horses_entries WHERE pool_id = p.id) AS entrant_count
+      FROM horses_pools p
+      JOIN horses_events e ON p.event_id = e.id
+      WHERE p.id IN (SELECT pool_id FROM horses_entries WHERE user_id = ?)
+      ORDER BY p.created_at DESC
+    `, [req.user.id]);
+    res.json({ pools });
+  } catch (err) {
+    console.error('[horses] GET /pools error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch pools' });
+  }
 });
 
+function generateInviteCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+  return code;
+}
+
 router.post('/pools', async (req, res) => {
-  // TODO: section-05
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const { event_id, name, format_type, entry_fee, lock_time, payout_structure,
+            admin_fee_type, admin_fee_value, venmo, paypal, zelle,
+            squares_per_person_cap, scoring_config } = req.body;
+
+    // Validate format
+    if (!['random_draw', 'pick_wps', 'squares'].includes(format_type)) {
+      return res.status(400).json({ error: 'Invalid format_type. Must be random_draw, pick_wps, or squares' });
+    }
+
+    // Validate event
+    const event = await db.get('SELECT * FROM horses_events WHERE id = ?', [event_id]);
+    if (!event) return res.status(400).json({ error: 'Event not found' });
+
+    // Validate payout structure
+    if (payout_structure) {
+      const total = payout_structure.reduce((sum, p) => sum + (p.pct || 0), 0);
+      if (Math.abs(total - 100) > 0.01) {
+        return res.status(400).json({ error: `Payout percentages must sum to 100 (got ${total})` });
+      }
+    }
+
+    // Validate lock time
+    if (lock_time) {
+      const lockDate = new Date(lock_time);
+      if (lockDate <= new Date()) return res.status(400).json({ error: 'Lock time must be in the future' });
+      if (event.post_time && lockDate > new Date(event.post_time)) {
+        return res.status(400).json({ error: 'Lock time cannot be after post time' });
+      }
+    }
+
+    // Generate unique invite code
+    let invite_code;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      invite_code = generateInviteCode();
+      const existing = await db.get('SELECT id FROM horses_pools WHERE invite_code = ?', [invite_code]);
+      if (!existing) break;
+      if (attempt === 9) return res.status(500).json({ error: 'Failed to generate unique invite code' });
+    }
+
+    const id = uuidv4();
+    const defaultPayout = format_type === 'squares'
+      ? [{ place: 1, pct: 60 }, { place: 2, pct: 25 }, { place: 3, pct: 15 }]
+      : [{ place: 1, pct: 50 }, { place: 2, pct: 30 }, { place: 3, pct: 20 }];
+
+    await db.run(`
+      INSERT INTO horses_pools (id, event_id, commissioner_id, name, format_type, invite_code,
+        entry_fee, lock_time, payout_structure, admin_fee_type, admin_fee_value,
+        venmo, zelle, paypal, squares_per_person_cap, scoring_config)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id, event_id, req.user.id, name || 'My Racing Pool', format_type, invite_code,
+      entry_fee || 5.00, lock_time || event.default_lock_time,
+      JSON.stringify(payout_structure || defaultPayout),
+      admin_fee_type || null, admin_fee_value || 0,
+      venmo || null, zelle || null, paypal || null,
+      squares_per_person_cap || 10,
+      JSON.stringify(scoring_config || { win: 5, place: 3, show: 2 })
+    ]);
+
+    // Auto-add commissioner as first entry (paid, no fee)
+    await db.run(`
+      INSERT INTO horses_entries (id, pool_id, user_id, display_name, is_paid)
+      VALUES (?, ?, ?, ?, true)
+    `, [uuidv4(), id, req.user.id, req.user.username || req.user.email]);
+
+    // Initialize squares grid if squares format
+    if (format_type === 'squares') {
+      const values = [];
+      const placeholders = [];
+      for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 10; c++) {
+          const sqId = uuidv4();
+          values.push(sqId, id, r, c);
+          placeholders.push('(?, ?, ?, ?)');
+        }
+      }
+      await db.run(`INSERT INTO horses_squares (id, pool_id, row_num, col_num) VALUES ${placeholders.join(', ')}`, values);
+    }
+
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [id]);
+    res.status(201).json({ pool });
+  } catch (err) {
+    console.error('[horses] POST /pools error:', err.message);
+    res.status(500).json({ error: 'Failed to create pool' });
+  }
 });
 
 router.get('/pools/:id', async (req, res) => {
@@ -177,8 +296,28 @@ router.get('/pools/:id', async (req, res) => {
 });
 
 router.post('/pools/join', async (req, res) => {
-  // TODO: section-06
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const { invite_code, display_name } = req.body;
+    if (!invite_code) return res.status(400).json({ error: 'Invite code is required' });
+
+    const pool = await db.get('SELECT * FROM horses_pools WHERE UPPER(invite_code) = ?', [invite_code.toUpperCase()]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.status !== 'open') return res.status(400).json({ error: 'Pool is no longer accepting entries' });
+
+    const existing = await db.get('SELECT id FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (existing) return res.status(409).json({ error: 'You have already joined this pool', entry_id: existing.id, pool_id: pool.id });
+
+    const entry_id = uuidv4();
+    await db.run(`
+      INSERT INTO horses_entries (id, pool_id, user_id, display_name, is_paid)
+      VALUES (?, ?, ?, ?, false)
+    `, [entry_id, pool.id, req.user.id, display_name || req.user.username || 'Anonymous']);
+
+    res.status(201).json({ entry_id, pool_id: pool.id });
+  } catch (err) {
+    console.error('[horses] POST /pools/join error:', err.message);
+    res.status(500).json({ error: 'Failed to join pool' });
+  }
 });
 
 router.put('/pools/:id/settings', async (req, res) => {
