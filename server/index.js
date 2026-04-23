@@ -708,6 +708,10 @@ const { pollNews } = require('./newsPoller');
 setInterval(pollNews, 2 * 60 * 60 * 1000);
 setTimeout(pollNews, 60 * 1000); // initial poll 60s after startup
 
+// Horse racing lock service — polls every 30s for pools past lock time
+const { startHorsesLockService } = require('./horsesLockService');
+startHorsesLockService();
+
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
