@@ -649,6 +649,58 @@ export default function HubLanding() {
                 </div>
               </div>
 
+              {/* Horse Racing card */}
+              <div className="hub-float hub-card-hover" style={{
+                background: 'rgba(255,255,255,0.03)',
+                backdropFilter: 'blur(28px)',
+                border: '1px solid rgba(139,30,63,0.3)',
+                borderRadius: 22, overflow: 'hidden',
+                animationDelay: '1.2s',
+              }}>
+                <div style={{ height: 2, background: 'linear-gradient(90deg, #8B1E3F, #d44a6a 40%, transparent)' }} />
+                <div style={{ padding: '22px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <svg viewBox="0 0 32 32" fill="none" style={{ width: 24, height: 24 }}>
+                        <path d="M8 28 C8 28 7 20 10 16 C12 13 14 12 16 10 C17 9 17 7 18 5 C18.5 4 20 3 22 3 C23 3 24 3.5 24 4.5 C24 5.5 23 6 23 7 C23 8 24 9 25 9 C26 9 27 8.5 27.5 8 C28 8 28.5 8.5 28 9.5 C27 11 25 12 23 12 C21 12 19 13 17 15 C15 17 14 20 13 23 C12.5 25 11 28 8 28Z" fill="#8B1E3F" stroke="#e87690" strokeWidth="0.5"/>
+                        <circle cx="21" cy="6" r="1" fill="#e87690"/>
+                      </svg>
+                      <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', color: '#fff' }}>HORSE RACING</span>
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#e87690', background: 'rgba(139,30,63,0.2)', border: '1px solid rgba(139,30,63,0.3)', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.04em' }}>DERBY 2026</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      { text: 'Random Draw — horses assigned at lock' },
+                      { text: 'Pick Win / Place / Show' },
+                      { text: 'Squares — 10x10 grid pools' },
+                    ].map(({ text }) => (
+                      <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+                        <span style={{
+                          width: 30, height: 30, borderRadius: 8,
+                          background: 'rgba(139,30,63,0.1)', border: '1px solid rgba(139,30,63,0.15)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, color: '#e87690',
+                        }}>&#x2713;</span>
+                        {text}
+                      </div>
+                    ))}
+                  </div>
+                  <Link to={user ? '/horses/dashboard' : '/horses/dashboard'} style={{
+                    display: 'block', marginTop: 18, textAlign: 'center',
+                    background: 'linear-gradient(135deg, #8B1E3F, #d44a6a)',
+                    color: '#fff', fontWeight: 700, fontSize: 13,
+                    padding: '11px 0', borderRadius: 12, textDecoration: 'none',
+                    boxShadow: '0 4px 20px rgba(139,30,63,0.25)',
+                    transition: 'opacity 0.15s',
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
+                    Derby Pools →
+                  </Link>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
