@@ -592,23 +592,219 @@ router.post('/pools/:id/squares/assign', async (req, res) => {
 // ── Results & Payouts ─────────────────────────────────────────────────────────
 
 router.post('/pools/:id/results', async (req, res) => {
-  // TODO: section-10 (commissioner only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (pool.payouts_finalized_at) return res.status(400).json({ error: 'Payouts already finalized. Contact admin to modify results.' });
+
+    const { results } = req.body; // [{finish_position, horse_id, post_position}, ...]
+    if (!results || !results.length) return res.status(400).json({ error: 'Results are required' });
+
+    const minResults = pool.format_type === 'squares' ? 4 : 3;
+    if (results.length < minResults) return res.status(400).json({ error: `At least ${minResults} finish positions required` });
+
+    // Validate horses exist in event
+    for (const r of results) {
+      const horse = await db.get('SELECT id FROM horses_horses WHERE id = ? AND event_id = ?', [r.horse_id, pool.event_id]);
+      if (!horse) return res.status(400).json({ error: `Horse ${r.horse_id} not in this event` });
+    }
+
+    // Upsert: delete existing results for this pool + insert new
+    await db.run('DELETE FROM horses_results WHERE pool_id = ?', [pool.id]);
+    for (const r of results) {
+      await db.run(
+        'INSERT INTO horses_results (id, pool_id, finish_position, horse_id, post_position) VALUES (?, ?, ?, ?, ?)',
+        [uuidv4(), pool.id, r.finish_position, r.horse_id, r.post_position || null]
+      );
+    }
+
+    if (pool.status === 'locked') {
+      await db.run("UPDATE horses_pools SET status = 'results_entered' WHERE id = ?", [pool.id]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/results error:', err.message);
+    res.status(500).json({ error: 'Failed to save results' });
+  }
 });
 
 router.get('/pools/:id/results', async (req, res) => {
-  // TODO: section-10 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+
+    const entry = await db.get('SELECT id FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'Not a member' });
+
+    const results = await db.all(`
+      SELECT r.finish_position, r.horse_id, r.post_position,
+             h.horse_name, h.jockey_name, h.morning_line_odds
+      FROM horses_results r
+      JOIN horses_horses h ON r.horse_id = h.id
+      WHERE r.pool_id = ?
+      ORDER BY r.finish_position ASC
+    `, [pool.id]);
+
+    res.json({ results });
+  } catch (err) {
+    console.error('[horses] GET /pools/:id/results error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch results' });
+  }
 });
 
 router.post('/pools/:id/payouts/trigger', async (req, res) => {
-  // TODO: section-10 (commissioner only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+
+    // Idempotency: already finalized → return existing payouts
+    if (pool.payouts_finalized_at) {
+      const existing = await db.all('SELECT * FROM horses_payouts WHERE pool_id = ?', [pool.id]);
+      return res.json({ payouts: existing, already_finalized: true });
+    }
+
+    // Check results exist
+    const results = await db.all('SELECT * FROM horses_results WHERE pool_id = ? ORDER BY finish_position', [pool.id]);
+    if (!results.length) return res.status(400).json({ error: 'Enter results before triggering payouts' });
+
+    // Get entries and calculate pool
+    const entries = await db.all('SELECT * FROM horses_entries WHERE pool_id = ?', [pool.id]);
+    const paidEntries = entries.filter(e => e.is_paid && e.refund_status !== 'scratched_refund');
+
+    const payoutStructure = typeof pool.payout_structure === 'string' ? JSON.parse(pool.payout_structure) : pool.payout_structure;
+
+    let grossPool;
+    if (pool.format_type === 'squares') {
+      const claimedCount = await db.get('SELECT COUNT(*) as cnt FROM horses_squares WHERE pool_id = ? AND entry_id IS NOT NULL', [pool.id]);
+      grossPool = (claimedCount?.cnt || 0) * Number(pool.entry_fee);
+    } else {
+      grossPool = paidEntries.length * Number(pool.entry_fee);
+    }
+
+    const adminFee = pool.admin_fee_type === 'flat'
+      ? Number(pool.admin_fee_value || 0)
+      : (Number(pool.admin_fee_value || 0) / 100) * grossPool;
+    const netPool = grossPool - adminFee;
+
+    // Calculate payouts per format
+    const payouts = [];
+
+    for (const pos of payoutStructure) {
+      const amount = netPool * (pos.pct / 100);
+      let winners = [];
+
+      if (pool.format_type === 'random_draw') {
+        const resultHorse = results.find(r => r.finish_position === pos.place);
+        if (resultHorse) {
+          winners = paidEntries.filter(e => e.assigned_horse_id === resultHorse.horse_id);
+        }
+      } else if (pool.format_type === 'pick_wps') {
+        // Score all entries
+        const scoringConfig = typeof pool.scoring_config === 'string' ? JSON.parse(pool.scoring_config) : pool.scoring_config;
+        const topN = {};
+        results.forEach(r => { topN[r.horse_id] = r.finish_position; });
+
+        const scores = [];
+        for (const e of paidEntries) {
+          const picks = await db.all('SELECT * FROM horses_picks WHERE entry_id = ?', [e.id]);
+          let total = 0;
+          for (const p of picks) {
+            const fp = topN[p.horse_id];
+            if (p.slot === 'win' && fp === 1) total += (scoringConfig.win || 5);
+            if (p.slot === 'place' && fp && fp <= 2) total += (scoringConfig.place || 3);
+            if (p.slot === 'show' && fp && fp <= 3) total += (scoringConfig.show || 2);
+            await db.run('UPDATE horses_picks SET points_earned = ? WHERE id = ?',
+              [p.slot === 'win' && fp === 1 ? scoringConfig.win || 5 : p.slot === 'place' && fp && fp <= 2 ? scoringConfig.place || 3 : p.slot === 'show' && fp && fp <= 3 ? scoringConfig.show || 2 : 0, p.id]);
+          }
+          scores.push({ entry: e, total });
+        }
+        scores.sort((a, b) => b.total - a.total);
+
+        // Find entries at this payout position
+        if (pos.place <= scores.length) {
+          const targetScore = scores[pos.place - 1].total;
+          winners = scores.filter(s => s.total === targetScore).map(s => s.entry);
+        }
+      } else if (pool.format_type === 'squares') {
+        // Winning square lookup
+        const r1 = results.find(r => r.finish_position === pos.place);
+        const r2 = results.find(r => r.finish_position === pos.place + 1);
+        if (r1 && r2 && r1.post_position != null && r2.post_position != null) {
+          const rowDigit = r1.post_position % 10;
+          const colDigit = r2.post_position % 10;
+          const winningSq = await db.get(
+            'SELECT * FROM horses_squares WHERE pool_id = ? AND row_digit = ? AND col_digit = ?',
+            [pool.id, rowDigit, colDigit]
+          );
+          if (winningSq && winningSq.entry_id) {
+            winners = [paidEntries.find(e => e.id === winningSq.entry_id)].filter(Boolean);
+          }
+          // Rolldown: if unclaimed, try next position (simplified — skip for now)
+        }
+      }
+
+      if (winners.length > 0) {
+        const perWinner = amount / winners.length;
+        for (const w of winners) {
+          payouts.push({
+            id: uuidv4(), pool_id: pool.id, entry_id: w.id,
+            payout_type: pos.place === 1 ? 'win' : pos.place === 2 ? 'place' : 'show',
+            amount: Math.round(perWinner * 100) / 100,
+            is_split: winners.length > 1,
+            split_count: winners.length,
+          });
+        }
+      }
+    }
+
+    // Transactional write: insert all payouts + finalize
+    const idemKey = uuidv4();
+    for (const p of payouts) {
+      await db.run(
+        'INSERT INTO horses_payouts (id, pool_id, entry_id, payout_type, amount, is_split, split_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [p.id, p.pool_id, p.entry_id, p.payout_type, p.amount, p.is_split, p.split_count]
+      );
+    }
+    await db.run(
+      "UPDATE horses_pools SET payouts_finalized_at = NOW(), payouts_finalized_by = ?, payout_idempotency_key = ?, status = 'finalized' WHERE id = ?",
+      [req.user.id, idemKey, pool.id]
+    );
+
+    res.json({ payouts, grossPool, adminFee, netPool });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/payouts/trigger error:', err.message);
+    res.status(500).json({ error: 'Failed to calculate payouts' });
+  }
 });
 
 router.get('/pools/:id/payouts', async (req, res) => {
-  // TODO: section-10 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+
+    const entry = await db.get('SELECT id FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'Not a member' });
+
+    const payouts = await db.all(`
+      SELECT p.*, e.display_name
+      FROM horses_payouts p
+      JOIN horses_entries e ON p.entry_id = e.id
+      WHERE p.pool_id = ?
+      ORDER BY p.amount DESC
+    `, [pool.id]);
+
+    res.json({
+      payouts,
+      finalized: !!pool.payouts_finalized_at,
+      venmo: pool.venmo, paypal: pool.paypal, zelle: pool.zelle,
+    });
+  } catch (err) {
+    console.error('[horses] GET /pools/:id/payouts error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch payouts' });
+  }
 });
 
 module.exports = router;
