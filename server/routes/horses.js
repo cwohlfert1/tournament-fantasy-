@@ -404,35 +404,189 @@ router.post('/pools/:id/draw', async (req, res) => {
 // ── Pick Win/Place/Show ───────────────────────────────────────────────────────
 
 router.post('/pools/:id/picks', async (req, res) => {
-  // TODO: section-08 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.format_type !== 'pick_wps') return res.status(400).json({ error: 'Not a Pick W/P/S pool' });
+    if (pool.status !== 'open') return res.status(400).json({ error: 'Pool is locked — picks are frozen' });
+    if (pool.lock_time && new Date() >= new Date(pool.lock_time)) {
+      return res.status(400).json({ error: 'Lock time has passed' });
+    }
+
+    const entry = await db.get('SELECT * FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'You are not a member of this pool' });
+
+    const { win_horse_id, place_horse_id, show_horse_id } = req.body;
+    if (!win_horse_id || !place_horse_id || !show_horse_id) {
+      return res.status(400).json({ error: 'All three picks (win, place, show) are required' });
+    }
+    if (new Set([win_horse_id, place_horse_id, show_horse_id]).size !== 3) {
+      return res.status(400).json({ error: 'Each pick must be a different horse' });
+    }
+
+    // Validate all horses are active in this event
+    for (const hid of [win_horse_id, place_horse_id, show_horse_id]) {
+      const horse = await db.get("SELECT id FROM horses_horses WHERE id = ? AND event_id = ? AND status = 'active'", [hid, pool.event_id]);
+      if (!horse) return res.status(400).json({ error: `Horse ${hid} is not active in this event` });
+    }
+
+    // Upsert picks (delete existing + insert)
+    await db.run('DELETE FROM horses_picks WHERE entry_id = ?', [entry.id]);
+    for (const [slot, horse_id] of [['win', win_horse_id], ['place', place_horse_id], ['show', show_horse_id]]) {
+      await db.run('INSERT INTO horses_picks (id, entry_id, slot, horse_id) VALUES (?, ?, ?, ?)', [uuidv4(), entry.id, slot, horse_id]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/picks error:', err.message);
+    res.status(500).json({ error: 'Failed to save picks' });
+  }
 });
 
 router.get('/pools/:id/picks', async (req, res) => {
-  // TODO: section-08 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+
+    const entry = await db.get('SELECT * FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'You are not a member of this pool' });
+
+    if (pool.status === 'open') {
+      // Pre-lock: only return own picks
+      const picks = await db.all(`
+        SELECT p.slot, p.horse_id, p.points_earned, h.horse_name, h.post_position, h.jockey_name, h.morning_line_odds
+        FROM horses_picks p JOIN horses_horses h ON p.horse_id = h.id
+        WHERE p.entry_id = ?
+      `, [entry.id]);
+      res.json({ picks, all_visible: false });
+    } else {
+      // Post-lock: return all entrants' picks
+      const allPicks = await db.all(`
+        SELECT e.display_name, e.user_id, p.slot, p.horse_id, p.points_earned,
+               h.horse_name, h.post_position, h.jockey_name, h.morning_line_odds
+        FROM horses_picks p
+        JOIN horses_entries e ON p.entry_id = e.id
+        JOIN horses_horses h ON p.horse_id = h.id
+        WHERE e.pool_id = ?
+        ORDER BY e.display_name, p.slot
+      `, [pool.id]);
+      res.json({ picks: allPicks, all_visible: true });
+    }
+  } catch (err) {
+    console.error('[horses] GET /pools/:id/picks error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch picks' });
+  }
 });
 
 // ── Squares ───────────────────────────────────────────────────────────────────
 
 router.post('/pools/:id/squares/claim', async (req, res) => {
-  // TODO: section-09 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.format_type !== 'squares') return res.status(400).json({ error: 'Not a squares pool' });
+    if (pool.status !== 'open') return res.status(400).json({ error: 'Pool is locked' });
+    if (pool.lock_time && new Date() >= new Date(pool.lock_time)) return res.status(400).json({ error: 'Lock time has passed' });
+
+    const entry = await db.get('SELECT * FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'Not a member of this pool' });
+
+    const { squares } = req.body; // [{row: 3, col: 7}, ...]
+    if (!squares || !squares.length) return res.status(400).json({ error: 'No squares specified' });
+
+    // Check per-person cap
+    const owned = await db.get('SELECT COUNT(*) as cnt FROM horses_squares WHERE pool_id = ? AND entry_id = ?', [pool.id, entry.id]);
+    const cap = pool.squares_per_person_cap || 10;
+    if ((owned?.cnt || 0) + squares.length > cap) {
+      return res.status(400).json({ error: `Exceeds per-person cap of ${cap} squares` });
+    }
+
+    // Claim each square
+    for (const sq of squares) {
+      const existing = await db.get('SELECT entry_id FROM horses_squares WHERE pool_id = ? AND row_num = ? AND col_num = ?', [pool.id, sq.row, sq.col]);
+      if (!existing) return res.status(400).json({ error: `Square (${sq.row},${sq.col}) does not exist` });
+      if (existing.entry_id) return res.status(409).json({ error: `Square (${sq.row},${sq.col}) is already claimed` });
+      await db.run('UPDATE horses_squares SET entry_id = ? WHERE pool_id = ? AND row_num = ? AND col_num = ?', [entry.id, pool.id, sq.row, sq.col]);
+    }
+
+    res.json({ success: true, claimed: squares.length });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/squares/claim error:', err.message);
+    res.status(500).json({ error: 'Failed to claim squares' });
+  }
 });
 
 router.post('/pools/:id/squares/unclaim', async (req, res) => {
-  // TODO: section-09 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool || pool.status !== 'open') return res.status(400).json({ error: 'Pool is locked or not found' });
+
+    const entry = await db.get('SELECT * FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'Not a member' });
+
+    const { squares } = req.body;
+    for (const sq of squares) {
+      await db.run('UPDATE horses_squares SET entry_id = NULL WHERE pool_id = ? AND row_num = ? AND col_num = ? AND entry_id = ?',
+        [pool.id, sq.row, sq.col, entry.id]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/squares/unclaim error:', err.message);
+    res.status(500).json({ error: 'Failed to unclaim squares' });
+  }
 });
 
 router.get('/pools/:id/squares', async (req, res) => {
-  // TODO: section-09 (member only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+
+    const entry = await db.get('SELECT * FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry) return res.status(403).json({ error: 'Not a member' });
+
+    const squares = await db.all(`
+      SELECT s.row_num, s.col_num, s.entry_id, s.row_digit, s.col_digit, e.display_name
+      FROM horses_squares s
+      LEFT JOIN horses_entries e ON s.entry_id = e.id
+      WHERE s.pool_id = ?
+      ORDER BY s.row_num, s.col_num
+    `, [pool.id]);
+
+    res.json({ squares });
+  } catch (err) {
+    console.error('[horses] GET /pools/:id/squares error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch squares' });
+  }
 });
 
+async function assignSquareNumbers(poolId) {
+  const rows = fisherYatesShuffle([0,1,2,3,4,5,6,7,8,9]);
+  const cols = fisherYatesShuffle([0,1,2,3,4,5,6,7,8,9]);
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 10; c++) {
+      await db.run('UPDATE horses_squares SET row_digit = ?, col_digit = ? WHERE pool_id = ? AND row_num = ? AND col_num = ?',
+        [rows[r], cols[c], poolId, r, c]);
+    }
+  }
+}
+
 router.post('/pools/:id/squares/assign', async (req, res) => {
-  // TODO: section-09 (commissioner only)
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+    if (pool.commissioner_id !== req.user.id) return res.status(403).json({ error: 'Commissioner only' });
+    if (pool.format_type !== 'squares') return res.status(400).json({ error: 'Not a squares pool' });
+
+    await assignSquareNumbers(pool.id);
+    if (pool.status === 'open') {
+      await db.run("UPDATE horses_pools SET status = 'locked' WHERE id = ?", [pool.id]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[horses] POST /pools/:id/squares/assign error:', err.message);
+    res.status(500).json({ error: 'Failed to assign numbers' });
+  }
 });
 
 // ── Results & Payouts ─────────────────────────────────────────────────────────
@@ -459,3 +613,4 @@ router.get('/pools/:id/payouts', async (req, res) => {
 
 module.exports = router;
 module.exports.executeRandomDraw = executeRandomDraw;
+module.exports.assignSquareNumbers = assignSquareNumbers;
