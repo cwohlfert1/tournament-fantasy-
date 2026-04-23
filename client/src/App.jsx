@@ -97,6 +97,12 @@ import GolfLeagueSettings from './pages/golf/GolfLeagueSettings';
 import GolfPoolPicks from './pages/golf/GolfPoolPicks';
 import GolfPoolPicksSubmitted from './pages/golf/GolfPoolPicksSubmitted';
 import GolfLayout from './components/GolfLayout';
+import RacingLayout from './pages/racing/RacingLayout';
+import RacingDashboard from './pages/racing/RacingDashboard';
+import CreateRacingPool from './pages/racing/CreateRacingPool';
+import JoinRacingPool from './pages/racing/JoinRacingPool';
+import RacingPool from './pages/racing/RacingPool';
+import RacingAdmin from './pages/racing/RacingAdmin';
 import InviteSignup from './pages/InviteSignup';
 
 const GOLF_FAVICON = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='white' stroke='%23d1d5db' stroke-width='2'/><circle cx='38' cy='34' r='5' fill='%239ca3af'/><circle cx='55' cy='28' r='5' fill='%239ca3af'/><circle cx='68' cy='42' r='5' fill='%239ca3af'/><circle cx='32' cy='50' r='5' fill='%239ca3af'/><circle cx='50' cy='47' r='5' fill='%239ca3af'/><circle cx='65' cy='58' r='5' fill='%239ca3af'/><circle cx='40' cy='63' r='5' fill='%239ca3af'/><circle cx='60' cy='70' r='5' fill='%239ca3af'/></svg>`;
@@ -207,6 +213,17 @@ export default function App() {
               <Route path="/golf/faq" element={<GolfFaq />} />
               <Route path="/golf/payment/success" element={<GolfPaymentSuccess />} />
               <Route path="/golf/admin" element={<ProtectedRoute><GolfSuperAdmin /></ProtectedRoute>} />
+            </Route>
+
+            {/* ── Racing ── */}
+            <Route element={<RacingLayout />}>
+              <Route path="/racing" element={<Navigate to="/racing/dashboard" replace />} />
+              <Route path="/racing/dashboard" element={<ProtectedRoute><RacingDashboard /></ProtectedRoute>} />
+              <Route path="/racing/create" element={<ProtectedRoute><CreateRacingPool /></ProtectedRoute>} />
+              <Route path="/racing/join" element={<JoinRacingPool />} />
+              <Route path="/racing/join/:code" element={<JoinRacingPool />} />
+              <Route path="/racing/pool/:id" element={<ProtectedRoute><RacingPool /></ProtectedRoute>} />
+              <Route path="/racing/admin" element={<ProtectedRoute><RacingAdmin /></ProtectedRoute>} />
             </Route>
           </Routes>
         </div>
