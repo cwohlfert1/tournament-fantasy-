@@ -493,6 +493,22 @@ router.post('/webhook', async (req, res) => {
           console.error('[square-webhook] golf handler error:', golfErr.message);
         }
 
+      // ── Horse racing pool entry ──────────────────────────────────────────
+      } else if (metadata.type === 'horses_entry') {
+        await db.run(
+          'UPDATE horses_entries SET is_paid = true WHERE id = ? AND pool_id = ?',
+          [metadata.entry_id, metadata.pool_id]
+        );
+        console.log(`[square-webhook] Racing entry paid: pool=${metadata.pool_id} entry=${metadata.entry_id}`);
+
+      // ── Horse racing squares batch ─────────────────────────────────────
+      } else if (metadata.type === 'horses_squares') {
+        await db.run(
+          'UPDATE horses_entries SET is_paid = true WHERE id = ? AND pool_id = ?',
+          [metadata.entry_id, metadata.pool_id]
+        );
+        console.log(`[square-webhook] Racing squares paid: pool=${metadata.pool_id} entry=${metadata.entry_id} squares=${metadata.square_count}`);
+
       // ── League entry fee ─────────────────────────────────────────────────
       } else if (metadata.type === 'entry_fee') {
         const memberPayment = await db.get(

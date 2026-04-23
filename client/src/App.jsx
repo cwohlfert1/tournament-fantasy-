@@ -100,6 +100,12 @@ import GolfLeagueSettings from './pages/golf/GolfLeagueSettings';
 import GolfPoolPicks from './pages/golf/GolfPoolPicks';
 import GolfPoolPicksSubmitted from './pages/golf/GolfPoolPicksSubmitted';
 import GolfLayout from './components/GolfLayout';
+import HorsesLayout from './pages/horses/HorsesLayout';
+import HorsesDashboard from './pages/horses/HorsesDashboard';
+import CreateHorsesPool from './pages/horses/CreateHorsesPool';
+import JoinHorsesPool from './pages/horses/JoinHorsesPool';
+import HorsesPool from './pages/horses/HorsesPool';
+import HorsesAdmin from './pages/horses/HorsesAdmin';
 import InviteSignup from './pages/InviteSignup';
 
 const GOLF_FAVICON = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='white' stroke='%23d1d5db' stroke-width='2'/><circle cx='38' cy='34' r='5' fill='%239ca3af'/><circle cx='55' cy='28' r='5' fill='%239ca3af'/><circle cx='68' cy='42' r='5' fill='%239ca3af'/><circle cx='32' cy='50' r='5' fill='%239ca3af'/><circle cx='50' cy='47' r='5' fill='%239ca3af'/><circle cx='65' cy='58' r='5' fill='%239ca3af'/><circle cx='40' cy='63' r='5' fill='%239ca3af'/><circle cx='60' cy='70' r='5' fill='%239ca3af'/></svg>`;
@@ -213,6 +219,17 @@ export default function App() {
               <Route path="/golf/faq" element={<GolfFaq />} />
               <Route path="/golf/payment/success" element={<GolfPaymentSuccess />} />
               <Route path="/golf/admin" element={<ProtectedRoute><GolfSuperAdmin /></ProtectedRoute>} />
+            </Route>
+
+            {/* ── Horses ── */}
+            <Route element={<HorsesLayout />}>
+              <Route path="/horses" element={<Navigate to="/horses/dashboard" replace />} />
+              <Route path="/horses/dashboard" element={<ProtectedRoute><HorsesDashboard /></ProtectedRoute>} />
+              <Route path="/horses/create" element={<ProtectedRoute><CreateHorsesPool /></ProtectedRoute>} />
+              <Route path="/horses/join" element={<JoinHorsesPool />} />
+              <Route path="/horses/join/:code" element={<JoinHorsesPool />} />
+              <Route path="/horses/pool/:id" element={<ProtectedRoute><HorsesPool /></ProtectedRoute>} />
+              <Route path="/horses/admin" element={<ProtectedRoute><HorsesAdmin /></ProtectedRoute>} />
             </Route>
           </Routes>
         </div>

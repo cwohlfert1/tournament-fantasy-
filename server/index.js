@@ -26,6 +26,7 @@ const rateLimit = require('express-rate-limit');
 
 const sqliteDb = require('./db');
 const db = require('./db/index');
+require('./horses-db');
 const { seedPlayers } = require('./seed');
 const { getDraftState, getCurrentPicker } = require('./routes/draft');
 const { performStartDraft } = require('./draftUtils');
@@ -146,6 +147,10 @@ app.use('/api/golf', require('./routes/golf-payments'));
 app.use('/api/golf', require('./routes/golf-admin'));
 app.use('/api/golf', require('./routes/golf-pool'));
 app.use('/api/golf/draft', require('./routes/golf-draft').router);
+
+// ── Horses routes ─────────────────────────────────────────────────────────────
+app.use('/api/horses', require('./routes/horses'));
+app.use('/api/horses', require('./routes/horses-payments'));
 
 // Serve uploaded avatars
 const path = require('path');
@@ -734,6 +739,10 @@ setTimeout(pollInjuries, 45 * 1000); // initial poll 45s after startup
 const { pollNews } = require('./newsPoller');
 setInterval(pollNews, 2 * 60 * 60 * 1000);
 setTimeout(pollNews, 60 * 1000); // initial poll 60s after startup
+
+// Horse racing lock service — polls every 30s for pools past lock time
+const { startHorsesLockService } = require('./horsesLockService');
+startHorsesLockService();
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

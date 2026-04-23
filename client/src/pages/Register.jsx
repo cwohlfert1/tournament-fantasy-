@@ -168,18 +168,7 @@ export default function Register() {
           {[
             {
               key: 'terms',
-              label: (
-                <>
-                  I agree to the{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300 underline underline-offset-2">
-                    Terms of Service
-                  </a>
-                  {' '}and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300 underline underline-offset-2">
-                    Privacy Policy
-                  </a>
-                </>
-              ),
+              label: (<>I agree to the{' '}<a href="/terms" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300 underline underline-offset-2">Terms of Service</a>{' '}and{' '}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300 underline underline-offset-2">Privacy Policy</a></>),
             },
             { key: 'age', label: 'I confirm that I am 18 years of age or older' },
             { key: 'state', label: 'I confirm that I am not located in or a resident of Washington (WA), Idaho (ID), Montana (MT), Nevada (NV), or Louisiana (LA)' },
