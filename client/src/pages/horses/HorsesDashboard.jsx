@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Clock, Trophy } from 'lucide-react';
 import api from '../../api';
+import horsesLogo from '../../assets/TourneyRun_Horses_Logo_Dark.svg';
 
 const FORMAT_META = {
   random_draw: { label: 'Random Draw', color: 'horses' },
@@ -29,6 +30,11 @@ export default function HorsesDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Logo */}
+      <div className="mb-6">
+        <img src={horsesLogo} alt="TourneyRun Horse Racing Pools" className="h-14 sm:h-16" />
+      </div>
+
       {/* Beta banner */}
       <div className="mb-6 rounded-2xl border border-horses-500/30 bg-horses-500/10 p-4 text-center">
         <p className="text-sm text-horses-300 font-medium">
@@ -44,8 +50,8 @@ export default function HorsesDashboard() {
             Join Pool
           </Link>
           <Link to="/horses/create"
-            className="text-sm font-bold text-[#1a0a10] rounded-lg px-4 py-2.5 transition-all"
-            style={{ background: '#8B1E3F' }}>
+            className="text-sm font-bold text-[#0a1414] rounded-lg px-4 py-2.5 transition-all"
+            style={{ background: '#2AA6A6' }}>
             Create Pool
           </Link>
         </div>
@@ -70,7 +76,7 @@ export default function HorsesDashboard() {
             return (
               <Link key={pool.id} to={`/horses/pool/${pool.id}`}
                 className="block rounded-2xl border border-gray-800 bg-gray-900 p-5 hover:border-horses-500/40 hover:shadow-xl hover:shadow-horses-500/10 hover:-translate-y-0.5 transition-all cursor-pointer">
-                <div className="h-1 w-full rounded-full mb-3" style={{ background: '#8B1E3F' }} />
+                <div className="h-1 w-full rounded-full mb-3" style={{ background: '#2AA6A6' }} />
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-white font-black text-lg truncate">{pool.name}</h3>
                   <div className="flex items-center gap-1.5">
