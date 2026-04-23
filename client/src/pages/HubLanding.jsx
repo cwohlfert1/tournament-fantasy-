@@ -239,6 +239,7 @@ function MyLeaguesDropdown() {
         }}>
           {[
             { to: '/golf/dashboard', dot: '#22c55e', label: 'Golf Leagues' },
+            { to: '/horses/dashboard', dot: '#2AA6A6', label: 'Horse Racing' },
             { to: '/basketball/dashboard', dot: '#ff8c00', label: 'College Basketball' },
           ].map(({ to, dot, label }) => (
             <Link
@@ -742,20 +743,20 @@ export default function HubLanding() {
               <div className="hub-float hub-card-hover" style={{
                 background: 'rgba(255,255,255,0.03)',
                 backdropFilter: 'blur(28px)',
-                border: '1px solid rgba(139,30,63,0.3)',
+                border: '1px solid rgba(42,166,166,0.3)',
                 borderRadius: 22, overflow: 'hidden',
                 animationDelay: '1.2s',
               }}>
-                <div style={{ height: 2, background: 'linear-gradient(90deg, #8B1E3F, #d44a6a 40%, transparent)' }} />
+                <div style={{ height: 2, background: 'linear-gradient(90deg, #2AA6A6, #36bfbf 40%, transparent)' }} />
                 <div style={{ padding: '22px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <svg viewBox="0 0 384 512" style={{ width: 20, height: 20 }}>
-                        <path fill="#e87690" d="M19 345.5l-10.1 10.1c-4.7 4.7-12.3 4.7-17 0l-5.7-5.7c-4.7-4.7-4.7-12.3 0-17l6.1-6.1c-3.1-6.2-5.1-13.2-5.1-20.5V208c0-34.2 19.1-63.8 47.2-79.1C24.4 112.2 16 91.5 16 68.8 16 30.8 46.8 0 84.8 0c11.8 0 22.9 3 32.6 8.2C125.5 3.1 134.5 0 144 0c44.2 0 80 35.8 80 80v16.2c18.8 15.3 37.6 34.6 37.6 78.4 0 4.1-.3 8.1-.8 12L304 208c12.4 4.4 22.4 13.3 28.2 24.8l38.1 76.2c6.1 12.2 8.8 25.8 7.7 39.4l-4.5 58.4C371.7 429.1 352.5 448 330.2 448H192c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64v-38.5zm64-188.9V306c0 5.5 4.5 10 10 10h2.3c4 0 7.5-2.4 9.1-6l48-112c2.8-6.5-2.1-13.6-9.1-13.6H96.8c-8 0-13.8 7.7-13.8 15.1V156.6zM80 96a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"/>
+                        <path fill="#5cd4d4" d="M19 345.5l-10.1 10.1c-4.7 4.7-12.3 4.7-17 0l-5.7-5.7c-4.7-4.7-4.7-12.3 0-17l6.1-6.1c-3.1-6.2-5.1-13.2-5.1-20.5V208c0-34.2 19.1-63.8 47.2-79.1C24.4 112.2 16 91.5 16 68.8 16 30.8 46.8 0 84.8 0c11.8 0 22.9 3 32.6 8.2C125.5 3.1 134.5 0 144 0c44.2 0 80 35.8 80 80v16.2c18.8 15.3 37.6 34.6 37.6 78.4 0 4.1-.3 8.1-.8 12L304 208c12.4 4.4 22.4 13.3 28.2 24.8l38.1 76.2c6.1 12.2 8.8 25.8 7.7 39.4l-4.5 58.4C371.7 429.1 352.5 448 330.2 448H192c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64v-38.5zm64-188.9V306c0 5.5 4.5 10 10 10h2.3c4 0 7.5-2.4 9.1-6l48-112c2.8-6.5-2.1-13.6-9.1-13.6H96.8c-8 0-13.8 7.7-13.8 15.1V156.6zM80 96a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"/>
                       </svg>
                       <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.06em', color: '#fff' }}>HORSE RACING</span>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#e87690', background: 'rgba(139,30,63,0.2)', border: '1px solid rgba(139,30,63,0.3)', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.04em' }}>DERBY 2026</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#5cd4d4', background: 'rgba(42,166,166,0.2)', border: '1px solid rgba(42,166,166,0.3)', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.04em' }}>DERBY 2026</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {[
@@ -766,8 +767,8 @@ export default function HubLanding() {
                       <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
                         <span style={{
                           width: 30, height: 30, borderRadius: 8,
-                          background: 'rgba(139,30,63,0.1)', border: '1px solid rgba(139,30,63,0.15)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, color: '#e87690',
+                          background: 'rgba(42,166,166,0.1)', border: '1px solid rgba(42,166,166,0.15)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, color: '#5cd4d4',
                         }}>&#x2713;</span>
                         {text}
                       </div>
@@ -775,10 +776,10 @@ export default function HubLanding() {
                   </div>
                   <Link to={user ? '/horses/dashboard' : '/horses/dashboard'} style={{
                     display: 'block', marginTop: 18, textAlign: 'center',
-                    background: 'linear-gradient(135deg, #8B1E3F, #d44a6a)',
+                    background: 'linear-gradient(135deg, #2AA6A6, #36bfbf)',
                     color: '#fff', fontWeight: 700, fontSize: 13,
                     padding: '11px 0', borderRadius: 12, textDecoration: 'none',
-                    boxShadow: '0 4px 20px rgba(139,30,63,0.25)',
+                    boxShadow: '0 4px 20px rgba(42,166,166,0.25)',
                     transition: 'opacity 0.15s',
                   }}
                     onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
