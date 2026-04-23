@@ -75,13 +75,13 @@ export default function CreateHorsesPool() {
     return true;
   };
 
-  const input = 'bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm w-full';
+  const input = 'bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm w-full';
   const labelCls = 'text-sm text-gray-400 mb-1 block';
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-6">Create Horse Racing Pool</h1>
-      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-lg px-3 py-2 mb-4">{error}</div>}
+      <h1 className="text-2xl sm:text-3xl font-black text-white mb-6">Create Horse Racing Pool</h1>
+      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
       {/* Step 1: Event */}
       {step === 1 && (
@@ -93,7 +93,7 @@ export default function CreateHorsesPool() {
             <div className="space-y-2">
               {events.map(ev => (
                 <button key={ev.id} onClick={() => { setField('event_id', ev.id); setField('lock_time', ev.default_lock_time || ''); }}
-                  className={`w-full text-left border rounded-lg p-4 transition-colors ${form.event_id === ev.id ? 'border-horses-500 bg-horses-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                  className={`w-full text-left border rounded-2xl p-4 transition-colors ${form.event_id === ev.id ? 'border-horses-500 bg-horses-500/10' : 'border-gray-800 hover:border-horses-500/40'}`}>
                   <div className="text-white font-medium">{ev.name}</div>
                   <div className="text-gray-400 text-sm">{ev.venue} &mdash; {ev.race_date ? new Date(ev.race_date).toLocaleDateString() : 'TBD'}</div>
                 </button>
@@ -110,7 +110,7 @@ export default function CreateHorsesPool() {
           <div className="space-y-2">
             {FORMATS.map(f => (
               <button key={f.value} onClick={() => selectFormat(f.value)}
-                className={`w-full text-left border rounded-lg p-4 transition-colors ${form.format_type === f.value ? 'border-horses-500 bg-horses-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                className={`w-full text-left border rounded-2xl p-4 transition-colors ${form.format_type === f.value ? 'border-horses-500 bg-horses-500/10' : 'border-gray-800 hover:border-horses-500/40'}`}>
                 <div className="text-white font-medium">{f.label}</div>
                 <div className="text-gray-400 text-sm">{f.desc}</div>
               </button>
@@ -151,7 +151,7 @@ export default function CreateHorsesPool() {
               { key: 'winner', label: 'Winner Only', desc: '100%' },
             ].map(p => (
               <button key={p.key} onClick={() => setPayoutPreset(p.key)}
-                className={`w-full text-left border rounded-lg p-3 ${form.payout_preset === p.key ? 'border-horses-500 bg-horses-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                className={`w-full text-left border rounded-2xl p-3 ${form.payout_preset === p.key ? 'border-horses-500 bg-horses-500/10' : 'border-gray-800 hover:border-horses-500/40'}`}>
                 <span className="text-white">{p.label}</span>
                 <span className="text-gray-400 text-sm ml-2">{p.desc}</span>
               </button>
@@ -205,7 +205,7 @@ export default function CreateHorsesPool() {
       {step === 6 && (
         <div className="space-y-4">
           <h2 className="text-lg text-white font-semibold">Confirm & Create</h2>
-          <div className="border border-gray-700 rounded-lg p-4 space-y-2 text-sm">
+          <div className="border border-gray-800 rounded-2xl p-4 space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-gray-400">Event</span><span className="text-white">{selectedEvent?.name}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Format</span><span className="text-white">{FORMATS.find(f => f.value === form.format_type)?.label}</span></div>
             <div className="flex justify-between"><span className="text-gray-400">Pool Name</span><span className="text-white">{form.name}</span></div>
@@ -214,7 +214,7 @@ export default function CreateHorsesPool() {
             {form.admin_fee_type && <div className="flex justify-between"><span className="text-gray-400">Admin Fee</span><span className="text-white">{form.admin_fee_type === 'flat' ? `$${form.admin_fee_value}` : `${form.admin_fee_value}%`}</span></div>}
           </div>
           <button onClick={handleSubmit} disabled={submitting}
-            className="w-full bg-horses-500 hover:bg-horses-600 text-white py-3 rounded-lg font-medium disabled:opacity-50">
+            className="w-full bg-horses-500 hover:bg-horses-600 text-white py-3 rounded-2xl font-medium disabled:opacity-50">
             {submitting ? 'Creating...' : 'Create Pool'}
           </button>
         </div>
@@ -225,7 +225,7 @@ export default function CreateHorsesPool() {
         {step > 1 ? <button onClick={() => setStep(s => s - 1)} className="text-gray-400 hover:text-white text-sm">Back</button> : <div />}
         {step < 6 && (
           <button onClick={() => setStep(s => s + 1)} disabled={!canNext()}
-            className="bg-gray-700 hover:bg-gray-600 text-white text-sm px-6 py-2 rounded-lg disabled:opacity-30">
+            className="bg-gray-700 hover:bg-gray-600 text-white text-sm px-6 py-2 rounded-2xl disabled:opacity-30">
             Next
           </button>
         )}

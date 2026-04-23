@@ -31,6 +31,22 @@ const GOLF_THEME = {
   subtitleColor:   '#16a34a',
 };
 
+const HORSES_THEME = {
+  bg:              '#1a0a10',
+  border:          '#8B1E3F33',
+  activeBg:        '#8B1E3F33',
+  hoverBg:         '#8B1E3F22',
+  avatarBg:        '#8B1E3F22',
+  avatarBorder:    '#8B1E3F55',
+  avatarText:      '#e87690',
+  divider:         '#2d1018',
+  logoutBorder:    '#2d1018',
+  adminColor:      '#e87690',
+  adminHoverColor: '#f2a8b8',
+  runColor:        '#8B1E3F',
+  subtitleColor:   '#d44a6a',
+};
+
 const BBALL_THEME = {
   bg:              '#111827',
   border:          '#1f2937',
@@ -55,6 +71,12 @@ const GOLF_NAV = [
   { to: '/golf/strategy',  label: 'Strategy'  },
   { to: '/golf/news',      label: 'News'      },
   { to: '/golf/faq',       label: 'FAQ'       },
+];
+
+const HORSES_NAV = [
+  { to: '/',                  label: 'Home'      },
+  { to: '/horses/dashboard',  label: 'My Pools'  },
+  { to: '/horses/create',     label: 'Create'    },
 ];
 
 const BBALL_NAV = [
@@ -222,13 +244,15 @@ export default function Navbar({ variant }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasLiveGames, setHasLiveGames] = useState(false);
 
-  const isGolf = variant === 'golf';
-  const theme    = isGolf ? GOLF_THEME : BBALL_THEME;
-  const navLinks = isGolf ? GOLF_NAV   : BBALL_NAV;
+  const isGolf   = variant === 'golf';
+  const isHorses = variant === 'horses';
+  const theme    = isGolf ? GOLF_THEME : isHorses ? HORSES_THEME : BBALL_THEME;
+  const navLinks = isGolf ? GOLF_NAV   : isHorses ? HORSES_NAV   : BBALL_NAV;
 
   // ── Visibility guard for the global (non-variant) navbar ──────────────────
   const path        = location.pathname;
-  const isGolfRoute = path.startsWith('/golf');
+  const isGolfRoute   = path.startsWith('/golf');
+  const isHorsesRoute = path.startsWith('/horses');
   const isHub       = path === '/';
   const isAuthPage  = path === '/login' || path === '/register' ||
                       path === '/forgot-password' || path === '/reset-password';
@@ -250,7 +274,7 @@ export default function Navbar({ variant }) {
     return () => { cancelled = true; clearInterval(id); };
   }, [user, isGolf, isGolfRoute]);
 
-  if (!isGolf && (isGolfRoute || isHub || isAuthPage || isAccountPage)) return null;
+  if (!isGolf && !isHorses && (isGolfRoute || isHorsesRoute || isHub || isAuthPage || isAccountPage)) return null;
 
   // ── Shared handlers / helpers ─────────────────────────────────────────────
 
