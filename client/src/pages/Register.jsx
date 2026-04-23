@@ -152,14 +152,7 @@ export default function Register() {
           {[
             {
               key: 'terms',
-              label: (
-                <>
-                  I agree to the{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'underline' }}>Terms of Service</a>
-                  {' '}and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'underline' }}>Privacy Policy</a>
-                </>,
-              ),
+              label: (<>I agree to the{' '}<a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'underline' }}>Terms of Service</a>{' '}and{' '}<a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#22c55e', textDecoration: 'underline' }}>Privacy Policy</a></>),
             },
             {
               key: 'age',

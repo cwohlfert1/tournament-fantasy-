@@ -340,8 +340,23 @@ router.post('/pools', async (req, res) => {
 });
 
 router.get('/pools/:id', async (req, res) => {
-  // TODO: section-12
-  res.status(501).json({ error: 'Not implemented' });
+  try {
+    const pool = await db.get('SELECT * FROM horses_pools WHERE id = ?', [req.params.id]);
+    if (!pool) return res.status(404).json({ error: 'Pool not found' });
+
+    const entry = await db.get('SELECT * FROM horses_entries WHERE pool_id = ? AND user_id = ?', [pool.id, req.user.id]);
+    if (!entry && pool.commissioner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Not a member of this pool' });
+    }
+
+    const entries = await db.all('SELECT * FROM horses_entries WHERE pool_id = ?', [pool.id]);
+    const event = await db.get('SELECT * FROM horses_events WHERE id = ?', [pool.event_id]);
+
+    res.json({ pool, entries, event });
+  } catch (err) {
+    console.error('[horses] GET /pools/:id error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch pool' });
+  }
 });
 
 router.post('/pools/join', async (req, res) => {

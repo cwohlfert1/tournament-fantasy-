@@ -40,6 +40,12 @@ function sqliteToPostgres(sql) {
   return sql.replace(/\?/g, () => `$${++idx}`);
 }
 
+// Normalize params: accept both db.get(sql, p1, p2) and db.get(sql, [p1, p2])
+function normalizeParams(params) {
+  if (params.length === 1 && Array.isArray(params[0])) return params[0];
+  return params;
+}
+
 // ── Startup logging ──────────────────────────────────────────────────────────
 console.log(`[db-layer] Mode: ${DB_MODE}`);
 if (DB_MODE === 'dual' || DB_MODE === 'supabase') {
@@ -62,6 +68,7 @@ if (DB_MODE === 'dual' || DB_MODE === 'supabase') {
  * @returns {Promise<Array<Object>>}
  */
 async function all(sql, ...params) {
+  params = normalizeParams(params);
   if (DB_MODE === 'sqlite' || DB_MODE === 'dual') {
     const rows = getSqlite().prepare(sql).all(...params);
 
@@ -89,6 +96,7 @@ async function all(sql, ...params) {
  * @returns {Promise<Object|undefined>}
  */
 async function get(sql, ...params) {
+  params = normalizeParams(params);
   if (DB_MODE === 'sqlite' || DB_MODE === 'dual') {
     const row = getSqlite().prepare(sql).get(...params);
 
@@ -114,6 +122,7 @@ async function get(sql, ...params) {
  * @returns {Promise<{changes: number}>}
  */
 async function run(sql, ...params) {
+  params = normalizeParams(params);
   if (DB_MODE === 'sqlite' || DB_MODE === 'dual') {
     const result = getSqlite().prepare(sql).run(...params);
 
