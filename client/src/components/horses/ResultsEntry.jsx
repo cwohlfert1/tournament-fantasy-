@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../../api';
+import HorseSelector from './HorseSelector';
 
 export default function ResultsEntry({ poolId, horses = [], formatType, existingResults = [], isFinalized, onResultsSaved, onPayoutsTriggered }) {
   const minPositions = formatType === 'squares' ? 4 : 3;
@@ -70,17 +71,19 @@ export default function ResultsEntry({ poolId, horses = [], formatType, existing
       <div className="text-sm text-gray-400 uppercase tracking-wide">Enter Finish Order</div>
       {results.map((r, i) => (
         <div key={i} className="flex items-center gap-2">
-          <span className="text-gray-400 font-mono w-8 text-sm">{r.finish_position}.</span>
-          <select value={r.horse_id} onChange={e => setResult(i, 'horse_id', e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm flex-1">
-            <option value="">Select horse</option>
-            {horses.filter(h => !usedHorses.includes(h.id) || h.id === r.horse_id).map(h => (
-              <option key={h.id} value={h.id}>#{h.post_position || '?'} {h.horse_name}</option>
-            ))}
-          </select>
+          <span className="text-gray-400 font-mono w-8 text-sm font-bold">{r.finish_position}.</span>
+          <div className="flex-1">
+            <HorseSelector
+              horses={horses}
+              value={r.horse_id}
+              onChange={id => setResult(i, 'horse_id', id)}
+              disabledIds={usedHorses.filter(h => h !== r.horse_id)}
+              placeholder={`${r.finish_position === 1 ? '1st' : r.finish_position === 2 ? '2nd' : r.finish_position === 3 ? '3rd' : `${r.finish_position}th`} place`}
+            />
+          </div>
           {formatType === 'squares' && (
             <input type="number" value={r.post_position || ''} onChange={e => setResult(i, 'post_position', Number(e.target.value))}
-              placeholder="PP" className="bg-gray-800 border border-gray-700 rounded px-2 py-2 text-white text-sm w-16" />
+              placeholder="PP" className="bg-gray-900 border border-gray-800 rounded-xl px-2 py-2.5 text-white text-sm w-16" />
           )}
         </div>
       ))}
