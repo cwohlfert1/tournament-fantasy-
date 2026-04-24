@@ -78,6 +78,15 @@ export default function CreateHorsesPool() {
   const input = 'bg-gray-800 border border-gray-800 rounded-2xl px-3 py-2 text-white text-sm w-full';
   const labelCls = 'text-sm text-gray-400 mb-1 block';
 
+  // Convert UTC/ISO timestamp to datetime-local format in browser local timezone
+  function toLocalDatetimeStr(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <h1 className="text-2xl sm:text-3xl font-black text-white mb-6">Create Horse Racing Pool</h1>
@@ -134,7 +143,7 @@ export default function CreateHorsesPool() {
             </div>
             <div>
               <label className={labelCls}>Lock Time</label>
-              <input type="datetime-local" value={form.lock_time?.slice(0, 16) || ''} onChange={e => setField('lock_time', e.target.value)} className={input} />
+              <input type="datetime-local" value={toLocalDatetimeStr(form.lock_time)} onChange={e => setField('lock_time', e.target.value)} className={input} />
             </div>
           </div>
         </div>
