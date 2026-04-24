@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
+import HorseSelector from './HorseSelector';
+import SilkSwatch from './SilkSwatch';
 
 const SLOTS = [
   { key: 'win', label: 'Win', desc: 'Pick the horse that will finish 1st' },
@@ -24,9 +26,8 @@ export default function PickWPSForm({ poolId, eventId, horses = [], currentPicks
   const activeHorses = horses.filter(h => h.status === 'active');
   const isLocked = poolStatus !== 'open';
 
-  function getAvailable(slot) {
-    const otherSlots = SLOTS.filter(s => s.key !== slot).map(s => picks[s.key]);
-    return activeHorses.filter(h => !otherSlots.includes(h.id));
+  function getDisabledIds(slot) {
+    return SLOTS.filter(s => s.key !== slot).map(s => picks[s.key]).filter(Boolean);
   }
 
   async function handleSave() {
@@ -46,42 +47,51 @@ export default function PickWPSForm({ poolId, eventId, horses = [], currentPicks
   }
 
   const allPicked = picks.win && picks.place && picks.show;
-  const horseName = (id) => activeHorses.find(h => h.id === id)?.horse_name || '';
 
   if (isLocked) {
     return (
       <div className="space-y-2">
-        <h3 className="text-sm text-gray-400 uppercase tracking-wide mb-2">Your Picks (locked)</h3>
-        {SLOTS.map(s => (
-          <div key={s.key} className="border border-gray-700 rounded-lg p-3 flex items-center justify-between">
-            <span className="text-gray-400 text-sm w-16">{s.label}</span>
-            <span className="text-white font-medium">{horseName(picks[s.key]) || 'No pick'}</span>
-          </div>
-        ))}
+        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-3">Your Picks (locked)</h3>
+        {SLOTS.map(s => {
+          const horse = activeHorses.find(h => h.id === picks[s.key]);
+          return (
+            <div key={s.key} className="border border-gray-800 rounded-2xl p-3 flex items-center gap-3">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide w-12">{s.label}</span>
+              {horse ? (
+                <>
+                  <SilkSwatch silkColors={horse.silk_colors} size={24} />
+                  <span className="text-white font-semibold text-sm">{horse.horse_name}</span>
+                  <span className="text-gray-500 text-xs ml-auto">#{horse.post_position}</span>
+                </>
+              ) : (
+                <span className="text-gray-500 text-sm">No pick</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-lg px-3 py-2">{error}</div>}
-      {saved && <div className="text-green-400 text-sm border border-green-500/30 rounded-lg px-3 py-2">Picks saved</div>}
+      {error && <div className="text-red-400 text-sm border border-red-500/30 rounded-2xl px-3 py-2">{error}</div>}
+      {saved && <div className="text-green-400 text-sm border border-green-500/30 rounded-2xl px-3 py-2">Picks saved</div>}
 
       {SLOTS.map(s => (
-        <div key={s.key}>
-          <label className="text-sm text-gray-400 mb-1 block">{s.label} &mdash; {s.desc}</label>
-          <select value={picks[s.key]} onChange={e => { setPicks(p => ({ ...p, [s.key]: e.target.value })); setSaved(false); }}
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm w-full">
-            <option value="">Select a horse</option>
-            {getAvailable(s.key).map(h => (
-              <option key={h.id} value={h.id}>#{h.post_position || '?'} {h.horse_name} ({h.morning_line_odds || 'N/A'})</option>
-            ))}
-          </select>
-        </div>
+        <HorseSelector
+          key={s.key}
+          label={`${s.label} — ${s.desc}`}
+          horses={activeHorses}
+          value={picks[s.key]}
+          onChange={id => { setPicks(p => ({ ...p, [s.key]: id })); setSaved(false); }}
+          disabledIds={getDisabledIds(s.key)}
+          placeholder={`Select ${s.label.toLowerCase()} horse`}
+        />
       ))}
 
       <button onClick={handleSave} disabled={!allPicked || saving}
-        className="w-full bg-horses-500 hover:bg-horses-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+        className="w-full bg-horses-500 hover:bg-horses-600 text-white py-2.5 rounded-2xl text-sm font-bold disabled:opacity-50">
         {saving ? 'Saving...' : 'Save Picks'}
       </button>
     </div>

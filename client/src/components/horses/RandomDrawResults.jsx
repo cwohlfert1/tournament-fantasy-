@@ -1,3 +1,5 @@
+import SilkSwatch from './SilkSwatch';
+
 export default function RandomDrawResults({ assignments = [], currentUserId, poolStatus }) {
   if (poolStatus === 'open') {
     return (
@@ -29,30 +31,35 @@ export default function RandomDrawResults({ assignments = [], currentUserId, poo
         return (
           <div
             key={a.entry_id}
-            className={`border rounded-lg p-3 transition-colors ${
+            className={`border rounded-2xl p-3 transition-colors ${
               isScratched ? 'border-red-500/30 opacity-50' :
               isMe ? 'border-horses-500 bg-horses-500/10' :
-              'border-gray-700'
+              'border-gray-800'
             }`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className={`text-sm font-medium ${isMe ? 'text-horses-300' : 'text-white'}`}>
-                {a.display_name}{isMe ? ' (you)' : ''}
-              </span>
-              {isScratched && (
-                <span className="text-xs text-red-400 uppercase tracking-wide">Refund pending</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-gray-400 font-mono">#{a.post_position || '?'}</span>
-              <span className={`text-white font-medium ${isScratched ? 'line-through' : ''}`}>
-                {a.horse_name}
-              </span>
-              {a.jockey_name && <span className="text-gray-500">{a.jockey_name}</span>}
-              {a.morning_line_odds && <span className="text-gray-500">({a.morning_line_odds})</span>}
-              {isShared && !isScratched && (
-                <span className="text-gray-500 text-xs">shared with {shared.length - 1} other{shared.length > 2 ? 's' : ''}</span>
-              )}
+            <div className="flex items-center gap-3">
+              <SilkSwatch silkColors={a.silk_colors} size={32} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className={`text-sm font-semibold ${isMe ? 'text-horses-300' : 'text-white'}`}>
+                    {a.display_name}{isMe ? ' (you)' : ''}
+                  </span>
+                  {isScratched && (
+                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-wide">Refund pending</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span className="font-mono">#{a.post_position || '?'}</span>
+                  <span className={`font-medium ${isScratched ? 'line-through text-gray-600' : 'text-gray-300'}`}>
+                    {a.horse_name}
+                  </span>
+                  {a.jockey_name && <span>&middot; {a.jockey_name}</span>}
+                  {a.morning_line_odds && <span>({a.morning_line_odds})</span>}
+                  {isShared && !isScratched && (
+                    <span className="text-gray-600">shared with {shared.length - 1} other{shared.length > 2 ? 's' : ''}</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         );
