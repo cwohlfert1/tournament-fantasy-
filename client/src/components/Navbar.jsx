@@ -352,8 +352,7 @@ export default function Navbar({ variant }) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <nav style={{ background: theme.bg, borderBottom: `0.5px solid ${theme.border}`, position: 'sticky', top: 0, zIndex: 50 }}>
-      {isHorses && <div style={{ height: 2, background: 'linear-gradient(90deg, #2AA6A6, #36bfbf 40%, transparent)' }} />}
+    <nav style={{ background: theme.bg, borderBottom: `0.5px solid ${theme.border}`, borderLeft: isHorses ? '3px solid #2AA6A6' : undefined, position: 'sticky', top: 0, zIndex: 50 }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
 
         {/* ── Logo ── */}
@@ -362,11 +361,11 @@ export default function Navbar({ variant }) {
           className="select-none"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
-          {isGolf ? <GolfBallSVG /> : isHorses ? <HorseHeadSVG /> : <BasketballSVG />}
+          {!isHorses && (isGolf ? <GolfBallSVG /> : <BasketballSVG />)}
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-            <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
-              <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span>
-              <span style={{ color: theme.runColor, fontWeight: 500 }}>run</span>
+            <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1, fontWeight: isHorses ? 800 : undefined }}>
+              <span style={{ color: '#ffffff', fontWeight: isHorses ? 800 : 400 }}>tourney</span>
+              <span style={{ color: theme.runColor, fontWeight: isHorses ? 800 : 500 }}>run</span>
             </div>
             <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: theme.subtitleColor, marginTop: 2 }}>
               {isGolf ? 'Fantasy Golf' : isHorses ? 'Horse Racing' : 'Player Pool Fantasy'}
