@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Clock, Trophy } from 'lucide-react';
 import api from '../../api';
-import horsesLogo from '../../assets/TourneyRun_Horses_Logo_Dark.svg';
+// Logo is in the navbar — no body logo needed
+
 
 const FORMAT_META = {
   random_draw: { label: 'Random Draw', color: 'horses' },
@@ -30,11 +31,6 @@ export default function HorsesDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Logo */}
-      <div className="mb-6">
-        <img src={horsesLogo} alt="TourneyRun Horse Racing Pools" className="h-14 sm:h-16" />
-      </div>
-
       {/* Beta banner */}
       <div className="mb-6 rounded-2xl border border-horses-500/30 bg-horses-500/10 p-4 text-center">
         <p className="text-sm text-horses-300 font-medium">

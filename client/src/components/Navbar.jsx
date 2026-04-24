@@ -361,7 +361,7 @@ export default function Navbar({ variant }) {
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
           {isHorses ? (
-            <img src={horsesLogo} alt="TourneyRun Horse Racing" style={{ height: 36 }} />
+            <img src={horsesLogo} alt="TourneyRun Horse Racing" style={{ height: 32 }} />
           ) : (
             <>
               {isGolf ? <GolfBallSVG /> : <BasketballSVG />}
