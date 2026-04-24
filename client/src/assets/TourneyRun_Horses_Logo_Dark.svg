@@ -1,20 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">
-  <defs>
-    <pattern id="stars" patternUnits="userSpaceOnUse" width="20" height="20">
-      <rect width="20" height="20" fill="#2AA6A6"/>
-      <polygon points="10,3 12,8 17,8 13,11 14.5,16 10,13 5.5,16 7,11 3,8 8,8" fill="#FFFFFF"/>
-    </pattern>
-    <clipPath id="runClip">
-      <text font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="96" x="433" y="140" letter-spacing="-3">run</text>
-    </clipPath>
-  </defs>
   <rect width="800" height="200" fill="#0a0a14" rx="16"/>
   <rect width="8" height="200" fill="#2AA6A6" rx="4"/>
   <text font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900"
         font-size="96" x="48" y="140" letter-spacing="-3">
-    <tspan fill="#ffffff">tourney</tspan>
+    <tspan fill="#ffffff">tourney</tspan><tspan fill="#2AA6A6">run</tspan>
   </text>
-  <rect x="420" y="50" width="280" height="110" fill="url(#stars)" clip-path="url(#runClip)"/>
   <text font-family="Arial, Helvetica, sans-serif" font-weight="400"
         font-size="18" fill="#2AA6A6" x="50" y="172" letter-spacing="3">HORSE RACING POOLS</text>
 </svg>
