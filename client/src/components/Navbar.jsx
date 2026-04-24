@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api';
 import { useGolfNotifications, NOTIF_STYLE } from '../hooks/useGolfNotifications';
+import horsesLogo from '../assets/TourneyRun_Horses_Logo_Dark.svg';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -359,16 +360,22 @@ export default function Navbar({ variant }) {
           className="select-none"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
-          {isGolf ? <GolfBallSVG /> : isHorses ? <HorseHeadSVG /> : <BasketballSVG />}
-          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-            <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
-              <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span>
-              <span style={{ color: theme.runColor, fontWeight: 500 }}>run</span>
-            </div>
-            <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: theme.subtitleColor, marginTop: 2 }}>
-              {isGolf ? 'Fantasy Golf' : isHorses ? 'Horse Racing' : 'Player Pool Fantasy'}
-            </div>
-          </div>
+          {isHorses ? (
+            <img src={horsesLogo} alt="TourneyRun Horse Racing" style={{ height: 36 }} />
+          ) : (
+            <>
+              {isGolf ? <GolfBallSVG /> : <BasketballSVG />}
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+                <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  <span style={{ color: '#ffffff', fontWeight: 400 }}>tourney</span>
+                  <span style={{ color: theme.runColor, fontWeight: 500 }}>run</span>
+                </div>
+                <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: theme.subtitleColor, marginTop: 2 }}>
+                  {isGolf ? 'Fantasy Golf' : 'Player Pool Fantasy'}
+                </div>
+              </div>
+            </>
+          )}
         </Link>
 
         {/* ── Center: nav links (desktop, hidden on mobile) ── */}
