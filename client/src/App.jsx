@@ -116,9 +116,9 @@ function FaviconSwap() {
   const location = useLocation();
   useEffect(() => {
     const isGolf = location.pathname.startsWith('/golf');
-    const isBball = location.pathname.startsWith('/basketball') || (!isGolf && location.pathname !== '/');
+    const isHorses = location.pathname.startsWith('/horses');
     const isHub = location.pathname === '/';
-    const icon = isGolf ? GOLF_FAVICON : isHub ? HUB_FAVICON : BASKETBALL_FAVICON;
+    const icon = isGolf ? GOLF_FAVICON : (isHorses || isHub) ? HUB_FAVICON : BASKETBALL_FAVICON;
     const favicon = document.querySelector("link[rel*='icon']");
     const appleIcon = document.querySelector("link[rel*='apple-touch-icon']");
     if (favicon) favicon.href = icon;
