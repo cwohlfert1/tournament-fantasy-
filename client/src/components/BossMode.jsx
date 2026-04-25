@@ -454,7 +454,8 @@ export default function BossMode() {
   const { pathname } = useLocation();
   const isDraft  = pathname.includes('/draft');
   const isGolf   = pathname.startsWith('/golf');
-  const isHorses = pathname.startsWith('/horses');
+  const isHorses   = pathname.startsWith('/horses');
+  const isFootball = pathname.startsWith('/football');
   const isHub    = pathname === '/';
   const isAuth    = pathname === '/login' || pathname === '/register' || pathname === '/forgot-password' || pathname === '/reset-password';
   const isAccount = pathname.startsWith('/account');
@@ -475,7 +476,7 @@ export default function BossMode() {
 
   return (
     <>
-      {mode === null && !isDraft && !isGolf && !isHorses && !isHub && !isAuth && !isAccount && (
+      {mode === null && !isDraft && !isGolf && !isHorses && !isFootball && !isHub && !isAuth && !isAccount && (
         <DraggableBossButton onClick={() => setMode('excel')} />
       )}
       {mode === 'excel' && <FakeExcel onDismiss={dismiss} />}

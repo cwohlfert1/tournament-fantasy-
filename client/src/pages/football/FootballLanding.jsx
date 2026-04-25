@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Bell, Users, Grid3X3, ShieldCheck, Calendar, Trophy } from 'lucide-react';
+import { ArrowRight, Bell, Users, DollarSign, Grid3X3, ShieldCheck, Calendar, Trophy } from 'lucide-react';
 
 const BLUE = '#3b82f6';
 const BLUE_LIGHT = '#93c5fd';
