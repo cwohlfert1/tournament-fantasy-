@@ -50,6 +50,22 @@ const HORSES_THEME = {
   subtitleColor:   '#36bfbf',
 };
 
+const FOOTBALL_THEME = {
+  bg:              '#0a0c14',
+  border:          '#3b82f633',
+  activeBg:        '#3b82f633',
+  hoverBg:         '#3b82f622',
+  avatarBg:        '#3b82f622',
+  avatarBorder:    '#3b82f655',
+  avatarText:      '#93c5fd',
+  divider:         '#1a2030',
+  logoutBorder:    '#1a2030',
+  adminColor:      '#93c5fd',
+  adminHoverColor: '#bfdbfe',
+  runColor:        '#3b82f6',
+  subtitleColor:   '#60a5fa',
+};
+
 const BBALL_THEME = {
   bg:              '#111827',
   border:          '#1f2937',
@@ -80,6 +96,11 @@ const HORSES_NAV = [
   { to: '/',                  label: 'Home'      },
   { to: '/horses/dashboard',  label: 'My Pools'  },
   { to: '/horses/create',     label: 'Create'    },
+];
+
+const FOOTBALL_NAV = [
+  { to: '/',                  label: 'Home'       },
+  { to: '/football',          label: 'NFL Pools'  },
 ];
 
 const BBALL_NAV = [
@@ -280,10 +301,11 @@ export default function Navbar({ variant }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasLiveGames, setHasLiveGames] = useState(false);
 
-  const isGolf   = variant === 'golf';
-  const isHorses = variant === 'horses';
-  const theme    = isGolf ? GOLF_THEME : isHorses ? HORSES_THEME : BBALL_THEME;
-  const navLinks = isGolf ? GOLF_NAV   : isHorses ? HORSES_NAV   : BBALL_NAV;
+  const isGolf     = variant === 'golf';
+  const isHorses   = variant === 'horses';
+  const isFootball = variant === 'football';
+  const theme    = isGolf ? GOLF_THEME : isHorses ? HORSES_THEME : isFootball ? FOOTBALL_THEME : BBALL_THEME;
+  const navLinks = isGolf ? GOLF_NAV   : isHorses ? HORSES_NAV   : isFootball ? FOOTBALL_NAV   : BBALL_NAV;
 
   // ── Visibility guard for the global (non-variant) navbar ──────────────────
   const path        = location.pathname;
@@ -311,19 +333,19 @@ export default function Navbar({ variant }) {
     return () => { cancelled = true; clearInterval(id); };
   }, [user, isGolf, isGolfRoute]);
 
-  if (!isGolf && !isHorses && (isGolfRoute || isHorsesRoute || isFootballRoute || isHub || isAuthPage || isAccountPage)) return null;
+  if (!isGolf && !isHorses && !isFootball && (isGolfRoute || isHorsesRoute || isFootballRoute || isHub || isAuthPage || isAccountPage)) return null;
 
   // ── Shared handlers / helpers ─────────────────────────────────────────────
 
   const handleLogout = () => {
     logout();
-    navigate(isGolf ? '/golf' : isHorses ? '/horses' : '/basketball');
+    navigate(isGolf ? '/golf' : isHorses ? '/horses' : isFootball ? '/football' : '/basketball');
     setMenuOpen(false);
   };
 
   const isActive = (p) => path === p || path.startsWith(p + '/');
 
-  const adminPath = isGolf ? '/golf/admin' : isHorses ? '/horses/admin' : '/basketball/admin';
+  const adminPath = isGolf ? '/golf/admin' : isHorses ? '/horses/admin' : isFootball ? '/football' : '/basketball/admin';
 
   const navLinkStyle = (to) => ({
     display: 'inline-flex',
@@ -358,18 +380,19 @@ export default function Navbar({ variant }) {
 
         {/* ── Logo ── */}
         <Link
-          to={isGolf ? '/golf' : isHorses ? '/horses/dashboard' : '/basketball'}
+          to={isGolf ? '/golf' : isHorses ? '/horses/dashboard' : isFootball ? '/football' : '/basketball'}
           className="select-none"
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
-          {!isHorses && (isGolf ? <GolfBallSVG /> : <BasketballSVG />)}
+          {!isHorses && !isFootball && (isGolf ? <GolfBallSVG /> : <BasketballSVG />)}
+          {isFootball && <span style={{ fontSize: 22, lineHeight: 1 }}>🏈</span>}
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
             <div style={{ fontSize: 20, letterSpacing: '-0.02em', lineHeight: 1, fontWeight: isHorses ? 800 : undefined }}>
               <span style={{ color: '#ffffff', fontWeight: isHorses ? 800 : 400 }}>tourney</span>
               <span style={{ color: theme.runColor, fontWeight: isHorses ? 800 : 500 }}>run</span>
             </div>
             <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: theme.subtitleColor, marginTop: 2 }}>
-              {isGolf ? 'Fantasy Golf' : isHorses ? 'Horse Racing' : 'Player Pool Fantasy'}
+              {isGolf ? 'Fantasy Golf' : isHorses ? 'Horse Racing' : isFootball ? 'Fantasy Football' : 'Player Pool Fantasy'}
             </div>
           </div>
         </Link>

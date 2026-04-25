@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bell, Users, DollarSign, Grid3X3, ShieldCheck, Calendar, Trophy } from 'lucide-react';
 import footballLogo from '../../assets/TourneyRun_Football_Logo_Dark.svg';
+import Navbar from '../../components/Navbar';
 
 const BLUE = '#3b82f6';
 const BLUE_LIGHT = '#93c5fd';
@@ -50,19 +51,8 @@ export default function FootballLanding() {
   return (
     <div className="min-h-screen" style={{ background: '#0a0c14' }}>
 
-      {/* ── NAV ── */}
-      <nav style={{ background: '#0a0c14', borderBottom: `0.5px solid ${BLUE}25`, borderLeft: `3px solid ${BLUE}`, position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/football" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src={footballLogo} alt="TourneyRun NFL Pools" style={{ height: 32 }} />
-          </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Link to="/golf" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Golf</Link>
-            <Link to="/horses" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Horses</Link>
-            <Link to="/" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Home</Link>
-          </div>
-        </div>
-      </nav>
+      {/* ── NAV — same unified Navbar as golf/horses ── */}
+      <Navbar variant="football" />
 
       {/* ── HERO ── */}
       <section style={{ borderBottom: '0.5px solid rgba(59,130,246,0.15)', position: 'relative', overflow: 'hidden' }}>
