@@ -473,7 +473,7 @@ export default function HubLanding() {
           <div className="hidden md:flex items-center" style={{ gap: 32 }}>
             {[
               { to: '/golf',             label: 'Golf',       accent: '#22c55e' },
-              { to: '/horses/dashboard', label: 'Horses',     accent: '#2AA6A6' },
+              { to: '/horses',           label: 'Horses',     accent: '#2AA6A6' },
               { to: '/basketball',       label: 'Basketball', accent: '#ff8c00' },
               { to: '/football',         label: 'Football',   accent: '#8B4513' },
               { to: '/golf/faq',         label: 'FAQ',        accent: '#ffffff' },

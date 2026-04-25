@@ -49,6 +49,23 @@ export default function FootballLanding() {
   return (
     <div className="min-h-screen" style={{ background: '#0a0c14' }}>
 
+      {/* ── NAV ── */}
+      <nav style={{ background: '#0a0c14', borderBottom: '0.5px solid rgba(59,130,246,0.15)', borderLeft: '3px solid #8B4513', position: 'sticky', top: 0, zIndex: 50 }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: '#fff' }}>
+              tourney<span style={{ color: '#8B4513' }}>run</span>
+            </span>
+            <span style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c68642', marginTop: 2 }}>NFL POOLS</span>
+          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Link to="/golf" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Golf</Link>
+            <Link to="/horses" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Horses</Link>
+            <Link to="/" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Home</Link>
+          </div>
+        </div>
+      </nav>
+
       {/* ── HERO ── */}
       <section style={{ borderBottom: '0.5px solid rgba(59,130,246,0.15)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -200, right: -200, width: 500, height: 500, background: `radial-gradient(circle, ${BLUE}12 0%, transparent 70%)`, pointerEvents: 'none' }} />

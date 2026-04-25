@@ -288,7 +288,8 @@ export default function Navbar({ variant }) {
   // ── Visibility guard for the global (non-variant) navbar ──────────────────
   const path        = location.pathname;
   const isGolfRoute   = path.startsWith('/golf');
-  const isHorsesRoute = path.startsWith('/horses');
+  const isHorsesRoute   = path.startsWith('/horses');
+  const isFootballRoute = path.startsWith('/football');
   const isHub       = path === '/';
   const isAuthPage  = path === '/login' || path === '/register' ||
                       path === '/forgot-password' || path === '/reset-password';
@@ -310,7 +311,7 @@ export default function Navbar({ variant }) {
     return () => { cancelled = true; clearInterval(id); };
   }, [user, isGolf, isGolfRoute]);
 
-  if (!isGolf && !isHorses && (isGolfRoute || isHorsesRoute || isHub || isAuthPage || isAccountPage)) return null;
+  if (!isGolf && !isHorses && (isGolfRoute || isHorsesRoute || isFootballRoute || isHub || isAuthPage || isAccountPage)) return null;
 
   // ── Shared handlers / helpers ─────────────────────────────────────────────
 
