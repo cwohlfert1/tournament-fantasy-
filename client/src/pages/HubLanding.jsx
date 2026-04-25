@@ -399,19 +399,23 @@ export default function HubLanding() {
               { to: '/golf', label: 'Golf' },
               { to: '/horses/dashboard', label: 'Horses' },
               { to: '/basketball', label: 'Basketball' },
+              { to: '#', label: 'Football', soon: true },
               { to: '/golf/faq', label: 'FAQ' },
-            ].map(({ to, label }, i, arr) => (
-              <Link key={to} to={to}
+            ].map(({ to, label, soon }, i, arr) => (
+              <Link key={label} to={to}
+                onClick={soon ? e => e.preventDefault() : undefined}
                 style={{
-                  padding: '8px 18px', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500,
-                  textDecoration: 'none', display: 'block',
+                  padding: '8px 18px', color: soon ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500,
+                  textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6,
                   borderRight: i < arr.length - 1 ? '0.5px solid rgba(255,255,255,0.1)' : 'none',
                   transition: 'color 0.15s, background 0.15s',
+                  cursor: soon ? 'default' : 'pointer',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={e => { if (!soon) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
+                onMouseLeave={e => { e.currentTarget.style.color = soon ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.8)'; e.currentTarget.style.background = 'transparent'; }}
               >
                 {label}
+                {soon && <span style={{ fontSize: 9, fontWeight: 700, color: '#3b82f6', background: 'rgba(59,130,246,0.15)', padding: '1px 5px', borderRadius: 4, letterSpacing: '0.04em' }}>SOON</span>}
               </Link>
             ))}
           </div>
