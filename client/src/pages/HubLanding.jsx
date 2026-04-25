@@ -475,7 +475,7 @@ export default function HubLanding() {
               { to: '/golf',             label: 'Golf',       accent: '#22c55e' },
               { to: '/horses/dashboard', label: 'Horses',     accent: '#2AA6A6' },
               { to: '/basketball',       label: 'Basketball', accent: '#ff8c00' },
-              { to: '#',                 label: 'Football',   accent: '#3b82f6', soon: true },
+              { to: '/football',         label: 'Football',   accent: '#3b82f6', soon: true },
               { to: '/golf/faq',         label: 'FAQ',        accent: '#ffffff' },
             ].map(({ to, label, accent, soon }) => (
               <Link
@@ -979,7 +979,7 @@ export default function HubLanding() {
                   padding: '14px 0', borderRadius: 14,
                   cursor: 'default',
                 }}>
-                  Coming Soon
+                  <Link to="/football" style={{ color: '#93c5fd', textDecoration: 'none' }}>Learn More →</Link>
                 </div>
               </div>
             </div>
@@ -1221,7 +1221,7 @@ export default function HubLanding() {
               { to: '/golf', label: '⛳ Fantasy Golf' },
               { to: '/horses/dashboard', label: '🐴 Horse Racing' },
               { to: '/basketball', label: '🏀 College Basketball' },
-              { to: '#', label: '🏈 NFL Pools (Coming Soon)' },
+              { to: '/football', label: '🏈 NFL Pools' },
               { to: '/golf/faq', label: 'FAQ' },
               { to: '/golf/strategy', label: 'Strategy' },
               { to: '/login', label: 'Sign In' },
