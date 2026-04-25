@@ -475,27 +475,32 @@ export default function HubLanding() {
               { to: '/golf',             label: 'Golf',       accent: '#22c55e' },
               { to: '/horses/dashboard', label: 'Horses',     accent: '#2AA6A6' },
               { to: '/basketball',       label: 'Basketball', accent: '#ff8c00' },
+              { to: '#',                 label: 'Football',   accent: '#3b82f6', soon: true },
               { to: '/golf/faq',         label: 'FAQ',        accent: '#ffffff' },
-            ].map(({ to, label, accent }) => (
+            ].map(({ to, label, accent, soon }) => (
               <Link
-                key={to}
+                key={label}
                 to={to}
+                onClick={soon ? e => e.preventDefault() : undefined}
                 className="hub-nav-link"
                 style={{
                   position: 'relative',
                   padding: '6px 2px',
-                  color: 'rgba(255,255,255,0.75)',
+                  color: soon ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)',
                   fontSize: 14,
                   fontWeight: 500,
                   letterSpacing: '-0.005em',
                   textDecoration: 'none',
                   transition: 'color 0.18s ease',
+                  cursor: soon ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
                   '--accent': accent,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+                onMouseEnter={e => { if (!soon) e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = soon ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)'; }}
               >
                 {label}
+                {soon && <span style={{ fontSize: 8, fontWeight: 700, color: accent, background: `${accent}22`, padding: '1px 5px', borderRadius: 3, letterSpacing: '0.04em' }}>SOON</span>}
                 <span
                   aria-hidden="true"
                   className="hub-nav-underline"
