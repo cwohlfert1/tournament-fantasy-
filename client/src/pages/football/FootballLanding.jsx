@@ -9,9 +9,19 @@ export default function FootballLanding() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  function handleNotify(e) {
+  async function handleNotify(e) {
     e.preventDefault();
-    if (email) setSubmitted(true);
+    if (!email) return;
+    try {
+      const res = await fetch('/api/football/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) setSubmitted(true);
+    } catch {
+      setSubmitted(true); // show confirmation even if API fails
+    }
   }
 
   return (

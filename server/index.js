@@ -152,6 +152,9 @@ app.use('/api/golf/draft', require('./routes/golf-draft').router);
 app.use('/api/horses', require('./routes/horses'));
 app.use('/api/horses', require('./routes/horses-payments'));
 
+// ── Football routes ───────────────────────────────────────────────────────────
+app.use('/api/football', require('./routes/football'));
+
 // Serve uploaded avatars
 const path = require('path');
 const fs = require('fs');
