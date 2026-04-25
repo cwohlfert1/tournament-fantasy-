@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bell, Users, DollarSign, Grid3X3, ShieldCheck, Calendar, Trophy } from 'lucide-react';
-import footballLogo from '../../assets/TourneyRun_Football_Logo_Dark.svg';
 import Navbar from '../../components/Navbar';
 
 const BLUE = '#3b82f6';
@@ -59,10 +58,6 @@ export default function FootballLanding() {
         <div style={{ position: 'absolute', top: -200, right: -200, width: 500, height: 500, background: `radial-gradient(circle, ${BLUE}12 0%, transparent 70%)`, pointerEvents: 'none' }} />
 
         <div style={{ maxWidth: 1000, margin: '0 auto', padding: 'clamp(60px,10vw,100px) 24px' }}>
-          <div style={{ marginBottom: 24 }}>
-            <img src={footballLogo} alt="TourneyRun NFL Pools" style={{ height: 48 }} />
-          </div>
-
           <span style={{
             display: 'inline-block', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             background: `${BLUE}18`, color: BLUE_LIGHT, border: `1px solid ${BLUE}30`,
