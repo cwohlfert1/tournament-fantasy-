@@ -3,39 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Bell, Users, DollarSign, Grid3X3, ShieldCheck, Calendar, Trophy } from 'lucide-react';
 import Navbar from '../../components/Navbar';
 
-const BLUE = '#3b82f6';
-const BLUE_LIGHT = '#93c5fd';
-
-const FORMATS = [
-  {
-    name: 'Super Bowl Squares',
-    desc: '10×10 grid pool for the Big Game. Claim squares, numbers assigned at kickoff. Score by last digit of each team\'s score.',
-    features: ['100 squares per grid', 'Quarterly payouts (Q1, Q2, Q3, Final)', 'Same grid engine as Derby Squares'],
-    icon: <Grid3X3 size={28} />,
-    ready: true,
-  },
-  {
-    name: 'Survivor Pool',
-    desc: 'Pick one team to win each week. If they lose, you\'re eliminated. Use each team only once all season.',
-    features: ['Last person standing wins', 'No team reuse — 18 weeks, 32 teams', 'Entry fee + winner-take-all or split'],
-    icon: <ShieldCheck size={28} />,
-    ready: true,
-  },
-  {
-    name: 'Weekly Pick\'em',
-    desc: 'Pick winners for every game each week. Straight up or against the spread. Season-long leaderboard.',
-    features: ['Pick all games or select matchups', 'ATS or straight-up options', 'Automated scoring from live results'],
-    icon: <Calendar size={28} />,
-    ready: true,
-  },
-  {
-    name: 'Confidence Pool',
-    desc: 'Pick winners and assign confidence points (1–16). Higher points on locks, lower on toss-ups. Most points wins.',
-    features: ['Rank your picks by confidence', 'Strategic depth beyond pick\'em', 'Weekly + season standings'],
-    icon: <Trophy size={28} />,
-    ready: true,
-  },
-];
+const ACCENT = '#3b82f6';
 
 export default function FootballLanding() {
   const [email, setEmail] = useState('');
@@ -43,123 +11,165 @@ export default function FootballLanding() {
 
   function handleNotify(e) {
     e.preventDefault();
-    // For now, just show confirmation — wire to API later
     if (email) setSubmitted(true);
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0a0c14' }}>
-
-      {/* ── NAV — same unified Navbar as golf/horses ── */}
+    <div className="bg-gray-950">
       <Navbar variant="football" />
 
       {/* ── HERO ── */}
-      <section style={{ borderBottom: '0.5px solid rgba(59,130,246,0.15)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -200, right: -200, width: 500, height: 500, background: `radial-gradient(circle, ${BLUE}12 0%, transparent 70%)`, pointerEvents: 'none' }} />
-
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: 'clamp(60px,10vw,100px) 24px' }}>
-          <span style={{
-            display: 'inline-block', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-            background: `${BLUE}18`, color: BLUE_LIGHT, border: `1px solid ${BLUE}30`,
-            padding: '5px 14px', borderRadius: 100, marginBottom: 24,
-          }}>Coming Fall 2026</span>
-
-          <h1 style={{ fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 900, color: '#fff', lineHeight: 1.08, letterSpacing: '-0.03em', marginBottom: 20, maxWidth: 700 }}>
-            Every NFL pool format.<br />
-            <span style={{ color: BLUE }}>One platform your group already knows.</span>
+      <div className="relative overflow-hidden px-4 pt-16 pb-20 sm:pt-20 sm:pb-24 text-center">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at top, ${ACCENT}14 0%, transparent 65%)` }} />
+        <div className="relative max-w-3xl mx-auto">
+          <span className="inline-block text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full mb-6" style={{ background: `${ACCENT}18`, color: ACCENT, border: `1px solid ${ACCENT}30` }}>
+            Coming Fall 2026
+          </span>
+          <h1 style={{ fontSize: 'clamp(48px,10vw,80px)', fontWeight: 900, lineHeight: 1.05, color: '#fff', marginBottom: 16, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
+            NFL POOLS.<br />
+            <span style={{ color: ACCENT }}>ONE PLATFORM.</span>
           </h1>
-
-          <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: 550, marginBottom: 32 }}>
-            Super Bowl Squares. Survivor. Pick'em. Confidence. The same invite-link, payment, and payout system your group uses for golf and Derby pools.
+          <p className="text-gray-400 text-lg sm:text-xl max-w-xl mx-auto mb-12 leading-relaxed">
+            Super Bowl Squares. Survivor. Pick'em. Confidence. The same platform your group already uses for golf and Derby pools.
           </p>
 
           {/* Notify form */}
           {submitted ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: BLUE_LIGHT, fontSize: 15, fontWeight: 600 }}>
+            <div className="inline-flex items-center gap-2 text-base font-semibold" style={{ color: ACCENT }}>
               <Bell size={18} /> We'll notify you when NFL Pools launches.
             </div>
           ) : (
-            <form onSubmit={handleNotify} style={{ display: 'flex', gap: 10, maxWidth: 440 }}>
-              <input
-                type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com" required
-                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 16px', color: '#fff', fontSize: 14 }}
-              />
-              <button type="submit"
-                style={{ background: BLUE, color: '#fff', fontWeight: 800, fontSize: 14, padding: '12px 24px', borderRadius: 10, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <form onSubmit={handleNotify} className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-full px-5 py-3.5 text-white text-sm focus:border-blue-500 focus:outline-none" />
+              <button type="submit" className="font-bold px-8 py-3.5 rounded-full text-white text-sm transition-all" style={{ background: ACCENT, boxShadow: `0 10px 40px ${ACCENT}40` }}>
                 Notify Me
               </button>
             </form>
           )}
         </div>
-      </section>
+      </div>
 
-      {/* ── FORMATS ── */}
-      <section style={{ padding: 'clamp(48px,8vw,80px) 24px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: BLUE, marginBottom: 12 }}>Pool Formats</div>
-            <h2 style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Four formats at launch</h2>
-          </div>
+      {/* ── PICK YOUR FORMAT ── */}
+      <div className="bg-gray-900/40 border-y border-gray-800 py-16 sm:py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white text-center mb-3">Four formats at launch</h2>
+          <p className="text-gray-500 text-center text-sm mb-10">Every pool format your group runs.</p>
+
           <div className="grid sm:grid-cols-2 gap-5">
-            {FORMATS.map(({ name, desc, features, icon }) => (
-              <div key={name} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(59,130,246,0.1)', borderRadius: 20, overflow: 'hidden' }}>
-                <div style={{ height: 3, background: `linear-gradient(90deg, ${BLUE}, ${BLUE_LIGHT} 50%, transparent)` }} />
-                <div style={{ padding: 28 }}>
-                  <div style={{ color: BLUE, marginBottom: 12 }}>{icon}</div>
-                  <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginBottom: 8 }}>{name}</h3>
-                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 16 }}>{desc}</p>
-                  <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {features.map(f => (
-                      <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-                        <span style={{ color: BLUE, fontWeight: 800 }}>✓</span> {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            {/* Super Bowl Squares */}
+            <div className="relative bg-gray-900 rounded-2xl p-5 sm:p-6" style={{ border: `1px solid ${ACCENT}60` }}>
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full text-white" style={{ background: ACCENT }}>
+                  Same Engine as Derby Squares
+                </span>
               </div>
-            ))}
+              <div className="mt-3">
+                <Grid3X3 size={24} className="mb-2" style={{ color: ACCENT }} />
+                <h3 className="text-white font-bold text-base">Super Bowl Squares</h3>
+                <p className="text-xs mt-0.5 mb-4" style={{ color: `${ACCENT}cc` }}>10×10 grid. Quarterly payouts.</p>
+                <ul className="space-y-2 text-sm text-gray-400">
+                  {['100 squares per grid', 'Quarterly payouts (Q1, Q2, Q3, Final)', 'Numbers assigned at kickoff', 'Commissioner sets per-square entry fee', 'Same grid UX as Derby Squares'].map(item => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="shrink-0 mt-0.5" style={{ color: ACCENT }}>✓</span><span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {/* Survivor */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-6 hover:border-gray-700 transition-colors">
+              <ShieldCheck size={24} className="mb-2" style={{ color: ACCENT }} />
+              <h3 className="text-white font-bold text-base">Survivor Pool</h3>
+              <p className="text-gray-400 text-xs mt-0.5 mb-4">Last person standing wins.</p>
+              <ul className="space-y-2 text-sm text-gray-400">
+                {['Pick one team to win each week', 'Lose once and you\'re eliminated', 'No team reuse all season', 'Entry fee + winner-take-all or split', '18 weeks, 32 teams'].map(item => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="shrink-0 mt-0.5" style={{ color: ACCENT }}>✓</span><span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Pick'em */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-6 hover:border-gray-700 transition-colors">
+              <Calendar size={24} className="mb-2" style={{ color: ACCENT }} />
+              <h3 className="text-white font-bold text-base">Weekly Pick'em</h3>
+              <p className="text-gray-400 text-xs mt-0.5 mb-4">Pick winners every week. Season-long leaderboard.</p>
+              <ul className="space-y-2 text-sm text-gray-400">
+                {['Pick all games or select matchups', 'Straight up or against the spread', 'Automated scoring from live results', 'Weekly + season standings', 'Great for large office groups'].map(item => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="shrink-0 mt-0.5" style={{ color: ACCENT }}>✓</span><span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Confidence */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 sm:p-6 hover:border-gray-700 transition-colors">
+              <Trophy size={24} className="mb-2" style={{ color: ACCENT }} />
+              <h3 className="text-white font-bold text-base">Confidence Pool</h3>
+              <p className="text-gray-400 text-xs mt-0.5 mb-4">Rank your picks by confidence. Strategic depth.</p>
+              <ul className="space-y-2 text-sm text-gray-400">
+                {['Pick winners and assign confidence points', 'Higher points on your locks', 'Most total points wins the week', 'Weekly + season standings', 'Strategic depth beyond basic pick\'em'].map(item => (
+                  <li key={item} className="flex items-start gap-2">
+                    <span className="shrink-0 mt-0.5" style={{ color: ACCENT }}>✓</span><span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* ── WHY TOURNEYRUN ── */}
-      <section style={{ padding: 'clamp(48px,8vw,80px) 24px', background: `${BLUE}05`, borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 40 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: BLUE, marginBottom: 12 }}>Same Platform</div>
-            <h2 style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>Your group already has accounts</h2>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {[
-              { icon: <Users size={20} />, title: 'One invite link', desc: 'Same join flow as golf and Derby pools. Text the link, they\'re in.' },
-              { icon: <DollarSign size={20} />, title: 'Payments handled', desc: 'Square checkout for entry fees. Venmo/PayPal/Zelle handles for payouts.' },
-              { icon: <ArrowRight size={20} />, title: 'Cross-sport groups', desc: 'Your golf league runs a survivor pool in September. Same app, same people.' },
-            ].map(({ icon, title, desc }) => (
-              <div key={title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 24, textAlign: 'center' }}>
-                <div style={{ color: BLUE, marginBottom: 12, display: 'flex', justifyContent: 'center' }}>{icon}</div>
-                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 6 }}>{title}</h3>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, margin: 0 }}>{desc}</p>
-              </div>
-            ))}
+      <div className="py-16 sm:py-24 px-4 border-b border-gray-800" style={{ background: '#0a0c14' }}>
+        <div className="max-w-5xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-10 sm:gap-16 items-center">
+            <div>
+              <h2 style={{ color: '#fff', fontSize: 'clamp(28px,4vw,42px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 16, letterSpacing: '-0.02em' }}>
+                Your group already<br />
+                <span style={{ color: ACCENT }}>has accounts.</span>
+              </h2>
+              <p style={{ color: '#9ca3af', fontSize: 16, lineHeight: 1.7, marginBottom: 24 }}>
+                The same invite link, payment system, and payout tracking your group uses for golf and Derby pools — now for NFL.
+              </p>
+              <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: '1.5px solid rgba(255,255,255,0.2)', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 28px', borderRadius: 999, textDecoration: 'none' }}>
+                Explore TourneyRun <ArrowRight size={16} />
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {[
+                { Icon: Users, title: 'One invite link', desc: 'Same join flow as golf and Derby pools. Text the link, they\'re in.' },
+                { Icon: DollarSign, title: 'Payments handled', desc: 'Square checkout for entry fees. Venmo/PayPal/Zelle handles for payouts.' },
+                { Icon: ArrowRight, title: 'Cross-sport groups', desc: 'Your golf league runs a survivor pool in September. Same app, same people.' },
+              ].map(({ Icon, title, desc }) => (
+                <div key={title} className="flex items-start gap-3 bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+                  <Icon size={16} className="shrink-0 mt-0.5" style={{ color: ACCENT }} />
+                  <div>
+                    <div className="text-white text-sm font-bold">{title}</div>
+                    <div className="text-gray-500 text-xs mt-0.5">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* ── BOTTOM CTA ── */}
-      <section style={{ padding: 'clamp(48px,8vw,80px) 24px' }}>
-        <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🏈</div>
-          <h2 style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', marginBottom: 12 }}>NFL season starts September 2026</h2>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, marginBottom: 32 }}>
-            We're building the same platform quality you know from TourneyRun Golf — applied to every NFL pool format your group runs.
-          </p>
-          <Link to="/"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: `1.5px solid rgba(255,255,255,0.2)`, color: '#fff', fontWeight: 700, fontSize: 15, padding: '13px 28px', borderRadius: 12, textDecoration: 'none' }}>
-            Explore TourneyRun <ArrowRight size={16} />
+      <div className="relative overflow-hidden px-4 py-20 sm:py-28 text-center">
+        <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at bottom, ${ACCENT}0a 0%, transparent 65%)` }} />
+        <div className="relative max-w-2xl mx-auto">
+          <div className="text-5xl mb-4">🏈</div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white mb-3">NFL Season starts September 2026</h2>
+          <p className="text-gray-500 text-base mb-8">Same platform quality you know from TourneyRun Golf — applied to every NFL pool format.</p>
+          <Link to="/" className="inline-flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 font-bold px-10 py-4 rounded-full transition-all text-base">
+            Explore TourneyRun <ArrowRight className="w-5 h-5" />
           </Link>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
