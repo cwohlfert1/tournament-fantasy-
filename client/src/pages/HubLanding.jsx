@@ -475,7 +475,7 @@ export default function HubLanding() {
               { to: '/golf',             label: 'Golf',       accent: '#22c55e' },
               { to: '/horses/dashboard', label: 'Horses',     accent: '#2AA6A6' },
               { to: '/basketball',       label: 'Basketball', accent: '#ff8c00' },
-              { to: '/football',         label: 'Football',   accent: '#3b82f6' },
+              { to: '/football',         label: 'Football',   accent: '#8B4513' },
               { to: '/golf/faq',         label: 'FAQ',        accent: '#ffffff' },
             ].map(({ to, label, accent, soon }) => (
               <Link
