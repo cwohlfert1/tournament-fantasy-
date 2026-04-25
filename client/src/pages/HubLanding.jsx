@@ -399,7 +399,7 @@ export default function HubLanding() {
               { to: '/golf', label: 'Golf' },
               { to: '/horses/dashboard', label: 'Horses' },
               { to: '/basketball', label: 'Basketball' },
-              { to: '#', label: 'Football', soon: true },
+              { to: '/football', label: 'Football', soon: true },
               { to: '/golf/faq', label: 'FAQ' },
             ].map(({ to, label, soon }, i, arr) => (
               <Link key={label} to={to}
@@ -889,7 +889,7 @@ export default function HubLanding() {
                   padding: '14px 0', borderRadius: 14,
                   cursor: 'default',
                 }}>
-                  Coming Soon
+                  <Link to="/football" style={{ color: '#93c5fd', textDecoration: 'none' }}>Learn More →</Link>
                 </div>
               </div>
             </div>
@@ -1131,7 +1131,7 @@ export default function HubLanding() {
               { to: '/golf', label: '⛳ Fantasy Golf' },
               { to: '/horses/dashboard', label: '🐴 Horse Racing' },
               { to: '/basketball', label: '🏀 College Basketball' },
-              { to: '#', label: '🏈 NFL Pools (Coming Soon)' },
+              { to: '/football', label: '🏈 NFL Pools' },
               { to: '/golf/faq', label: 'FAQ' },
               { to: '/golf/strategy', label: 'Strategy' },
               { to: '/login', label: 'Sign In' },
