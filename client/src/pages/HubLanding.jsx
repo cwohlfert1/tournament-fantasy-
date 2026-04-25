@@ -799,12 +799,12 @@ export default function HubLanding() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#16a34a', marginBottom: 14 }}>Choose Your Game</div>
-            <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 800, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>
-              Two sports. One platform.
+            <h2 style={{ margin: 0, fontSize: 'clamp(1.9rem, 4.5vw, 3rem)', fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', lineHeight: 1.1 }}>
+              Four sports. One platform.
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-5">
+          <div className="grid md:grid-cols-2 gap-5" style={{ maxWidth: 900, margin: '0 auto' }}>
             {/* Golf */}
             <div className="hub-card-hover" style={{
               background: 'rgba(255,255,255,0.03)',
@@ -933,6 +933,49 @@ export default function HubLanding() {
                 >
                   {user ? 'My Derby Pools →' : 'Derby Pools →'}
                 </Link>
+              </div>
+            </div>
+
+            {/* Football — Coming Soon */}
+            <div className="hub-card-hover" style={{
+              background: 'rgba(255,255,255,0.03)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(59,130,246,0.15)',
+              borderRadius: 24, overflow: 'hidden',
+              boxShadow: '0 0 60px rgba(59,130,246,0.04)',
+              position: 'relative',
+            }}>
+              <div style={{ height: 3, background: 'linear-gradient(90deg, #3b82f6, #60a5fa 50%, transparent)' }} />
+              <div style={{ padding: 'clamp(24px,4vw,36px)' }}>
+                <div style={{ marginBottom: 20 }}>
+                  <span style={{
+                    display: 'inline-block', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    background: 'rgba(59,130,246,0.12)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.25)',
+                    padding: '4px 12px', borderRadius: 100, marginBottom: 16,
+                  }}>Coming Fall 2026</span>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>🏈</div>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>NFL Pools</h3>
+                  <p style={{ margin: 0, fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
+                    Super Bowl Squares, Survivor pools, weekly pick'em, and more. The same platform your group already uses.
+                  </p>
+                </div>
+                <ul style={{ margin: '0 0 28px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {['Super Bowl Squares (10x10 grid)', 'Survivor / Last Man Standing', 'Weekly Pick\'em', 'Confidence pools'].map(b => (
+                    <li key={b} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.45)' }}>
+                      <span style={{ color: '#3b82f6', fontWeight: 800, flexShrink: 0 }}>✓</span>{b}
+                    </li>
+                  ))}
+                </ul>
+                <div style={{
+                  display: 'block', textAlign: 'center',
+                  background: 'rgba(59,130,246,0.15)',
+                  border: '1px solid rgba(59,130,246,0.25)',
+                  color: '#93c5fd', fontWeight: 800, fontSize: 15,
+                  padding: '14px 0', borderRadius: 14,
+                  cursor: 'default',
+                }}>
+                  Coming Soon
+                </div>
               </div>
             </div>
           </div>
@@ -1173,6 +1216,7 @@ export default function HubLanding() {
               { to: '/golf', label: '⛳ Fantasy Golf' },
               { to: '/horses/dashboard', label: '🐴 Horse Racing' },
               { to: '/basketball', label: '🏀 College Basketball' },
+              { to: '#', label: '🏈 NFL Pools (Coming Soon)' },
               { to: '/golf/faq', label: 'FAQ' },
               { to: '/golf/strategy', label: 'Strategy' },
               { to: '/login', label: 'Sign In' },
