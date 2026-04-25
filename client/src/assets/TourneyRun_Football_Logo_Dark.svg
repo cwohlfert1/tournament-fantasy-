@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">
+  <rect width="800" height="200" fill="#0a0c14" rx="16"/>
+  <rect width="8" height="200" fill="#3b82f6" rx="4"/>
+  <text font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900"
+        font-size="96" x="48" y="140" letter-spacing="-3">
+    <tspan fill="#ffffff">tourney</tspan><tspan fill="#3b82f6">run</tspan>
+  </text>
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="400"
+        font-size="18" fill="#3b82f6" x="50" y="172" letter-spacing="3">NFL POOLS</text>
+</svg>

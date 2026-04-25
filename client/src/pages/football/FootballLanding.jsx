@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Bell, Users, DollarSign, Grid3X3, ShieldCheck, Calendar, Trophy } from 'lucide-react';
+import footballLogo from '../../assets/TourneyRun_Football_Logo_Dark.svg';
 
 const BLUE = '#3b82f6';
 const BLUE_LIGHT = '#93c5fd';
@@ -50,13 +51,10 @@ export default function FootballLanding() {
     <div className="min-h-screen" style={{ background: '#0a0c14' }}>
 
       {/* ── NAV ── */}
-      <nav style={{ background: '#0a0c14', borderBottom: '0.5px solid rgba(59,130,246,0.15)', borderLeft: '3px solid #8B4513', position: 'sticky', top: 0, zIndex: 50 }}>
+      <nav style={{ background: '#0a0c14', borderBottom: `0.5px solid ${BLUE}25`, borderLeft: `3px solid ${BLUE}`, position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: '#fff' }}>
-              tourney<span style={{ color: '#8B4513' }}>run</span>
-            </span>
-            <span style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#c68642', marginTop: 2 }}>NFL POOLS</span>
+          <Link to="/football" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src={footballLogo} alt="TourneyRun NFL Pools" style={{ height: 32 }} />
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Link to="/golf" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}>Golf</Link>
@@ -72,10 +70,7 @@ export default function FootballLanding() {
 
         <div style={{ maxWidth: 1000, margin: '0 auto', padding: 'clamp(60px,10vw,100px) 24px' }}>
           <div style={{ marginBottom: 24 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: '#fff' }}>
-              tourney<span style={{ color: BLUE }}>run</span>
-            </span>
-            <span style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#60a5fa', marginLeft: 10 }}>NFL POOLS</span>
+            <img src={footballLogo} alt="TourneyRun NFL Pools" style={{ height: 48 }} />
           </div>
 
           <span style={{
